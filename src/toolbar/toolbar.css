@@ -63,6 +63,14 @@
   color: var(--dn-accent-hover);
 }
 
+.dn-toolbar-btn--copied {
+  color: #34c759;
+}
+
+.dn-toolbar-btn--copied:hover {
+  color: #2da44e;
+}
+
 .dn-toolbar-btn svg {
   width: 18px;
   height: 18px;
