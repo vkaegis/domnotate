@@ -1,0 +1,94 @@
+// ============================================================
+// Domnotate — Output Formatter (Module 5)
+// ============================================================
+
+import type { AnnotationSession, Annotation, Comment, OutputFormatter } from '@/types/core';
+
+function relativeTime(isoDate: string): string {
+  const now = Date.now();
+  const then = new Date(isoDate).getTime();
+  const diffMs = now - then;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffSec < 60) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay < 30) return `${diffDay}d ago`;
+  return new Date(isoDate).toLocaleDateString();
+}
+
+function elementHeading(a: Annotation): string {
+  const tag = a.element.tagName;
+  const id = a.element.id ? `#${a.element.id}` : '';
+  const cls = a.element.classes.length > 0 ? `.${a.element.classes[0]}` : '';
+  return `${tag}${id}${cls}`;
+}
+
+function renderComments(comments: Comment[], indent: number = 0): string {
+  // Build a map of parentId -> children
+  const byParent = new Map<string | null, Comment[]>();
+  for (const c of comments) {
+    const key = c.parentId;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key)!.push(c);
+  }
+
+  function renderLevel(parentId: string | null, depth: number): string {
+    const children = byParent.get(parentId) ?? [];
+    let out = '';
+    for (const c of children) {
+      const prefix = '  '.repeat(depth) + '- ';
+      out += `${prefix}**${c.authorName}** (${relativeTime(c.createdAt)}): ${c.text}\n`;
+      out += renderLevel(c.id, depth + 1);
+    }
+    return out;
+  }
+
+  return renderLevel(null, indent);
+}
+
+export function createOutputFormatter(): OutputFormatter {
+  return {
+    toMarkdown(session: AnnotationSession): string {
+      const openCount = session.annotations.filter(a => a.status === 'open').length;
+      const resolvedCount = session.annotations.filter(a => a.status === 'resolved').length;
+      const total = session.annotations.length;
+      const date = new Date().toISOString().split('T')[0];
+
+      let md = '';
+      md += `# Domnotate Annotations\n`;
+      md += `**Source:** ${session.sourceName}\n`;
+      md += `**Generated:** ${date}\n`;
+      md += `**Annotations:** ${total} (${openCount} open, ${resolvedCount} resolved)\n`;
+      md += `\n---\n\n`;
+
+      session.annotations.forEach((a, i) => {
+        const heading = elementHeading(a);
+        const status = a.status.toUpperCase();
+        md += `## ${i + 1}. ${heading} [${status}]\n`;
+        md += `**Selector:** \`${a.element.cssSelector}\`\n`;
+        md += `**XPath:** \`${a.element.xpath}\`\n`;
+        md += `**DOM Path:** ${a.element.domPath}\n`;
+        md += `**Dimensions:** ${a.element.rect.width} x ${a.element.rect.height}\n`;
+        md += `**Text Preview:** "${a.element.textPreview}"\n`;
+        md += `\n`;
+
+        if (a.comments.length > 0) {
+          md += `### Comments\n`;
+          md += renderComments(a.comments);
+        }
+
+        md += `\n---\n\n`;
+      });
+
+      return md;
+    },
+
+    toJSON(session: AnnotationSession): string {
+      return JSON.stringify(session, null, 2);
+    },
+  };
+}
