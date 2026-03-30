@@ -125,9 +125,7 @@ export function createAnnotationManager(): AnnotationManager {
     },
 
     clearAll(): void {
-      const b = requireBus();
       store.clear();
-      b.emit({ type: 'session:cleared' });
     },
   };
 
