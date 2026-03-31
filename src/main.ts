@@ -1,18 +1,19 @@
 import { createEventBus } from '@/events';
-import type { AppMode, AnnotationSession } from '@/types/core';
+import type { AnnotationSession } from '@/types/core';
 import { createContentLoader } from '@/loader/loader';
 import { createElementPicker } from '@/picker/picker';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
-import { createCommentPopup } from '@/annotations/comment-popup';
-import { createToolbar } from '@/toolbar/toolbar';
 import { createOutputFormatter } from '@/output/formatter';
 import { createSessionStore } from '@/output/store';
 import { copyToClipboard, downloadFile } from '@/output/exporter';
+import { initTheme } from '@/theme/theme-toggle';
 
 // ============================================================
 // Domnotate — Main Integration
 // ============================================================
+
+initTheme();
 
 const bus = createEventBus();
 
@@ -20,20 +21,16 @@ const bus = createEventBus();
 const dropZoneEl = document.getElementById('drop-zone')!;
 const iframeEl = document.getElementById('content-frame') as HTMLIFrameElement;
 const overlayEl = document.getElementById('overlay')!;
-const toolbarEl = document.getElementById('toolbar')!;
 
-// Create all modules
+// Create modules
 const loader = createContentLoader();
 const picker = createElementPicker();
 const manager = createAnnotationManager();
 const pinRenderer = createPinRenderer();
-const commentPopup = createCommentPopup(overlayEl, bus);
-const toolbar = createToolbar(toolbarEl, bus);
 const formatter = createOutputFormatter();
 const store = createSessionStore();
 
 // App state
-let currentMode: AppMode = 'browse';
 let currentSession: AnnotationSession | null = null;
 
 // Debounce helper
@@ -53,11 +50,10 @@ loader.init(iframeEl, dropZoneEl, bus);
 manager.init(bus);
 
 // ============================================================
-// Content loaded → init picker, pins, show toolbar
+// Content loaded → init picker, pins, show sidebar
 // ============================================================
 
 bus.on('content:loaded', (e) => {
-  // Create or resume session
   currentSession = {
     id: crypto.randomUUID(),
     sourceType: e.sourceType,
@@ -68,12 +64,10 @@ bus.on('content:loaded', (e) => {
     updatedAt: new Date().toISOString(),
   };
 
-  // Init picker and pin renderer (need iframe to be loaded)
   picker.init(iframeEl, overlayEl, bus);
   pinRenderer.init(overlayEl, iframeEl, bus, manager);
 
-  // Show toolbar
-  toolbar.show();
+  // Sidebar will be shown here (Task 5)
 });
 
 // ============================================================
@@ -83,34 +77,16 @@ bus.on('content:loaded', (e) => {
 bus.on('content:unloaded', () => {
   picker.deactivate();
   pinRenderer.destroy();
-  commentPopup.hide();
-  toolbar.hide();
   loader.unload();
   manager.clearAll();
   currentSession = null;
-  currentMode = 'browse';
 });
 
 // ============================================================
-// Mode changes → activate/deactivate picker
-// ============================================================
-
-bus.on('mode:change', (e) => {
-  currentMode = e.mode;
-  if (currentMode === 'annotate') {
-    picker.activate();
-  } else {
-    picker.deactivate();
-    commentPopup.hide();
-  }
-});
-
-// ============================================================
-// Element selected → show comment popup to create annotation
+// Single-shot annotation: picker:select → create annotation
 // ============================================================
 
 bus.on('picker:select', (e) => {
-  // Calculate anchor point in iframe content coordinates
   const iframeRect = iframeEl.getBoundingClientRect();
   const iframeDoc = iframeEl.contentDocument;
   const scrollX = iframeDoc?.documentElement.scrollLeft ?? 0;
@@ -121,43 +97,11 @@ bus.on('picker:select', (e) => {
     y: e.mouseY - iframeRect.top + scrollY,
   };
 
-  // Show comment popup for new annotation
-  commentPopup.show(null, e.mouseX, e.mouseY, (text: string) => {
-    manager.create(e.element, anchorPoint, text);
-    commentPopup.hide();
-  }, () => {
-    // On close — nothing extra needed
-  });
-});
+  // Create annotation with empty text — sidebar will focus the input
+  manager.create(e.element, anchorPoint, '');
 
-// ============================================================
-// Pin clicked → show comment popup for existing annotation
-// ============================================================
-
-bus.on('annotation:select', (e) => {
-  const annotation = manager.getById(e.id);
-  if (!annotation) return;
-
-  // Position popup near the pin
-  const iframeDoc = iframeEl.contentDocument;
-  const scrollX = iframeDoc?.documentElement.scrollLeft ?? 0;
-  const scrollY = iframeDoc?.documentElement.scrollTop ?? 0;
-
-  const popupX = annotation.anchorPoint.x - scrollX + 20;
-  const popupY = annotation.anchorPoint.y - scrollY;
-
-  commentPopup.show(annotation, popupX, popupY, (text: string) => {
-    manager.addComment(annotation.id, text);
-    // Re-show with updated annotation
-    const updated = manager.getById(annotation.id);
-    if (updated) {
-      commentPopup.show(updated, popupX, popupY, (t) => {
-        manager.addComment(updated.id, t);
-      }, () => {});
-    }
-  }, () => {
-    // On close
-  });
+  // Single-shot: deactivate picker after one selection
+  picker.deactivate();
 });
 
 // ============================================================
@@ -203,12 +147,11 @@ bus.on('annotation:update', autoSave);
 bus.on('annotation:delete', autoSave);
 
 // ============================================================
-// Session cleared (from toolbar clear button)
+// Session cleared
 // ============================================================
 
 bus.on('session:cleared', () => {
   manager.clearAll();
-  commentPopup.hide();
   pinRenderer.render();
 });
 
