@@ -16,6 +16,113 @@ const ICONS = {
   check: `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
 } as const;
 
+// --- Typewriter engine ---
+
+interface TypewriterState {
+  el: HTMLElement;
+  originalText: string;
+  charTimer: ReturnType<typeof setTimeout> | null;
+  revertTimer: ReturnType<typeof setTimeout> | null;
+  isAnimating: boolean;
+}
+
+function createTypewriter(el: HTMLElement): {
+  type(message: string, opts?: { revertDelay?: number }): void;
+  restoreNow(): void;
+  setOriginal(text: string): void;
+  destroy(): void;
+} {
+  const state: TypewriterState = {
+    el,
+    originalText: el.textContent ?? '',
+    charTimer: null,
+    revertTimer: null,
+    isAnimating: false,
+  };
+
+  const CHAR_DELAY = 70; // leisurely
+  const CURSOR_LINGER = 400; // cursor stays after last char
+  const DEFAULT_REVERT_DELAY = 2000; // ms before reverting to filename
+
+  function clearTimers(): void {
+    if (state.charTimer) { clearTimeout(state.charTimer); state.charTimer = null; }
+    if (state.revertTimer) { clearTimeout(state.revertTimer); state.revertTimer = null; }
+  }
+
+  function restoreFilename(): void {
+    clearTimers();
+    state.isAnimating = false;
+    state.el.classList.add('dn-file-label--fade-out');
+    setTimeout(() => {
+      state.el.textContent = state.originalText;
+      state.el.classList.remove('dn-file-label--typing', 'dn-file-label--fade-out');
+      state.el.classList.add('dn-file-label--fade-in');
+      setTimeout(() => state.el.classList.remove('dn-file-label--fade-in'), 300);
+    }, 300);
+  }
+
+  function typeMessage(message: string, revertDelay: number): void {
+    clearTimers();
+    state.isAnimating = true;
+    state.el.textContent = '';
+    state.el.classList.add('dn-file-label--typing');
+
+    // Create text node and cursor
+    const textNode = document.createTextNode('');
+    const cursor = document.createElement('span');
+    cursor.className = 'dn-typewriter-cursor';
+    state.el.appendChild(textNode);
+    state.el.appendChild(cursor);
+
+    let charIndex = 0;
+
+    function typeNext(): void {
+      if (charIndex < message.length) {
+        textNode.textContent = message.slice(0, charIndex + 1);
+        charIndex++;
+        state.charTimer = setTimeout(typeNext, CHAR_DELAY);
+      } else {
+        // Done typing — linger cursor, then schedule revert
+        state.charTimer = setTimeout(() => {
+          cursor.remove();
+          state.revertTimer = setTimeout(restoreFilename, revertDelay);
+        }, CURSOR_LINGER);
+      }
+    }
+
+    typeNext();
+  }
+
+  return {
+    type(message: string, opts?: { revertDelay?: number }): void {
+      typeMessage(message, opts?.revertDelay ?? DEFAULT_REVERT_DELAY);
+    },
+    restoreNow(): void {
+      restoreFilename();
+    },
+    setOriginal(text: string): void {
+      state.originalText = text;
+      if (!state.isAnimating) {
+        state.el.textContent = text;
+      }
+    },
+    destroy(): void {
+      clearTimers();
+    },
+  };
+}
+
+// --- Icon pop helper ---
+
+function setIconWithPop(btn: HTMLButtonElement, iconHtml: string): void {
+  btn.innerHTML = iconHtml;
+  const svg = btn.querySelector('svg');
+  if (svg) {
+    svg.classList.add('dn-icon-enter');
+    svg.addEventListener('animationend', () => svg.classList.remove('dn-icon-enter'), { once: true });
+  }
+}
+
 export function createNotesPanel(
   container: HTMLElement,
   bus: EventBus,
@@ -48,24 +155,43 @@ export function createNotesPanel(
   const annotateBtn = makeActionBtn(ICONS.pencil, 'Annotate an element (A)', () => {
     if (picker.isActive()) {
       picker.deactivate();
-      annotateBtn.classList.remove('dn-action-btn--active');
     } else {
       picker.activate();
-      annotateBtn.classList.add('dn-action-btn--active');
     }
   });
   // Pencil always shows terracotta to stand out from other muted icons
   annotateBtn.style.color = 'var(--dn-accent)';
 
+  // --- Sync annotate button with picker state (handles keyboard shortcut toggles) ---
+  const originalActivate = picker.activate.bind(picker);
+  const originalDeactivate = picker.deactivate.bind(picker);
+
+  picker.activate = () => {
+    const wasActive = picker.isActive();
+    originalActivate();
+    if (!wasActive && picker.isActive()) {
+      annotateBtn.classList.add('dn-action-btn--active');
+      typewriter.type('Annotating...', { revertDelay: 60000 });
+    }
+  };
+
+  picker.deactivate = () => {
+    const wasActive = picker.isActive();
+    originalDeactivate();
+    if (wasActive) {
+      annotateBtn.classList.remove('dn-action-btn--active');
+      typewriter.restoreNow();
+    }
+  };
+
   // Spacer after pencil
   const spacer = document.createElement('div');
   spacer.className = 'dn-action-spacer';
 
-  // Pins toggle (eye)
+  // Pins toggle (eye) — feedback handled by bus listener
   const pinsBtn = makeActionBtn(ICONS.eye, 'Toggle pin visibility (H)', () => {
     pinsVisible = !pinsVisible;
     bus.emit({ type: 'pins:visibility', visible: pinsVisible });
-    pinsBtn.innerHTML = pinsVisible ? ICONS.eye : ICONS.eyeOff;
   });
 
   // Copy button (clipboard)
@@ -74,13 +200,40 @@ export function createNotesPanel(
   });
 
   function showCopyFeedback(): void {
-    copyBtn.innerHTML = ICONS.check;
+    setIconWithPop(copyBtn, ICONS.check);
     copyBtn.classList.add('dn-action-btn--copied');
+    typewriter.type('Copied!');
     if (copyTimer) clearTimeout(copyTimer);
     copyTimer = setTimeout(() => {
-      copyBtn.innerHTML = ICONS.clipboard;
+      setIconWithPop(copyBtn, ICONS.clipboard);
       copyBtn.classList.remove('dn-action-btn--copied');
       copyTimer = null;
+    }, 1500);
+  }
+
+  let exportTimer: ReturnType<typeof setTimeout> | null = null;
+  function showExportFeedback(): void {
+    setIconWithPop(exportBtn, ICONS.check);
+    exportBtn.classList.add('dn-action-btn--success');
+    typewriter.type('Exported!');
+    if (exportTimer) clearTimeout(exportTimer);
+    exportTimer = setTimeout(() => {
+      setIconWithPop(exportBtn, ICONS.download);
+      exportBtn.classList.remove('dn-action-btn--success');
+      exportTimer = null;
+    }, 1500);
+  }
+
+  let clearTimer: ReturnType<typeof setTimeout> | null = null;
+  function showClearFeedback(): void {
+    setIconWithPop(clearBtn, ICONS.check);
+    clearBtn.classList.add('dn-action-btn--success');
+    typewriter.type('Cleared');
+    if (clearTimer) clearTimeout(clearTimer);
+    clearTimer = setTimeout(() => {
+      setIconWithPop(clearBtn, ICONS.trash);
+      clearBtn.classList.remove('dn-action-btn--success');
+      clearTimer = null;
     }, 1500);
   }
 
@@ -104,6 +257,9 @@ export function createNotesPanel(
   actionBar.appendChild(actionLeft);
   actionBar.appendChild(actionRight);
   container.appendChild(actionBar);
+
+  // --- Typewriter for file label ---
+  const typewriter = createTypewriter(fileLabel);
 
   // --- Notes list / empty state container ---
   const notesListEl = document.createElement('div');
@@ -258,6 +414,9 @@ export function createNotesPanel(
   unsubs.push(bus.on('annotation:create', (e) => {
     // Auto-deactivate annotate button
     annotateBtn.classList.remove('dn-action-btn--active');
+    // Typewriter feedback with annotation count
+    const count = manager.getAll().length;
+    typewriter.type(`Added #${count}`);
     // Select the new annotation
     selectedId = e.annotation.id;
     renderNotesList();
@@ -278,11 +437,14 @@ export function createNotesPanel(
   }));
 
   unsubs.push(bus.on('annotation:delete', () => {
+    const remaining = manager.getAll().length;
+    typewriter.type(remaining > 0 ? `${remaining} remaining` : 'All clear');
     renderNotesList();
   }));
 
   unsubs.push(bus.on('session:cleared', () => {
     selectedId = null;
+    showClearFeedback();
     renderNotesList();
   }));
 
@@ -302,20 +464,25 @@ export function createNotesPanel(
   }));
 
   unsubs.push(bus.on('content:loaded', (e) => {
-    fileLabel.textContent = e.sourceName;
+    typewriter.setOriginal(e.sourceName);
   }));
 
   unsubs.push(bus.on('content:unloaded', () => {
-    fileLabel.textContent = '';
+    typewriter.setOriginal('');
   }));
 
   unsubs.push(bus.on('output:copy', () => {
     showCopyFeedback();
   }));
 
+  unsubs.push(bus.on('output:download', () => {
+    showExportFeedback();
+  }));
+
   unsubs.push(bus.on('pins:visibility', (e) => {
     pinsVisible = e.visible;
-    pinsBtn.innerHTML = pinsVisible ? ICONS.eye : ICONS.eyeOff;
+    setIconWithPop(pinsBtn, pinsVisible ? ICONS.eye : ICONS.eyeOff);
+    typewriter.type(pinsVisible ? 'Pins visible' : 'Pins hidden');
   }));
 
   // Initial render (empty state)
@@ -327,6 +494,12 @@ export function createNotesPanel(
     destroy(): void {
       for (const unsub of unsubs) unsub();
       if (copyTimer) clearTimeout(copyTimer);
+      if (exportTimer) clearTimeout(exportTimer);
+      if (clearTimer) clearTimeout(clearTimer);
+      typewriter.destroy();
+      // Restore original picker methods
+      picker.activate = originalActivate;
+      picker.deactivate = originalDeactivate;
       actionBar.remove();
       notesListEl.remove();
     },
