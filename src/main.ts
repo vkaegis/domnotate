@@ -6,6 +6,8 @@ import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
 import { createCommentPopup } from '@/annotations/comment-popup';
 import { createToolbar } from '@/toolbar/toolbar';
+import { createSettingsPanel } from '@/toolbar/settings-panel';
+import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createOutputFormatter } from '@/output/formatter';
 import { createSessionStore } from '@/output/store';
 import { copyToClipboard, downloadFile } from '@/output/exporter';
@@ -28,13 +30,51 @@ const picker = createElementPicker();
 const manager = createAnnotationManager();
 const pinRenderer = createPinRenderer();
 const commentPopup = createCommentPopup(overlayEl, bus);
-const toolbar = createToolbar(toolbarEl, bus);
 const formatter = createOutputFormatter();
 const store = createSessionStore();
 
 // App state
 let currentMode: AppMode = 'browse';
 let currentSession: AnnotationSession | null = null;
+let selectedAnnotationId: string | null = null;
+let pinsVisible = true;
+
+// Settings panel proxy — resolved after shortcuts are created
+let settingsPanel: { open(): void; close(): void; destroy(): void };
+const openSettings = () => settingsPanel.open();
+
+// Toolbar
+const toolbar = createToolbar(toolbarEl, bus, {
+  onSettingsClick: openSettings,
+});
+
+// Keyboard shortcuts
+const shortcuts = createKeyboardShortcuts({
+  bus,
+  commentPopup,
+  settingsPanel: { open: openSettings },
+  isContentLoaded: () => currentSession !== null,
+  getMode: () => currentMode,
+  getSelectedAnnotationId: () => selectedAnnotationId,
+  getPinsVisible: () => pinsVisible,
+});
+
+// Now create settings panel with shortcut reference
+settingsPanel = createSettingsPanel(
+  bus,
+  shortcuts.getShortcuts().map((s) => ({ key: s.key, label: s.label })),
+);
+
+// Track selected annotation and pin visibility via bus
+bus.on('annotation:select', (e) => {
+  selectedAnnotationId = e.id;
+});
+bus.on('annotation:deselect', () => {
+  selectedAnnotationId = null;
+});
+bus.on('pins:visibility', (e) => {
+  pinsVisible = e.visible;
+});
 
 // Debounce helper
 function debounce(fn: () => void, ms: number): () => void {
