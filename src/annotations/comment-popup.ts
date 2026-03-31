@@ -20,6 +20,7 @@ export function createCommentPopup(
     onClose: () => void,
   ): void;
   hide(): void;
+  isVisible(): boolean;
   destroy(): void;
 } {
   // Suppress unused warning — bus reserved for future events
@@ -93,6 +94,14 @@ export function createCommentPopup(
       outline: 'none',
       boxSizing: 'border-box',
       fontFamily: 'inherit',
+    });
+
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const text = textarea.value.trim();
+        if (text) onSubmit(text);
+      }
     });
 
     const btnRow = document.createElement('div');
@@ -397,6 +406,9 @@ export function createCommentPopup(
   return {
     show,
     hide,
+    isVisible(): boolean {
+      return popup.style.display !== 'none';
+    },
     destroy(): void {
       hide();
       popup.remove();
