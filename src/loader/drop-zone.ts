@@ -47,7 +47,7 @@ export function createDropZone(
   title.className = 'dn-landing__title';
   const titleDom = document.createElement('span');
   titleDom.className = 'dn-landing__title-dom';
-  titleDom.textContent = 'Dom';
+  titleDom.textContent = 'DOM';
   const titleNotate = document.createElement('span');
   titleNotate.className = 'dn-landing__title-notate';
   titleNotate.textContent = 'notate';
@@ -56,7 +56,7 @@ export function createDropZone(
 
   const desc = document.createElement('p');
   desc.className = 'dn-landing__desc';
-  desc.textContent = 'Drop any HTML file. Click elements to pin notes. Export your annotations as Markdown or JSON.';
+  desc.textContent = 'Drop any HTML file. Click elements to pin notes. Export your annotations for agents.';
 
   const features = document.createElement('div');
   features.className = 'dn-landing__features';
@@ -64,7 +64,7 @@ export function createDropZone(
   const featureData = [
     { title: 'Drop', desc: 'HTML files or URLs' },
     { title: 'Pin', desc: 'Notes to elements' },
-    { title: 'Export', desc: 'Markdown or JSON' },
+    { title: 'Export', desc: 'As Markdown or JSON' },
   ];
 
   for (const f of featureData) {
