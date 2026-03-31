@@ -211,7 +211,7 @@ export function createNotesPanel(
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'dn-note-delete';
     deleteBtn.title = 'Delete annotation';
-    deleteBtn.innerHTML = ICONS.x;
+    deleteBtn.innerHTML = ICONS.trash;
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       manager.delete(annotation.id);

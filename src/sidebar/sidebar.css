@@ -204,14 +204,18 @@
   border-radius: var(--dn-radius-sm);
   background: transparent;
   color: var(--dn-text-primary);
-  opacity: 0.3;
+  opacity: 0;
   cursor: pointer;
   flex-shrink: 0;
   transition: opacity var(--dn-transition-fast), background var(--dn-transition-fast);
 }
 
+.dn-note-row:hover .dn-note-delete {
+  opacity: 0.3;
+}
+
 .dn-note-delete:hover {
-  opacity: 0.8;
+  opacity: 0.8 !important;
   background: var(--dn-bg-secondary);
 }
 
