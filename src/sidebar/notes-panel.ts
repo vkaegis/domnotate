@@ -45,7 +45,7 @@ export function createNotesPanel(
   actionRight.className = 'dn-action-bar__right';
 
   // Annotate button (pencil)
-  const annotateBtn = makeActionBtn(ICONS.pencil, 'Annotate an element', () => {
+  const annotateBtn = makeActionBtn(ICONS.pencil, 'Annotate an element (A)', () => {
     if (picker.isActive()) {
       picker.deactivate();
       annotateBtn.classList.remove('dn-action-btn--active');
@@ -62,15 +62,18 @@ export function createNotesPanel(
   spacer.className = 'dn-action-spacer';
 
   // Pins toggle (eye)
-  const pinsBtn = makeActionBtn(ICONS.eye, 'Toggle pin visibility', () => {
+  const pinsBtn = makeActionBtn(ICONS.eye, 'Toggle pin visibility (H)', () => {
     pinsVisible = !pinsVisible;
     bus.emit({ type: 'pins:visibility', visible: pinsVisible });
     pinsBtn.innerHTML = pinsVisible ? ICONS.eye : ICONS.eyeOff;
   });
 
   // Copy button (clipboard)
-  const copyBtn = makeActionBtn(ICONS.clipboard, 'Copy as Markdown', () => {
+  const copyBtn = makeActionBtn(ICONS.clipboard, 'Copy as Markdown (C)', () => {
     bus.emit({ type: 'output:copy', format: 'markdown' });
+  });
+
+  function showCopyFeedback(): void {
     copyBtn.innerHTML = ICONS.check;
     copyBtn.classList.add('dn-action-btn--copied');
     if (copyTimer) clearTimeout(copyTimer);
@@ -79,10 +82,10 @@ export function createNotesPanel(
       copyBtn.classList.remove('dn-action-btn--copied');
       copyTimer = null;
     }, 1500);
-  });
+  }
 
   // Export button (download)
-  const exportBtn = makeActionBtn(ICONS.download, 'Export as JSON', () => {
+  const exportBtn = makeActionBtn(ICONS.download, 'Export as JSON (D)', () => {
     bus.emit({ type: 'output:download', format: 'json' });
   });
 
@@ -304,6 +307,10 @@ export function createNotesPanel(
 
   unsubs.push(bus.on('content:unloaded', () => {
     fileLabel.textContent = '';
+  }));
+
+  unsubs.push(bus.on('output:copy', () => {
+    showCopyFeedback();
   }));
 
   unsubs.push(bus.on('pins:visibility', (e) => {
