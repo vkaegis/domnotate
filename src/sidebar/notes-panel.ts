@@ -61,6 +61,8 @@ export function createNotesPanel(
       annotateBtn.classList.add('dn-action-btn--active');
     }
   });
+  // Pencil always shows terracotta to stand out from other muted icons
+  annotateBtn.style.color = 'var(--dn-accent)';
 
   // Spacer after pencil
   const spacer = document.createElement('div');
