@@ -72,11 +72,10 @@ export function createToolbar(
     bus.emit({ type: 'pins:visibility', visible: pinsVisible });
   });
 
-  // 3. Copy (with "copied" feedback)
+  // 3. Copy (agent-optimized compact format)
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
-  const copyBtn = makeBtn(ICONS.clipboard, 'Copy as Markdown (C)', () => {
-    bus.emit({ type: 'output:copy', format: 'markdown' });
-    // Show check icon feedback
+  const copyBtn = makeBtn(ICONS.clipboard, 'Copy annotations (C)', () => {
+    bus.emit({ type: 'output:copy', format: 'compact' });
     copyBtn.innerHTML = ICONS.check;
     copyBtn.classList.add('dn-toolbar-btn--copied');
     if (copyTimer) clearTimeout(copyTimer);

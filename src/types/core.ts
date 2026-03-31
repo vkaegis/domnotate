@@ -86,7 +86,7 @@ export type DomnotateEvent =
   | { type: 'pins:visibility'; visible: boolean }
   | { type: 'session:loaded'; session: AnnotationSession }
   | { type: 'session:cleared' }
-  | { type: 'output:copy'; format: 'markdown' | 'json' }
+  | { type: 'output:copy'; format: 'markdown' | 'compact' | 'json' }
   | { type: 'output:download'; format: 'markdown' | 'json' };
 
 export type DomnotateEventType = DomnotateEvent['type'];
@@ -147,6 +147,7 @@ export interface PinRenderer {
 
 export interface OutputFormatter {
   toMarkdown(session: AnnotationSession): string;
+  toCompact(session: AnnotationSession): string;
   toJSON(session: AnnotationSession): string;
 }
 
