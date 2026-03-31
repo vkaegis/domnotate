@@ -5,8 +5,6 @@
 import type {
   Annotation,
   AnnotationManager,
-  AnnotationStatus,
-  Comment,
   ElementDescriptor,
   EventBus,
 } from '@/types/core';
@@ -42,26 +40,17 @@ export function createAnnotationManager(): AnnotationManager {
     create(
       element: ElementDescriptor,
       anchorPoint: { x: number; y: number },
-      comment: string,
+      text: string,
     ): Annotation {
       const b = requireBus();
       const timestamp = now();
-
-      const firstComment: Comment = {
-        id: crypto.randomUUID(),
-        authorName: 'Anonymous',
-        text: comment,
-        createdAt: timestamp,
-        parentId: null,
-      };
 
       const annotation: Annotation = {
         id: crypto.randomUUID(),
         element,
         anchorPoint,
-        comments: [firstComment],
-        status: 'open',
-        color: '#3b82f6',
+        text,
+        color: '#C4725A',
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -72,37 +61,14 @@ export function createAnnotationManager(): AnnotationManager {
       return annotation;
     },
 
-    addComment(annotationId: string, text: string, parentId?: string | null): Comment {
+    updateText(annotationId: string, text: string): void {
       const b = requireBus();
       const annotation = store.get(annotationId);
       if (!annotation) {
         throw new Error(`Annotation not found: ${annotationId}`);
       }
 
-      const comment: Comment = {
-        id: crypto.randomUUID(),
-        authorName: 'Anonymous',
-        text,
-        createdAt: now(),
-        parentId: parentId ?? null,
-      };
-
-      annotation.comments.push(comment);
-      annotation.updatedAt = now();
-
-      b.emit({ type: 'annotation:update', annotation });
-
-      return comment;
-    },
-
-    updateStatus(annotationId: string, status: AnnotationStatus): void {
-      const b = requireBus();
-      const annotation = store.get(annotationId);
-      if (!annotation) {
-        throw new Error(`Annotation not found: ${annotationId}`);
-      }
-
-      annotation.status = status;
+      annotation.text = text;
       annotation.updatedAt = now();
 
       b.emit({ type: 'annotation:update', annotation });

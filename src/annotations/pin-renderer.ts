@@ -48,7 +48,7 @@ export function createPinRenderer(): PinRenderer {
       width: `${size}px`,
       height: `${size}px`,
       borderRadius: '50%',
-      background: annotation.color,
+      background: 'var(--dn-pin-color)',
       color: '#fff',
       fontSize: '11px',
       fontWeight: '700',
@@ -83,7 +83,7 @@ export function createPinRenderer(): PinRenderer {
 
     const { scrollX, scrollY } = getIframeScroll();
     const pins = pinContainer.children;
-    const annotations = manager.getAll().filter((a) => a.status === 'open');
+    const annotations = manager.getAll();
 
     for (let i = 0; i < pins.length && i < annotations.length; i++) {
       const pin = pins[i] as HTMLElement;
@@ -179,7 +179,7 @@ export function createPinRenderer(): PinRenderer {
 
       if (!visible) return;
 
-      const annotations = manager.getAll().filter((a) => a.status === 'open');
+      const annotations = manager.getAll();
       const { scrollX, scrollY } = getIframeScroll();
 
       annotations.forEach((ann, index) => {

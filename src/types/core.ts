@@ -27,26 +27,14 @@ export interface ElementDescriptor {
 
 // === Annotations ===
 
-export type AnnotationStatus = 'open' | 'resolved';
-
-export interface Comment {
-  id: string;
-  authorName: string;
-  text: string;
-  createdAt: string; // ISO 8601
-  parentId: string | null; // null = top-level, string = reply
-}
-
 export interface Annotation {
   id: string;
   /** Identified element */
   element: ElementDescriptor;
   /** Pin position relative to iframe content (not viewport) */
   anchorPoint: { x: number; y: number };
-  /** All comments in this annotation thread */
-  comments: Comment[];
-  /** Current status */
-  status: AnnotationStatus;
+  /** The annotation text (single comment) */
+  text: string;
   /** Visual color tag */
   color: string;
   createdAt: string;
@@ -58,7 +46,7 @@ export interface Annotation {
 export interface AnnotationSession {
   id: string;
   sourceType: 'file' | 'url';
-  sourceName: string; // filename or URL
+  sourceName: string;
   /** Blob URL or original URL loaded in iframe */
   loadedUrl: string;
   annotations: Annotation[];
@@ -67,8 +55,6 @@ export interface AnnotationSession {
 }
 
 // === Event Bus ===
-
-export type AppMode = 'browse' | 'annotate';
 
 export type DomnotateEvent =
   | { type: 'content:loaded'; url: string; sourceType: 'file' | 'url'; sourceName: string }
@@ -82,7 +68,6 @@ export type DomnotateEvent =
   | { type: 'annotation:delete'; id: string }
   | { type: 'annotation:select'; id: string }
   | { type: 'annotation:deselect' }
-  | { type: 'mode:change'; mode: AppMode }
   | { type: 'pins:visibility'; visible: boolean }
   | { type: 'session:loaded'; session: AnnotationSession }
   | { type: 'session:cleared' }
@@ -101,7 +86,7 @@ export interface EventBus {
   on<T extends DomnotateEventType>(
     type: T,
     handler: (event: DomnotateEventPayload<T>) => void,
-  ): () => void; // returns unsubscribe
+  ): () => void;
 }
 
 // === Module Interfaces ===
@@ -125,9 +110,8 @@ export interface AnnotationManager {
   init(bus: EventBus): void;
   getAll(): Annotation[];
   getById(id: string): Annotation | undefined;
-  create(element: ElementDescriptor, anchorPoint: { x: number; y: number }, comment: string): Annotation;
-  addComment(annotationId: string, text: string, parentId?: string | null): Comment;
-  updateStatus(annotationId: string, status: AnnotationStatus): void;
+  create(element: ElementDescriptor, anchorPoint: { x: number; y: number }, text: string): Annotation;
+  updateText(annotationId: string, text: string): void;
   delete(id: string): void;
   loadAnnotations(annotations: Annotation[]): void;
   clearAll(): void;

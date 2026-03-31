@@ -1,35 +1,36 @@
+/* ============================================================
+   Domnotate — Theme
+   Light (parchment) default, dark via [data-theme="dark"]
+   ============================================================ */
+
 :root {
-  /* Surface colors */
-  --dn-bg-primary: #0a0a0a;
-  --dn-bg-secondary: #141414;
-  --dn-bg-elevated: #1a1a1a;
-  --dn-bg-overlay: rgba(26, 26, 26, 0.95);
+  /* Surface colors — warm parchment */
+  --dn-bg-primary: #FAF7F2;
+  --dn-bg-secondary: #F3EDE4;
+  --dn-bg-elevated: #FFFFFF;
+  --dn-bg-overlay: rgba(255, 255, 255, 0.95);
 
   /* Border */
-  --dn-border: #2a2a2a;
-  --dn-border-hover: #3a3a3a;
+  --dn-border: #E4D9CA;
+  --dn-border-hover: #D4C9BA;
 
   /* Text */
-  --dn-text-primary: #f0f0f0;
-  --dn-text-secondary: #999;
-  --dn-text-muted: #666;
+  --dn-text-primary: #2C2016;
+  --dn-text-secondary: #6B5D4F;
+  --dn-text-muted: #B0A48F;
 
-  /* Accent */
-  --dn-accent: #6366f1;
-  --dn-accent-hover: #818cf8;
-  --dn-accent-subtle: rgba(99, 102, 241, 0.15);
+  /* Accent — terracotta */
+  --dn-accent: #C4725A;
+  --dn-accent-hover: #B5634B;
+  --dn-accent-subtle: rgba(196, 114, 90, 0.06);
+  --dn-accent-muted: #8A7D6B;
 
-  /* Annotation colors */
-  --dn-pin-blue: #3b82f6;
-  --dn-pin-green: #22c55e;
-  --dn-pin-orange: #f97316;
-  --dn-pin-red: #ef4444;
-  --dn-pin-purple: #a855f7;
-  --dn-pin-yellow: #eab308;
+  /* Pin */
+  --dn-pin-color: #C4725A;
 
   /* Highlight overlay */
-  --dn-highlight-bg: rgba(99, 102, 241, 0.12);
-  --dn-highlight-border: rgba(99, 102, 241, 0.6);
+  --dn-highlight-bg: rgba(196, 114, 90, 0.12);
+  --dn-highlight-border: rgba(196, 114, 90, 0.6);
 
   /* Sizing */
   --dn-radius-sm: 6px;
@@ -37,8 +38,10 @@
   --dn-radius-lg: 16px;
   --dn-radius-pill: 999px;
 
-  --dn-pin-size: 24px;
-  --dn-toolbar-height: 48px;
+  --dn-pin-size: 22px;
+  --dn-sidebar-width: 360px;
+  --dn-sidebar-min: 200px;
+  --dn-sidebar-max: 50vw;
 
   /* Transitions */
   --dn-transition-fast: 120ms ease;
@@ -48,9 +51,63 @@
   --dn-z-iframe: 1;
   --dn-z-overlay: 1000;
   --dn-z-pins: 1001;
-  --dn-z-popup: 1002;
-  --dn-z-toolbar: 1003;
+  --dn-z-sidebar: 1002;
+  --dn-z-resize-handle: 1003;
 }
+
+/* --- Dark theme --- */
+[data-theme="dark"] {
+  --dn-bg-primary: #1A1612;
+  --dn-bg-secondary: #231F1A;
+  --dn-bg-elevated: #2C2620;
+  --dn-bg-overlay: rgba(26, 22, 18, 0.95);
+
+  --dn-border: #3D352B;
+  --dn-border-hover: #4D453B;
+
+  --dn-text-primary: #F0EBE4;
+  --dn-text-secondary: #A89B8C;
+  --dn-text-muted: #6B5D4F;
+
+  --dn-accent: #D4836A;
+  --dn-accent-hover: #E4937A;
+  --dn-accent-subtle: rgba(212, 131, 106, 0.08);
+  --dn-accent-muted: #8A7D6B;
+
+  --dn-pin-color: #D4836A;
+
+  --dn-highlight-bg: rgba(212, 131, 106, 0.15);
+  --dn-highlight-border: rgba(212, 131, 106, 0.6);
+}
+
+/* --- Auto dark mode for users who haven't explicitly chosen --- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --dn-bg-primary: #1A1612;
+    --dn-bg-secondary: #231F1A;
+    --dn-bg-elevated: #2C2620;
+    --dn-bg-overlay: rgba(26, 22, 18, 0.95);
+
+    --dn-border: #3D352B;
+    --dn-border-hover: #4D453B;
+
+    --dn-text-primary: #F0EBE4;
+    --dn-text-secondary: #A89B8C;
+    --dn-text-muted: #6B5D4F;
+
+    --dn-accent: #D4836A;
+    --dn-accent-hover: #E4937A;
+    --dn-accent-subtle: rgba(212, 131, 106, 0.08);
+    --dn-accent-muted: #8A7D6B;
+
+    --dn-pin-color: #D4836A;
+
+    --dn-highlight-bg: rgba(212, 131, 106, 0.15);
+    --dn-highlight-border: rgba(212, 131, 106, 0.6);
+  }
+}
+
+/* --- Base layout --- */
 
 body {
   background: var(--dn-bg-primary);
@@ -60,10 +117,15 @@ body {
 #app {
   height: 100vh;
   display: flex;
-  flex-direction: column;
   position: relative;
 }
 
+/* Drop zone takes full screen */
+#drop-zone {
+  flex: 1;
+}
+
+/* Content area + sidebar split */
 #content-area {
   flex: 1;
   position: relative;
@@ -93,9 +155,8 @@ body {
   pointer-events: none;
 }
 
-#toolbar {
-  position: fixed;
-  z-index: var(--dn-z-toolbar);
+#sidebar {
+  /* Visibility managed by sidebar.ts via .dn-sidebar--hidden */
 }
 
 .hidden {

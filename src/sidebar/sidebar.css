@@ -1,0 +1,258 @@
+/* ============================================================
+   Domnotate — Sidebar Styles
+   ============================================================ */
+
+/* --- Container --- */
+
+.dn-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--dn-sidebar-width);
+  min-width: var(--dn-sidebar-min);
+  max-width: var(--dn-sidebar-max);
+  height: 100vh;
+  background: var(--dn-bg-primary);
+  border-left: 1px solid var(--dn-border);
+  position: relative;
+  z-index: var(--dn-z-sidebar);
+  flex-shrink: 0;
+}
+
+.dn-sidebar--hidden {
+  display: none;
+}
+
+/* --- Resize handle --- */
+
+.dn-resize-handle {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: var(--dn-z-resize-handle);
+  background: transparent;
+  transition: background var(--dn-transition-fast);
+}
+
+.dn-resize-handle:hover,
+.dn-resize-handle--active {
+  background: var(--dn-accent);
+  opacity: 0.4;
+}
+
+/* --- Action bar --- */
+
+.dn-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--dn-border);
+  flex-shrink: 0;
+}
+
+.dn-action-bar__left {
+  display: flex;
+  align-items: center;
+}
+
+.dn-action-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dn-file-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dn-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.dn-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--dn-radius-sm);
+  background: transparent;
+  color: var(--dn-accent-muted);
+  cursor: pointer;
+  transition: background var(--dn-transition-fast), color var(--dn-transition-fast);
+  flex-shrink: 0;
+}
+
+.dn-action-btn:hover {
+  background: var(--dn-bg-secondary);
+  color: var(--dn-text-primary);
+}
+
+.dn-action-btn--active {
+  background: var(--dn-accent);
+  color: #fff;
+}
+
+.dn-action-btn--active:hover {
+  background: var(--dn-accent-hover);
+  color: #fff;
+}
+
+.dn-action-btn--dimmed {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.dn-action-btn--copied {
+  color: #34c759;
+}
+
+.dn-action-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dn-action-spacer {
+  width: 6px;
+  flex-shrink: 0;
+}
+
+/* --- Notes list --- */
+
+.dn-notes-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* --- Note row --- */
+
+.dn-note-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--dn-border);
+  cursor: pointer;
+  transition: background var(--dn-transition-fast);
+  position: relative;
+}
+
+.dn-note-row:hover {
+  background: var(--dn-bg-secondary);
+}
+
+.dn-note-row--selected {
+  background: var(--dn-accent-subtle);
+  border-left: 3px solid var(--dn-accent);
+  padding-left: 13px; /* 16 - 3 to compensate for border */
+}
+
+.dn-note-pin {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--dn-pin-color);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.dn-note-text {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--dn-text-primary);
+  min-height: 20px;
+  outline: none;
+  word-break: break-word;
+}
+
+.dn-note-text:empty::before {
+  content: 'Add a note...';
+  color: var(--dn-text-muted);
+}
+
+.dn-note-text:focus {
+  outline: none;
+}
+
+.dn-note-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--dn-radius-sm);
+  background: transparent;
+  color: var(--dn-text-primary);
+  opacity: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity var(--dn-transition-fast), background var(--dn-transition-fast);
+}
+
+.dn-note-row:hover .dn-note-delete {
+  opacity: 0.3;
+}
+
+.dn-note-delete:hover {
+  opacity: 0.8 !important;
+  background: var(--dn-bg-secondary);
+}
+
+.dn-note-delete svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- Empty state --- */
+
+.dn-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 48px 24px;
+  gap: 12px;
+}
+
+.dn-empty-state svg {
+  width: 32px;
+  height: 32px;
+  fill: none;
+  stroke: var(--dn-border);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dn-empty-state__text {
+  font-size: 13px;
+  color: var(--dn-text-muted);
+  text-align: center;
+}
