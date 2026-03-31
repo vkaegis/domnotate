@@ -46,6 +46,7 @@ function saveSettings(data: SettingsData): void {
 
 export function createSettingsPanel(
   bus: EventBus,
+  shortcuts?: Array<{ key: string; label: string }>,
 ): {
   open(): void;
   close(): void;
@@ -173,6 +174,83 @@ export function createSettingsPanel(
     colorRow.appendChild(btn);
   }
   panel.appendChild(colorRow);
+
+  // Keyboard shortcuts section
+  if (shortcuts && shortcuts.length > 0) {
+    const divider = document.createElement('div');
+    Object.assign(divider.style, {
+      height: '1px',
+      background: 'var(--dn-border)',
+      margin: '4px 0 20px',
+    });
+    panel.appendChild(divider);
+
+    const shortcutsLabel = document.createElement('label');
+    shortcutsLabel.textContent = 'Keyboard shortcuts';
+    Object.assign(shortcutsLabel.style, {
+      display: 'block',
+      fontSize: '13px',
+      color: 'var(--dn-text-secondary)',
+      marginBottom: '10px',
+    });
+    panel.appendChild(shortcutsLabel);
+
+    const shortcutList = document.createElement('div');
+    Object.assign(shortcutList.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      marginBottom: '20px',
+    });
+
+    const displayKey = (key: string): string => {
+      if (key === 'Delete') return 'Del';
+      if (key === 'Backspace') return '\u232B';
+      if (key === 'Escape') return 'Esc';
+      return key.toUpperCase();
+    };
+
+    for (const s of shortcuts) {
+      // Skip duplicate Backspace entry (Delete already covers it)
+      if (s.key === 'Backspace') continue;
+
+      const row = document.createElement('div');
+      Object.assign(row.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+      });
+
+      const kbd = document.createElement('kbd');
+      kbd.textContent = displayKey(s.key);
+      Object.assign(kbd.style, {
+        display: 'inline-block',
+        minWidth: '28px',
+        padding: '2px 8px',
+        borderRadius: 'var(--dn-radius-sm)',
+        border: '1px solid var(--dn-border)',
+        background: 'var(--dn-bg-secondary)',
+        color: 'var(--dn-text-primary)',
+        fontSize: '12px',
+        fontFamily: 'system-ui, sans-serif',
+        fontWeight: '500',
+        textAlign: 'center',
+      });
+
+      const desc = document.createElement('span');
+      desc.textContent = s.label;
+      Object.assign(desc.style, {
+        fontSize: '13px',
+        color: 'var(--dn-text-secondary)',
+      });
+
+      row.appendChild(kbd);
+      row.appendChild(desc);
+      shortcutList.appendChild(row);
+    }
+
+    panel.appendChild(shortcutList);
+  }
 
   // Close button
   const closeBtn = document.createElement('button');
