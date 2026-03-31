@@ -8,6 +8,7 @@ import { createOutputFormatter } from '@/output/formatter';
 import { createSessionStore } from '@/output/store';
 import { copyToClipboard, downloadFile } from '@/output/exporter';
 import { initTheme } from '@/theme/theme-toggle';
+import { createSidebar } from '@/sidebar/sidebar';
 
 // ============================================================
 // Domnotate — Main Integration
@@ -21,6 +22,7 @@ const bus = createEventBus();
 const dropZoneEl = document.getElementById('drop-zone')!;
 const iframeEl = document.getElementById('content-frame') as HTMLIFrameElement;
 const overlayEl = document.getElementById('overlay')!;
+const sidebarEl = document.getElementById('sidebar')!;
 
 // Create modules
 const loader = createContentLoader();
@@ -29,6 +31,7 @@ const manager = createAnnotationManager();
 const pinRenderer = createPinRenderer();
 const formatter = createOutputFormatter();
 const store = createSessionStore();
+const sidebar = createSidebar(sidebarEl, bus, manager, picker);
 
 // App state
 let currentSession: AnnotationSession | null = null;
@@ -66,8 +69,7 @@ bus.on('content:loaded', (e) => {
 
   picker.init(iframeEl, overlayEl, bus);
   pinRenderer.init(overlayEl, iframeEl, bus, manager);
-
-  // Sidebar will be shown here (Task 5)
+  sidebar.show();
 });
 
 // ============================================================
@@ -77,6 +79,7 @@ bus.on('content:loaded', (e) => {
 bus.on('content:unloaded', () => {
   picker.deactivate();
   pinRenderer.destroy();
+  sidebar.hide();
   loader.unload();
   manager.clearAll();
   currentSession = null;
@@ -102,6 +105,34 @@ bus.on('picker:select', (e) => {
 
   // Single-shot: deactivate picker after one selection
   picker.deactivate();
+});
+
+// ============================================================
+// Annotation selected → scroll iframe to element, highlight it
+// ============================================================
+
+bus.on('annotation:select', (e) => {
+  const annotation = manager.getById(e.id);
+  if (!annotation) return;
+
+  const iframeDoc = iframeEl.contentDocument;
+  if (!iframeDoc) return;
+
+  try {
+    const el = iframeDoc.querySelector(annotation.element.cssSelector);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Add a temporary dashed highlight border
+      const prev = (el as HTMLElement).style.outline;
+      (el as HTMLElement).style.outline = '2px dashed #C4725A';
+      setTimeout(() => {
+        (el as HTMLElement).style.outline = prev;
+      }, 2000);
+    }
+  } catch {
+    // Selector may be invalid — ignore
+  }
 });
 
 // ============================================================
