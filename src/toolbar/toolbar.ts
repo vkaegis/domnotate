@@ -14,7 +14,6 @@ const ICONS = {
   clipboard: `<svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`,
   download: `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   trash: `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
-  code: `<svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
   check: `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
   x: `<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
 } as const;
@@ -71,11 +70,10 @@ export function createToolbar(
     bus.emit({ type: 'pins:visibility', visible: pinsVisible });
   });
 
-  // 3. Copy (with "copied" feedback)
+  // 3. Copy (agent-optimized compact format)
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
-  const copyBtn = makeBtn(ICONS.clipboard, 'Copy as Markdown', () => {
-    bus.emit({ type: 'output:copy', format: 'markdown' });
-    // Show check icon feedback
+  const copyBtn = makeBtn(ICONS.clipboard, 'Copy annotations', () => {
+    bus.emit({ type: 'output:copy', format: 'compact' });
     copyBtn.innerHTML = ICONS.check;
     copyBtn.classList.add('dn-toolbar-btn--copied');
     if (copyTimer) clearTimeout(copyTimer);
@@ -83,20 +81,6 @@ export function createToolbar(
       copyBtn.innerHTML = ICONS.clipboard;
       copyBtn.classList.remove('dn-toolbar-btn--copied');
       copyTimer = null;
-    }, 1500);
-  });
-
-  // 3b. Copy compact (agent-optimized)
-  let compactCopyTimer: ReturnType<typeof setTimeout> | null = null;
-  const compactCopyBtn = makeBtn(ICONS.code, 'Copy for agent', () => {
-    bus.emit({ type: 'output:copy', format: 'compact' });
-    compactCopyBtn.innerHTML = ICONS.check;
-    compactCopyBtn.classList.add('dn-toolbar-btn--copied');
-    if (compactCopyTimer) clearTimeout(compactCopyTimer);
-    compactCopyTimer = setTimeout(() => {
-      compactCopyBtn.innerHTML = ICONS.code;
-      compactCopyBtn.classList.remove('dn-toolbar-btn--copied');
-      compactCopyTimer = null;
     }, 1500);
   });
 
@@ -120,7 +104,6 @@ export function createToolbar(
   el.appendChild(visibilityBtn);
   el.appendChild(makeDivider());
   el.appendChild(copyBtn);
-  el.appendChild(compactCopyBtn);
   el.appendChild(downloadBtn);
   el.appendChild(makeDivider());
   el.appendChild(clearBtn);
