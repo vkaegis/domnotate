@@ -64,34 +64,14 @@
   gap: 2px;
 }
 
-.dn-sort-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border: none;
-  border-radius: var(--dn-radius-sm);
-  background: transparent;
-  color: var(--dn-accent-muted);
-  font-family: inherit;
-  font-size: 11px;
+.dn-file-label {
+  font-size: 12px;
   font-weight: 500;
-  cursor: pointer;
-  transition: background var(--dn-transition-fast);
-}
-
-.dn-sort-toggle:hover {
-  background: var(--dn-bg-secondary);
-}
-
-.dn-sort-toggle svg {
-  width: 11px;
-  height: 11px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  color: var(--dn-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
 }
 
 .dn-action-btn {

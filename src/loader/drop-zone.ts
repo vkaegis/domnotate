@@ -2,6 +2,8 @@
 // Domnotate — Drop Zone UI
 // ============================================================
 
+import './drop-zone.css';
+
 /**
  * Build the landing-page drop zone inside `container`.
  * Calls `onFile` when a valid HTML file is provided (via drop or browse),
@@ -12,25 +14,6 @@ export function createDropZone(
   onFile: (file: File) => void,
   onUrl: (url: string) => void,
 ): void {
-  // ---- helpers ----
-
-  function el<K extends keyof HTMLElementTagNameMap>(
-    tag: K,
-    styles?: Partial<CSSStyleDeclaration>,
-    attrs?: Record<string, string>,
-  ): HTMLElementTagNameMap[K] {
-    const node = document.createElement(tag);
-    if (styles) Object.assign(node.style, styles);
-    if (attrs) {
-      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-    }
-    return node;
-  }
-
-  function text(parent: HTMLElement, txt: string): void {
-    parent.appendChild(document.createTextNode(txt));
-  }
-
   const VALID_EXTENSIONS = ['.html', '.htm'];
 
   function isHtmlFile(file: File): boolean {
@@ -46,256 +29,169 @@ export function createDropZone(
     }, 4000);
   }
 
-  // ---- layout ----
+  // ---- Layout: split screen ----
 
-  container.style.display = 'flex';
-  container.style.alignItems = 'center';
-  container.style.justifyContent = 'center';
-  container.style.height = '100vh';
-  container.style.background = 'var(--dn-bg-primary)';
-  container.style.padding = '24px';
-  container.style.boxSizing = 'border-box';
+  const landing = document.createElement('div');
+  landing.className = 'dn-landing';
 
-  // Card
-  const card = el('div', {
-    background: 'var(--dn-bg-elevated)',
-    border: '1px solid var(--dn-border)',
-    borderRadius: 'var(--dn-radius-lg)',
-    padding: '48px 40px',
-    maxWidth: '480px',
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '24px',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-  });
+  // --- Left: Branding ---
 
-  // Title
-  const title = el('h1', {
-    margin: '0',
-    fontSize: '28px',
-    fontWeight: '700',
-    letterSpacing: '-0.5px',
-    color: 'var(--dn-text-primary)',
-    textAlign: 'center',
-  });
-  text(title, 'Domnotate');
+  const brand = document.createElement('div');
+  brand.className = 'dn-landing__brand';
 
-  // Subtitle
-  const subtitle = el('p', {
-    margin: '0',
-    marginTop: '-12px',
-    fontSize: '14px',
-    color: 'var(--dn-text-secondary)',
-    textAlign: 'center',
-  });
-  text(subtitle, 'Annotate any HTML');
+  const eyebrow = document.createElement('div');
+  eyebrow.className = 'dn-landing__eyebrow';
+  eyebrow.textContent = 'HTML Annotation Tool';
 
-  // ---- Drop area ----
-  const dropArea = el('div', {
-    border: '2px dashed var(--dn-border)',
-    borderRadius: 'var(--dn-radius-md)',
-    padding: '40px 24px',
-    width: '100%',
-    boxSizing: 'border-box',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '12px',
-    cursor: 'pointer',
-    transition: 'border-color var(--dn-transition-normal), background var(--dn-transition-normal)',
-    background: 'transparent',
-  });
+  const title = document.createElement('h1');
+  title.className = 'dn-landing__title';
+  const titleDom = document.createElement('span');
+  titleDom.className = 'dn-landing__title-dom';
+  titleDom.textContent = 'Dom';
+  const titleNotate = document.createElement('span');
+  titleNotate.className = 'dn-landing__title-notate';
+  titleNotate.textContent = 'notate';
+  title.appendChild(titleDom);
+  title.appendChild(titleNotate);
 
-  // File icon (SVG via createElement)
+  const desc = document.createElement('p');
+  desc.className = 'dn-landing__desc';
+  desc.textContent = 'Drop any HTML file. Click elements to pin notes. Export your annotations as Markdown or JSON.';
+
+  const features = document.createElement('div');
+  features.className = 'dn-landing__features';
+
+  const featureData = [
+    { title: 'Drop', desc: 'HTML files or URLs' },
+    { title: 'Pin', desc: 'Notes to elements' },
+    { title: 'Export', desc: 'Markdown or JSON' },
+  ];
+
+  for (const f of featureData) {
+    const col = document.createElement('div');
+    const ft = document.createElement('div');
+    ft.className = 'dn-landing__feature-title';
+    ft.textContent = f.title;
+    const fd = document.createElement('div');
+    fd.className = 'dn-landing__feature-desc';
+    fd.textContent = f.desc;
+    col.appendChild(ft);
+    col.appendChild(fd);
+    features.appendChild(col);
+  }
+
+  brand.appendChild(eyebrow);
+  brand.appendChild(title);
+  brand.appendChild(desc);
+  brand.appendChild(features);
+
+  // --- Right: Drop zone ---
+
+  const dropPanel = document.createElement('div');
+  dropPanel.className = 'dn-landing__drop';
+
+  const card = document.createElement('div');
+  card.className = 'dn-landing__card';
+
+  // Drop area
+  const dropArea = document.createElement('div');
+  dropArea.className = 'dn-drop-area';
+
   const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  iconSvg.setAttribute('width', '40');
-  iconSvg.setAttribute('height', '40');
+  iconSvg.setAttribute('class', 'dn-drop-area__icon');
   iconSvg.setAttribute('viewBox', '0 0 24 24');
-  iconSvg.setAttribute('fill', 'none');
-  iconSvg.setAttribute('stroke', 'var(--dn-text-muted)');
-  iconSvg.setAttribute('stroke-width', '1.5');
-  iconSvg.setAttribute('stroke-linecap', 'round');
-  iconSvg.setAttribute('stroke-linejoin', 'round');
-
-  const iconPath1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  iconPath1.setAttribute('d', 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z');
+  const iconPath1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  iconPath1.setAttribute('x1', '12');
+  iconPath1.setAttribute('y1', '19');
+  iconPath1.setAttribute('x2', '12');
+  iconPath1.setAttribute('y2', '5');
   const iconPath2 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  iconPath2.setAttribute('points', '14 2 14 8 20 8');
-  const iconPath3 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  iconPath3.setAttribute('x1', '12');
-  iconPath3.setAttribute('y1', '18');
-  iconPath3.setAttribute('x2', '12');
-  iconPath3.setAttribute('y2', '12');
-  const iconPath4 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  iconPath4.setAttribute('x1', '9');
-  iconPath4.setAttribute('y1', '15');
-  iconPath4.setAttribute('x2', '15');
-  iconPath4.setAttribute('y2', '15');
+  iconPath2.setAttribute('points', '5 12 12 5 19 12');
   iconSvg.appendChild(iconPath1);
   iconSvg.appendChild(iconPath2);
-  iconSvg.appendChild(iconPath3);
-  iconSvg.appendChild(iconPath4);
+
+  const dropLabel = document.createElement('div');
+  dropLabel.className = 'dn-drop-area__label';
+  dropLabel.textContent = 'Drop HTML here';
+
+  const dropHint = document.createElement('div');
+  dropHint.className = 'dn-drop-area__hint';
+  dropHint.textContent = '.html or .htm files';
+
   dropArea.appendChild(iconSvg);
-
-  const dropLabel = el('span', {
-    fontSize: '14px',
-    color: 'var(--dn-text-secondary)',
-    textAlign: 'center',
-  });
-  text(dropLabel, 'Drop an HTML file here');
   dropArea.appendChild(dropLabel);
+  dropArea.appendChild(dropHint);
 
-  // ---- Separator 1 ----
-  function makeSeparator(): HTMLElement {
-    const sep = el('div', {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      width: '100%',
-    });
-    const lineStyle: Partial<CSSStyleDeclaration> = {
-      flex: '1',
-      height: '1px',
-      background: 'var(--dn-border)',
-    };
-    const left = el('div', lineStyle);
-    const right = el('div', lineStyle);
-    const label = el('span', {
-      fontSize: '12px',
-      color: 'var(--dn-text-muted)',
-      textTransform: 'uppercase',
-      letterSpacing: '1px',
-      flexShrink: '0',
-    });
-    text(label, 'or');
-    sep.appendChild(left);
-    sep.appendChild(label);
-    sep.appendChild(right);
+  // Separator
+  function makeSep(): HTMLElement {
+    const sep = document.createElement('div');
+    sep.className = 'dn-landing__sep';
+    const l = document.createElement('div');
+    l.className = 'dn-landing__sep-line';
+    const t = document.createElement('span');
+    t.className = 'dn-landing__sep-text';
+    t.textContent = 'or';
+    const r = document.createElement('div');
+    r.className = 'dn-landing__sep-line';
+    sep.appendChild(l);
+    sep.appendChild(t);
+    sep.appendChild(r);
     return sep;
   }
 
-  // ---- URL row ----
-  const urlRow = el('div', {
-    display: 'flex',
-    gap: '8px',
-    width: '100%',
-  });
+  // URL row
+  const urlRow = document.createElement('div');
+  urlRow.className = 'dn-url-row';
 
-  const urlInput = el(
-    'input',
-    {
-      flex: '1',
-      padding: '10px 14px',
-      fontSize: '14px',
-      background: 'var(--dn-bg-secondary)',
-      color: 'var(--dn-text-primary)',
-      border: '1px solid var(--dn-border)',
-      borderRadius: 'var(--dn-radius-sm)',
-      outline: 'none',
-      transition: 'border-color var(--dn-transition-fast)',
-    },
-    { type: 'text', placeholder: 'https://example.com', spellcheck: 'false' },
-  );
+  const urlInput = document.createElement('input');
+  urlInput.className = 'dn-url-input';
+  urlInput.type = 'text';
+  urlInput.placeholder = 'https://';
+  urlInput.spellcheck = false;
 
-  const loadBtn = el('button', {
-    padding: '10px 20px',
-    fontSize: '14px',
-    fontWeight: '600',
-    background: 'var(--dn-accent)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 'var(--dn-radius-sm)',
-    cursor: 'pointer',
-    transition: 'background var(--dn-transition-fast)',
-    whiteSpace: 'nowrap',
-    flexShrink: '0',
-  });
-  text(loadBtn, 'Load');
+  const loadBtn = document.createElement('button');
+  loadBtn.className = 'dn-load-btn';
+  loadBtn.textContent = 'Load';
 
   urlRow.appendChild(urlInput);
   urlRow.appendChild(loadBtn);
 
-  // ---- Browse button ----
-  const browseBtn = el('button', {
-    padding: '10px 24px',
-    fontSize: '14px',
-    fontWeight: '600',
-    background: 'transparent',
-    color: 'var(--dn-text-primary)',
-    border: '1px solid var(--dn-border)',
-    borderRadius: 'var(--dn-radius-sm)',
-    cursor: 'pointer',
-    transition: 'border-color var(--dn-transition-fast), background var(--dn-transition-fast)',
-    width: '100%',
-  });
-  text(browseBtn, 'Browse files');
+  // Browse button
+  const browseBtn = document.createElement('button');
+  browseBtn.className = 'dn-browse-btn';
+  browseBtn.textContent = 'Browse files';
 
   // Hidden file input
-  const fileInput = el('input', { display: 'none' }, {
-    type: 'file',
-    accept: '.html,.htm',
-  });
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.html,.htm';
+  fileInput.style.display = 'none';
 
-  // ---- Error message ----
-  const errorEl = el('div', {
-    display: 'none',
-    color: '#ef4444',
-    fontSize: '13px',
-    textAlign: 'center',
-    padding: '8px 12px',
-    borderRadius: 'var(--dn-radius-sm)',
-    background: 'rgba(239,68,68,0.1)',
-    width: '100%',
-    boxSizing: 'border-box',
-  });
+  // Error
+  const errorEl = document.createElement('div');
+  errorEl.className = 'dn-landing__error';
 
-  // ---- Assemble card ----
-  card.appendChild(title);
-  card.appendChild(subtitle);
+  // Assemble card
   card.appendChild(dropArea);
-  card.appendChild(makeSeparator());
+  card.appendChild(makeSep());
   card.appendChild(urlRow);
-  card.appendChild(makeSeparator());
   card.appendChild(browseBtn);
   card.appendChild(fileInput);
   card.appendChild(errorEl);
 
-  container.appendChild(card);
+  dropPanel.appendChild(card);
 
-  // ---- Hover states ----
-
-  urlInput.addEventListener('focus', () => {
-    urlInput.style.borderColor = 'var(--dn-accent)';
-  });
-  urlInput.addEventListener('blur', () => {
-    urlInput.style.borderColor = 'var(--dn-border)';
-  });
-
-  loadBtn.addEventListener('mouseenter', () => {
-    loadBtn.style.background = 'var(--dn-accent-hover)';
-  });
-  loadBtn.addEventListener('mouseleave', () => {
-    loadBtn.style.background = 'var(--dn-accent)';
-  });
-
-  browseBtn.addEventListener('mouseenter', () => {
-    browseBtn.style.borderColor = 'var(--dn-border-hover)';
-    browseBtn.style.background = 'var(--dn-bg-secondary)';
-  });
-  browseBtn.addEventListener('mouseleave', () => {
-    browseBtn.style.borderColor = 'var(--dn-border)';
-    browseBtn.style.background = 'transparent';
-  });
+  // Assemble landing
+  landing.appendChild(brand);
+  landing.appendChild(dropPanel);
+  container.appendChild(landing);
 
   // ---- Drag & drop ----
 
   let dragCounter = 0;
 
   function setDragActive(active: boolean): void {
-    dropArea.style.borderColor = active ? 'var(--dn-accent)' : 'var(--dn-border)';
-    dropArea.style.background = active ? 'var(--dn-accent-subtle)' : 'transparent';
+    dropArea.classList.toggle('dn-drop-area--active', active);
   }
 
   dropArea.addEventListener('dragenter', (e) => {
@@ -333,7 +229,7 @@ export function createDropZone(
     onFile(file);
   });
 
-  // Also allow clicking the drop area to browse
+  // Click drop area to browse
   dropArea.addEventListener('click', () => {
     fileInput.click();
   });
@@ -364,7 +260,6 @@ export function createDropZone(
       showError('Please enter a URL');
       return;
     }
-    // Basic URL validation
     try {
       new URL(raw.startsWith('http') ? raw : `https://${raw}`);
     } catch {

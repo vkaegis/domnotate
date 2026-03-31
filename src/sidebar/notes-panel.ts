@@ -14,7 +14,6 @@ const ICONS = {
   trash: `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
   x: `<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
   check: `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
-  chevronDown: `<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>`,
 } as const;
 
 export function createNotesPanel(
@@ -27,7 +26,6 @@ export function createNotesPanel(
 
   // --- State ---
   let selectedId: string | null = null;
-  let sortNewestFirst = true;
   let pinsVisible = true;
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -38,15 +36,10 @@ export function createNotesPanel(
   const actionLeft = document.createElement('div');
   actionLeft.className = 'dn-action-bar__left';
 
-  const sortToggle = document.createElement('button');
-  sortToggle.className = 'dn-sort-toggle';
-  sortToggle.innerHTML = `Newest first ${ICONS.chevronDown}`;
-  sortToggle.addEventListener('click', () => {
-    sortNewestFirst = !sortNewestFirst;
-    sortToggle.innerHTML = `${sortNewestFirst ? 'Newest first' : 'Oldest first'} ${ICONS.chevronDown}`;
-    renderNotesList();
-  });
-  actionLeft.appendChild(sortToggle);
+  const fileLabel = document.createElement('span');
+  fileLabel.className = 'dn-file-label';
+  fileLabel.textContent = '';
+  actionLeft.appendChild(fileLabel);
 
   const actionRight = document.createElement('div');
   actionRight.className = 'dn-action-bar__right';
@@ -117,11 +110,7 @@ export function createNotesPanel(
   // --- Render functions ---
 
   function getAnnotations(): Annotation[] {
-    const all = manager.getAll();
-    if (sortNewestFirst) {
-      return [...all].reverse();
-    }
-    return all;
+    return manager.getAll();
   }
 
   function getAnnotationIndex(id: string): number {
@@ -166,9 +155,6 @@ export function createNotesPanel(
   }
 
   function updateActionBarState(isEmpty: boolean): void {
-    // Sort toggle: hidden when empty
-    sortToggle.style.display = isEmpty ? 'none' : '';
-
     // Annotate is always active; other buttons dimmed when empty
     const secondaryBtns = [pinsBtn, copyBtn, exportBtn, clearBtn];
     for (const btn of secondaryBtns) {
@@ -310,6 +296,14 @@ export function createNotesPanel(
   unsubs.push(bus.on('annotation:deselect', () => {
     selectedId = null;
     renderNotesList();
+  }));
+
+  unsubs.push(bus.on('content:loaded', (e) => {
+    fileLabel.textContent = e.sourceName;
+  }));
+
+  unsubs.push(bus.on('content:unloaded', () => {
+    fileLabel.textContent = '';
   }));
 
   unsubs.push(bus.on('pins:visibility', (e) => {
