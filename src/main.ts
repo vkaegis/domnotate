@@ -142,9 +142,14 @@ bus.on('annotation:select', (e) => {
 bus.on('output:copy', (e) => {
   if (!currentSession) return;
   currentSession.annotations = manager.getAll();
-  const text = e.format === 'markdown'
-    ? formatter.toMarkdown(currentSession)
-    : formatter.toJSON(currentSession);
+  let text: string;
+  if (e.format === 'compact') {
+    text = formatter.toCompact(currentSession);
+  } else if (e.format === 'markdown') {
+    text = formatter.toMarkdown(currentSession);
+  } else {
+    text = formatter.toJSON(currentSession);
+  }
   copyToClipboard(text);
 });
 

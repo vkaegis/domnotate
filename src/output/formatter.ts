@@ -44,6 +44,31 @@ export function createOutputFormatter(): OutputFormatter {
       return md;
     },
 
+    toCompact(session: AnnotationSession): string {
+      let out = `# Annotations: ${session.sourceName} (${session.annotations.length})\n\n`;
+
+      session.annotations.forEach((a, i) => {
+        const heading = elementHeading(a);
+        const selector = a.element.cssSelector;
+        const w = Math.round(a.element.rect.width);
+        const h = Math.round(a.element.rect.height);
+
+        out += `${i + 1}. ${heading} \`${selector}\` ${w}x${h}\n`;
+
+        if (a.element.textPreview) {
+          out += `   "${a.element.textPreview}"\n`;
+        }
+
+        if (a.text) {
+          out += `   > ${a.text}\n`;
+        }
+
+        out += '\n';
+      });
+
+      return out;
+    },
+
     toJSON(session: AnnotationSession): string {
       return JSON.stringify(session, null, 2);
     },
