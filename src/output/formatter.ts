@@ -50,6 +50,25 @@ function renderComments(comments: Comment[], indent: number = 0): string {
   return renderLevel(null, indent);
 }
 
+function flattenComments(comments: Comment[]): Comment[] {
+  // Topological sort: parents before children
+  const byParent = new Map<string | null, Comment[]>();
+  for (const c of comments) {
+    const key = c.parentId;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key)!.push(c);
+  }
+  const result: Comment[] = [];
+  function walk(parentId: string | null) {
+    for (const c of byParent.get(parentId) ?? []) {
+      result.push(c);
+      walk(c.id);
+    }
+  }
+  walk(null);
+  return result;
+}
+
 export function createOutputFormatter(): OutputFormatter {
   return {
     toMarkdown(session: AnnotationSession): string {
@@ -85,6 +104,56 @@ export function createOutputFormatter(): OutputFormatter {
       });
 
       return md;
+    },
+
+    toCompact(session: AnnotationSession): string {
+      const openCount = session.annotations.filter(a => a.status === 'open').length;
+      const resolvedCount = session.annotations.filter(a => a.status === 'resolved').length;
+
+      // Build header
+      const counts: string[] = [];
+      if (openCount > 0) counts.push(`${openCount} open`);
+      if (resolvedCount > 0) counts.push(`${resolvedCount} resolved`);
+      let out = `# Annotations: ${session.sourceName} (${counts.join(', ')})\n\n`;
+
+      // Detect if all authors are the same — if so, skip author names
+      const allAuthors = new Set<string>();
+      for (const a of session.annotations) {
+        for (const c of a.comments) {
+          allAuthors.add(c.authorName);
+        }
+      }
+      const skipAuthor = allAuthors.size <= 1;
+
+      session.annotations.forEach((a, i) => {
+        const heading = elementHeading(a);
+        const selector = a.element.cssSelector;
+        const w = Math.round(a.element.rect.width);
+        const h = Math.round(a.element.rect.height);
+        const status = a.status.toUpperCase();
+
+        out += `${i + 1}. ${heading} \`${selector}\` ${w}x${h} ${status}\n`;
+
+        // Text preview (truncated)
+        if (a.element.textPreview) {
+          out += `   "${a.element.textPreview}"\n`;
+        }
+
+        // Flatten comments — simple indented > prefix
+        if (a.comments.length > 0) {
+          for (const c of flattenComments(a.comments)) {
+            if (skipAuthor) {
+              out += `   > ${c.text}\n`;
+            } else {
+              out += `   > ${c.authorName}: ${c.text}\n`;
+            }
+          }
+        }
+
+        out += '\n';
+      });
+
+      return out;
     },
 
     toJSON(session: AnnotationSession): string {
