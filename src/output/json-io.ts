@@ -1,5 +1,5 @@
 // ============================================================
-// Domnotate — JSON Serialization / Deserialization (Module 5)
+// Domnotate — JSON Serialization / Deserialization
 // ============================================================
 
 import type { AnnotationSession } from '@/types/core';
@@ -21,7 +21,6 @@ export function validateSession(data: unknown): data is AnnotationSession {
 
   const obj = data as Record<string, unknown>;
 
-  // Top-level required string fields
   if (typeof obj.id !== 'string') return false;
   if (obj.sourceType !== 'file' && obj.sourceType !== 'url') return false;
   if (typeof obj.sourceName !== 'string') return false;
@@ -29,7 +28,6 @@ export function validateSession(data: unknown): data is AnnotationSession {
   if (typeof obj.createdAt !== 'string') return false;
   if (typeof obj.updatedAt !== 'string') return false;
 
-  // Annotations array
   if (!Array.isArray(obj.annotations)) return false;
 
   for (const ann of obj.annotations) {
@@ -39,7 +37,7 @@ export function validateSession(data: unknown): data is AnnotationSession {
     if (typeof a.id !== 'string') return false;
     if (typeof a.createdAt !== 'string') return false;
     if (typeof a.updatedAt !== 'string') return false;
-    if (a.status !== 'open' && a.status !== 'resolved') return false;
+    if (typeof a.text !== 'string') return false;
     if (typeof a.color !== 'string') return false;
 
     // anchorPoint
@@ -63,18 +61,6 @@ export function validateSession(data: unknown): data is AnnotationSession {
     const rect = el.rect as Record<string, unknown>;
     if (typeof rect.x !== 'number' || typeof rect.y !== 'number') return false;
     if (typeof rect.width !== 'number' || typeof rect.height !== 'number') return false;
-
-    // comments
-    if (!Array.isArray(a.comments)) return false;
-    for (const c of a.comments) {
-      if (c === null || typeof c !== 'object') return false;
-      const cm = c as Record<string, unknown>;
-      if (typeof cm.id !== 'string') return false;
-      if (typeof cm.authorName !== 'string') return false;
-      if (typeof cm.text !== 'string') return false;
-      if (typeof cm.createdAt !== 'string') return false;
-      if (cm.parentId !== null && typeof cm.parentId !== 'string') return false;
-    }
   }
 
   return true;
