@@ -9,6 +9,7 @@ import { createSessionStore } from '@/output/store';
 import { copyToClipboard, downloadFile } from '@/output/exporter';
 import { initTheme } from '@/theme/theme-toggle';
 import { createSidebar } from '@/sidebar/sidebar';
+import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 
 // ============================================================
 // Domnotate — Main Integration
@@ -35,6 +36,25 @@ const sidebar = createSidebar(sidebarEl, bus, manager, picker);
 
 // App state
 let currentSession: AnnotationSession | null = null;
+let selectedAnnotationId: string | null = null;
+let pinsVisible = true;
+
+// Track selection and pin visibility via bus
+bus.on('annotation:select', (e) => { selectedAnnotationId = e.id; });
+bus.on('annotation:deselect', () => { selectedAnnotationId = null; });
+bus.on('annotation:delete', (e) => {
+  if (selectedAnnotationId === e.id) selectedAnnotationId = null;
+});
+bus.on('pins:visibility', (e) => { pinsVisible = e.visible; });
+
+// Keyboard shortcuts
+createKeyboardShortcuts({
+  bus,
+  picker,
+  isContentLoaded: () => currentSession !== null,
+  getSelectedAnnotationId: () => selectedAnnotationId,
+  getPinsVisible: () => pinsVisible,
+});
 
 // Debounce helper
 function debounce(fn: () => void, ms: number): () => void {
