@@ -1,0 +1,86 @@
+import { describe, test, expect } from 'vitest';
+import { serializeSession, deserializeSession, validateSession } from '@/output/json-io';
+import { makeSession, makeAnnotation } from '@/__tests__/fixtures';
+
+describe('json-io', () => {
+  describe('validateSession', () => {
+    test('accepts a valid session', () => {
+      const session = makeSession({ annotations: [makeAnnotation()] });
+      expect(validateSession(session)).toBe(true);
+    });
+
+    test('accepts session with empty annotations array', () => {
+      const session = makeSession();
+      expect(validateSession(session)).toBe(true);
+    });
+
+    test('rejects null', () => {
+      expect(validateSession(null)).toBe(false);
+    });
+
+    test('rejects non-object', () => {
+      expect(validateSession('string')).toBe(false);
+      expect(validateSession(42)).toBe(false);
+    });
+
+    test('rejects missing id', () => {
+      const session = makeSession();
+      const { id: _, ...noId } = session;
+      expect(validateSession(noId)).toBe(false);
+    });
+
+    test('rejects missing annotations array', () => {
+      const session = makeSession();
+      const { annotations: _, ...noAnns } = session;
+      expect(validateSession(noAnns)).toBe(false);
+    });
+
+    test('rejects bad sourceType', () => {
+      const session = makeSession();
+      expect(validateSession({ ...session, sourceType: 'ftp' })).toBe(false);
+    });
+
+    test('rejects annotation with missing text', () => {
+      const ann = makeAnnotation();
+      const { text: _, ...noText } = ann;
+      const session = makeSession({ annotations: [noText as any] });
+      expect(validateSession(session)).toBe(false);
+    });
+
+    test('rejects annotation with bad anchorPoint', () => {
+      const ann = makeAnnotation();
+      const session = makeSession({ annotations: [{ ...ann, anchorPoint: { x: 'bad', y: 0 } } as any] });
+      expect(validateSession(session)).toBe(false);
+    });
+
+    test('rejects annotation with missing element fields', () => {
+      const ann = makeAnnotation();
+      const session = makeSession({
+        annotations: [{ ...ann, element: { ...ann.element, cssSelector: 123 } } as any],
+      });
+      expect(validateSession(session)).toBe(false);
+    });
+
+    test('extra fields do not break validation', () => {
+      const session = makeSession({ annotations: [makeAnnotation()] });
+      expect(validateSession({ ...session, extraField: 'hello' })).toBe(true);
+    });
+  });
+
+  describe('serializeSession / deserializeSession', () => {
+    test('valid session round-trips', () => {
+      const session = makeSession({ annotations: [makeAnnotation(), makeAnnotation()] });
+      const json = serializeSession(session);
+      const restored = deserializeSession(json);
+      expect(restored).toEqual(session);
+    });
+
+    test('malformed JSON throws', () => {
+      expect(() => deserializeSession('not json')).toThrow();
+    });
+
+    test('valid JSON but invalid session throws', () => {
+      expect(() => deserializeSession('{"foo": "bar"}')).toThrow('Invalid session JSON');
+    });
+  });
+});
