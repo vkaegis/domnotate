@@ -345,6 +345,11 @@ export function createNotesPanel(
 
     updateActionBarState(false);
 
+    // Shortcut hint footer
+    const hint = document.createElement('div');
+    hint.className = 'dn-shortcut-hint';
+    hint.innerHTML = '<kbd>C</kbd> copy &middot; <kbd>D</kbd> export &middot; <kbd>A</kbd> annotate';
+
     const isSlideContent = slideObserver?.getSlideCount() !== null && slideObserver?.getSlideCount() !== undefined;
     const activeSlide = slideObserver?.getActiveSlide() ?? null;
 
@@ -387,6 +392,8 @@ export function createNotesPanel(
         notesListEl.appendChild(createNoteRow(annotation, index));
       }
     }
+
+    notesListEl.appendChild(hint);
   }
 
   function renderEmptyState(): void {
@@ -399,7 +406,7 @@ export function createNotesPanel(
 
     const text = document.createElement('div');
     text.className = 'dn-empty-state__text';
-    text.textContent = 'Click the pencil to annotate an element';
+    text.innerHTML = 'Press <kbd>A</kbd> to annotate an element';
 
     empty.appendChild(icon);
     empty.appendChild(text);
