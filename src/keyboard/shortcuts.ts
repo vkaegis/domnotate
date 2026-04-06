@@ -29,11 +29,19 @@ function isTyping(e: KeyboardEvent): boolean {
   return false;
 }
 
+/** Navigation keys that should be forwarded to the iframe for slide decks etc. */
+const NAV_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', ' ']);
+
 export function createKeyboardShortcuts(deps: ShortcutDeps): {
   destroy(): void;
   getShortcuts(): ShortcutDef[];
+  attachIframe(iframe: HTMLIFrameElement): void;
+  detachIframe(): void;
 } {
   const { bus, picker, isContentLoaded, getSelectedAnnotationId, getPinsVisible } = deps;
+
+  let iframeEl: HTMLIFrameElement | null = null;
+  let iframeHandler: ((e: KeyboardEvent) => void) | null = null;
 
   const shortcuts: ShortcutDef[] = [
     {
@@ -133,16 +141,75 @@ export function createKeyboardShortcuts(deps: ShortcutDeps): {
       shortcut.action();
       return;
     }
+
+    // Forward navigation keys to the iframe so slide decks keep working
+    // even when the parent document has focus
+    if (isContentLoaded() && !typing && NAV_KEYS.has(e.key) && iframeEl?.contentDocument) {
+      const iframeDoc = iframeEl.contentDocument;
+      iframeDoc.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: e.key,
+          code: e.code,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      e.preventDefault();
+    }
   }
 
   document.addEventListener('keydown', handler);
 
+  function attachIframe(iframe: HTMLIFrameElement): void {
+    detachIframe();
+    iframeEl = iframe;
+
+    const doc = iframe.contentDocument;
+    if (!doc) return;
+
+    // Listen for shortcuts on the iframe document so they work when iframe has focus
+    iframeHandler = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const typing = isTyping(e);
+
+      for (const shortcut of shortcuts) {
+        const matchKey = shortcut.key.length === 1 ? shortcut.key.toLowerCase() : shortcut.key;
+        if (key !== matchKey) continue;
+
+        if (typing && !shortcut.allowWhileTyping) continue;
+        if (shortcut.requiresContent && !isContentLoaded()) continue;
+
+        e.preventDefault();
+        shortcut.action();
+        return;
+      }
+    };
+
+    doc.addEventListener('keydown', iframeHandler);
+  }
+
+  function detachIframe(): void {
+    if (iframeEl && iframeHandler) {
+      const doc = iframeEl.contentDocument;
+      if (doc) {
+        doc.removeEventListener('keydown', iframeHandler);
+      }
+    }
+    iframeHandler = null;
+    iframeEl = null;
+  }
+
   return {
     destroy() {
       document.removeEventListener('keydown', handler);
+      detachIframe();
     },
     getShortcuts() {
       return shortcuts;
     },
+    attachIframe,
+    detachIframe,
   };
 }
