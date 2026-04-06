@@ -4,6 +4,7 @@ import { createContentLoader } from '@/loader/loader';
 import { createElementPicker } from '@/picker/picker';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
+import { createNotePopover } from '@/popover/popover';
 import { createOutputFormatter } from '@/output/formatter';
 import { createSessionStore } from '@/output/store';
 import { copyToClipboard, downloadFile } from '@/output/exporter';
@@ -30,6 +31,7 @@ const loader = createContentLoader();
 const picker = createElementPicker();
 const manager = createAnnotationManager();
 const pinRenderer = createPinRenderer();
+const notePopover = createNotePopover();
 const formatter = createOutputFormatter();
 const store = createSessionStore();
 const sidebar = createSidebar(sidebarEl, bus, manager, picker);
@@ -89,6 +91,7 @@ bus.on('content:loaded', (e) => {
 
   picker.init(iframeEl, overlayEl, bus);
   pinRenderer.init(overlayEl, iframeEl, bus, manager);
+  notePopover.init(overlayEl, iframeEl, bus, manager);
   sidebar.show();
 });
 
@@ -98,6 +101,7 @@ bus.on('content:loaded', (e) => {
 
 bus.on('content:unloaded', () => {
   picker.deactivate();
+  notePopover.destroy();
   pinRenderer.destroy();
   sidebar.hide();
   loader.unload();

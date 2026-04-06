@@ -6,6 +6,7 @@ import { createOutputFormatter } from '@/output/formatter';
 import { serializeSession, deserializeSession, validateSession } from '@/output/json-io';
 import { reanchorAnnotation } from '@/output/reanchor';
 import { generateDescriptor, generateCssSelector, generateXPath } from '@/picker/selector-engine';
+import { createNotePopover } from '@/popover/popover';
 
 describe('smoke: core module exports', () => {
   test('all core modules export expected functions', () => {
@@ -19,5 +20,6 @@ describe('smoke: core module exports', () => {
     expect(typeof generateDescriptor).toBe('function');
     expect(typeof generateCssSelector).toBe('function');
     expect(typeof generateXPath).toBe('function');
+    expect(typeof createNotePopover).toBe('function');
   });
 });

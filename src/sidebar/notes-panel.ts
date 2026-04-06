@@ -339,32 +339,13 @@ export function createNotesPanel(
     pin.className = 'dn-note-pin';
     pin.textContent = String(index + 1);
 
-    // Editable text
+    // Note text (read-only — editing happens in the inline popover)
     const textEl = document.createElement('div');
     textEl.className = 'dn-note-text';
-    textEl.contentEditable = 'true';
-    textEl.textContent = annotation.text;
-    textEl.spellcheck = false;
-
-    // Commit text on blur or Enter
-    textEl.addEventListener('blur', () => {
-      const newText = textEl.textContent?.trim() ?? '';
-      if (newText !== annotation.text) {
-        manager.updateText(annotation.id, newText);
-      }
-    });
-
-    textEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        textEl.blur();
-      }
-    });
-
-    // Prevent row click when editing
-    textEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
+    textEl.textContent = annotation.text || 'No note';
+    if (!annotation.text) {
+      textEl.classList.add('dn-note-text--empty');
+    }
 
     // Delete button
     const deleteBtn = document.createElement('button');
@@ -420,14 +401,13 @@ export function createNotesPanel(
     // Select the new annotation
     selectedId = e.annotation.id;
     renderNotesList();
-    // Scroll to bottom and focus the text input
+    // Scroll to the new row in the sidebar
     requestAnimationFrame(() => {
-      const lastRow = notesListEl.querySelector(
-        `[data-annotation-id="${e.annotation.id}"] .dn-note-text`,
+      const row = notesListEl.querySelector(
+        `[data-annotation-id="${e.annotation.id}"]`,
       ) as HTMLElement | null;
-      if (lastRow) {
-        lastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        lastRow.focus();
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     });
   }));
