@@ -1,0 +1,33 @@
+/* ============================================================
+   Domnotate — Central Toast
+   ============================================================ */
+
+.dn-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 2000;
+
+  padding: 8px 20px;
+  border-radius: var(--dn-radius-pill);
+  background: var(--dn-text-primary);
+  color: var(--dn-bg-primary);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.dn-toast--visible {
+  opacity: 1;
+}
+
+.dn-toast--hidden {
+  display: none;
+}

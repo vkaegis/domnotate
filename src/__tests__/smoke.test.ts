@@ -7,6 +7,7 @@ import { serializeSession, deserializeSession, validateSession } from '@/output/
 import { reanchorAnnotation } from '@/output/reanchor';
 import { generateDescriptor, generateCssSelector, generateXPath } from '@/picker/selector-engine';
 import { createNotePopover } from '@/popover/popover';
+import { createToast } from '@/toast/toast';
 
 describe('smoke: core module exports', () => {
   test('all core modules export expected functions', () => {
@@ -21,5 +22,6 @@ describe('smoke: core module exports', () => {
     expect(typeof generateCssSelector).toBe('function');
     expect(typeof generateXPath).toBe('function');
     expect(typeof createNotePopover).toBe('function');
+    expect(typeof createToast).toBe('function');
   });
 });

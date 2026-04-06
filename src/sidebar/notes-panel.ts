@@ -199,16 +199,70 @@ export function createNotesPanel(
     bus.emit({ type: 'output:copy', format: 'markdown' });
   });
 
+  function animateNotesToButton(): void {
+    const rows = notesListEl.querySelectorAll('.dn-note-row');
+    if (rows.length === 0) return;
+
+    const btnRect = copyBtn.getBoundingClientRect();
+    const btnCx = btnRect.left + btnRect.width / 2;
+    const btnCy = btnRect.top + btnRect.height / 2;
+
+    const STAGGER = 40; // ms between each ghost launch
+    const FLIGHT = 350; // ms per ghost flight
+
+    rows.forEach((row, i) => {
+      const pin = row.querySelector('.dn-note-pin') as HTMLElement | null;
+      if (!pin) return;
+
+      const pinRect = pin.getBoundingClientRect();
+      const ghost = document.createElement('div');
+      ghost.className = 'dn-copy-ghost';
+      ghost.textContent = pin.textContent;
+
+      // Start at the pin's screen position
+      ghost.style.left = `${pinRect.left}px`;
+      ghost.style.top = `${pinRect.top}px`;
+      ghost.style.width = `${pinRect.width}px`;
+      ghost.style.height = `${pinRect.height}px`;
+      document.body.appendChild(ghost);
+
+      const dx = btnCx - (pinRect.left + pinRect.width / 2);
+      const dy = btnCy - (pinRect.top + pinRect.height / 2);
+
+      ghost.animate(
+        [
+          { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+          { transform: `translate(${dx}px, ${dy}px) scale(0.3)`, opacity: 0.4 },
+        ],
+        {
+          duration: FLIGHT,
+          delay: i * STAGGER,
+          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          fill: 'forwards',
+        },
+      ).onfinish = () => ghost.remove();
+    });
+  }
+
   function showCopyFeedback(): void {
-    setIconWithPop(copyBtn, ICONS.check);
-    copyBtn.classList.add('dn-action-btn--copied');
-    typewriter.type('Copied!');
+    animateNotesToButton();
+
+    // Delay the icon swap until ghosts start landing
+    const rows = notesListEl.querySelectorAll('.dn-note-row');
+    const landDelay = Math.min(rows.length, 8) * 40 + 100;
+
+    setTimeout(() => {
+      setIconWithPop(copyBtn, ICONS.check);
+      copyBtn.classList.add('dn-action-btn--copied');
+      typewriter.type('Copied!');
+    }, landDelay);
+
     if (copyTimer) clearTimeout(copyTimer);
     copyTimer = setTimeout(() => {
       setIconWithPop(copyBtn, ICONS.clipboard);
       copyBtn.classList.remove('dn-action-btn--copied');
       copyTimer = null;
-    }, 1500);
+    }, landDelay + 1500);
   }
 
   let exportTimer: ReturnType<typeof setTimeout> | null = null;
