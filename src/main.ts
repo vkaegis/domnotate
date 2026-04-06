@@ -9,6 +9,7 @@ import { createSessionStore } from '@/output/store';
 import { copyToClipboard, downloadFile } from '@/output/exporter';
 import { initTheme } from '@/theme/theme-toggle';
 import { createSidebar } from '@/sidebar/sidebar';
+import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 
 // ============================================================
@@ -33,6 +34,8 @@ const pinRenderer = createPinRenderer();
 const formatter = createOutputFormatter();
 const store = createSessionStore();
 const sidebar = createSidebar(sidebarEl, bus, manager, picker);
+const contentAreaEl = document.getElementById('content-area')!;
+const toast = createToast(contentAreaEl, bus);
 
 // App state
 let currentSession: AnnotationSession | null = null;
