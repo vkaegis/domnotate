@@ -184,13 +184,9 @@
   word-break: break-word;
 }
 
-.dn-note-text:empty::before {
-  content: 'Add a note...';
+.dn-note-text--empty {
   color: var(--dn-text-muted);
-}
-
-.dn-note-text:focus {
-  outline: none;
+  font-style: italic;
 }
 
 .dn-note-delete {
