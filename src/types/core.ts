@@ -37,6 +37,8 @@ export interface Annotation {
   text: string;
   /** Visual color tag */
   color: string;
+  /** Slide index (0-based) if the content is a slide deck, undefined otherwise */
+  slideIndex?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,7 +74,8 @@ export type DomnotateEvent =
   | { type: 'session:loaded'; session: AnnotationSession }
   | { type: 'session:cleared' }
   | { type: 'output:copy'; format: 'markdown' | 'compact' | 'json' }
-  | { type: 'output:download'; format: 'markdown' | 'json' };
+  | { type: 'output:download'; format: 'markdown' | 'json' }
+  | { type: 'slide:changed'; slideIndex: number };
 
 export type DomnotateEventType = DomnotateEvent['type'];
 
@@ -110,7 +113,7 @@ export interface AnnotationManager {
   init(bus: EventBus): void;
   getAll(): Annotation[];
   getById(id: string): Annotation | undefined;
-  create(element: ElementDescriptor, anchorPoint: { x: number; y: number }, text: string): Annotation;
+  create(element: ElementDescriptor, anchorPoint: { x: number; y: number }, text: string, slideIndex?: number): Annotation;
   updateText(annotationId: string, text: string): void;
   delete(id: string): void;
   loadAnnotations(annotations: Annotation[]): void;
@@ -123,6 +126,7 @@ export interface PinRenderer {
     iframeEl: HTMLIFrameElement,
     bus: EventBus,
     manager: AnnotationManager,
+    slideObserver?: SlideObserver,
   ): void;
   render(): void;
   setVisible(visible: boolean): void;
@@ -133,6 +137,19 @@ export interface OutputFormatter {
   toMarkdown(session: AnnotationSession): string;
   toCompact(session: AnnotationSession): string;
   toJSON(session: AnnotationSession): string;
+}
+
+export interface SlideObserver {
+  init(iframeEl: HTMLIFrameElement, bus: EventBus): void;
+  /** null = not a slide deck. Otherwise 0-based index of active slide. */
+  getActiveSlide(): number | null;
+  /** Total slide count, or null if not a slide deck */
+  getSlideCount(): number | null;
+  /** Navigate to slide n inside the iframe */
+  goToSlide(n: number): void;
+  /** Given a DOM element, return its slide index or undefined */
+  getSlideForElement(el: Element): number | undefined;
+  destroy(): void;
 }
 
 export interface SessionStore {

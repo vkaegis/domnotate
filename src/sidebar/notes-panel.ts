@@ -2,7 +2,7 @@
 // Domnotate — Notes Panel (sidebar content)
 // ============================================================
 
-import type { EventBus, AnnotationManager, Annotation } from '@/types/core';
+import type { EventBus, AnnotationManager, Annotation, SlideObserver } from '@/types/core';
 
 // --- SVG Icons (14px viewBox 24) ---
 const ICONS = {
@@ -128,6 +128,7 @@ export function createNotesPanel(
   bus: EventBus,
   manager: AnnotationManager,
   picker: { activate(): void; deactivate(): void; isActive(): boolean },
+  slideObserver?: SlideObserver,
 ): { destroy(): void } {
   const unsubs: (() => void)[] = [];
 
@@ -344,9 +345,47 @@ export function createNotesPanel(
 
     updateActionBarState(false);
 
-    for (const annotation of annotations) {
-      const index = getAnnotationIndex(annotation.id);
-      notesListEl.appendChild(createNoteRow(annotation, index));
+    const isSlideContent = slideObserver?.getSlideCount() !== null && slideObserver?.getSlideCount() !== undefined;
+    const activeSlide = slideObserver?.getActiveSlide() ?? null;
+
+    if (isSlideContent) {
+      // Group annotations by slideIndex
+      const groups = new Map<number | undefined, Annotation[]>();
+      for (const ann of annotations) {
+        const key = ann.slideIndex;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(ann);
+      }
+
+      // Sort groups: ungrouped first, then by slide number
+      const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+        if (a === undefined) return -1;
+        if (b === undefined) return 1;
+        return a - b;
+      });
+
+      for (const key of sortedKeys) {
+        const groupAnns = groups.get(key)!;
+
+        // Slide group header
+        const header = document.createElement('div');
+        header.className = 'dn-slide-group-header';
+        if (key !== undefined && key === activeSlide) {
+          header.classList.add('dn-slide-group-header--active');
+        }
+        header.textContent = key !== undefined ? `Slide ${key + 1}` : 'General';
+        notesListEl.appendChild(header);
+
+        for (const annotation of groupAnns) {
+          const index = getAnnotationIndex(annotation.id);
+          notesListEl.appendChild(createNoteRow(annotation, index));
+        }
+      }
+    } else {
+      for (const annotation of annotations) {
+        const index = getAnnotationIndex(annotation.id);
+        notesListEl.appendChild(createNoteRow(annotation, index));
+      }
     }
   }
 
@@ -415,8 +454,15 @@ export function createNotesPanel(
       }
     });
 
-    // Row click → select annotation
+    // Row click → navigate to slide if needed, then select annotation
     row.addEventListener('click', () => {
+      if (
+        slideObserver &&
+        annotation.slideIndex !== undefined &&
+        slideObserver.getActiveSlide() !== annotation.slideIndex
+      ) {
+        slideObserver.goToSlide(annotation.slideIndex);
+      }
       selectedId = annotation.id;
       bus.emit({ type: 'annotation:select', id: annotation.id });
       renderNotesList();
@@ -511,6 +557,10 @@ export function createNotesPanel(
 
   unsubs.push(bus.on('output:download', () => {
     showExportFeedback();
+  }));
+
+  unsubs.push(bus.on('slide:changed', () => {
+    renderNotesList();
   }));
 
   unsubs.push(bus.on('pins:visibility', (e) => {

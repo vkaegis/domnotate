@@ -6,6 +6,7 @@ import type {
   EventBus,
   AnnotationManager,
   PinRenderer,
+  SlideObserver,
   Annotation,
 } from '@/types/core';
 
@@ -14,6 +15,7 @@ export function createPinRenderer(): PinRenderer {
   let iframeEl: HTMLIFrameElement;
   let bus: EventBus;
   let manager: AnnotationManager;
+  let slideObserver: SlideObserver | null = null;
 
   let pinContainer: HTMLElement | null = null;
   let visible = true;
@@ -83,7 +85,14 @@ export function createPinRenderer(): PinRenderer {
 
     const { scrollX, scrollY } = getIframeScroll();
     const pins = pinContainer.children;
-    const annotations = manager.getAll();
+    const allAnnotations = manager.getAll();
+    const activeSlide = slideObserver?.getActiveSlide() ?? null;
+
+    const annotations = activeSlide === null
+      ? allAnnotations
+      : allAnnotations.filter(
+          (ann) => ann.slideIndex === undefined || ann.slideIndex === activeSlide,
+        );
 
     for (let i = 0; i < pins.length && i < annotations.length; i++) {
       const pin = pins[i] as HTMLElement;
@@ -133,11 +142,13 @@ export function createPinRenderer(): PinRenderer {
       _iframeEl: HTMLIFrameElement,
       _bus: EventBus,
       _manager: AnnotationManager,
+      _slideObserver?: SlideObserver,
     ): void {
       overlayEl = _overlayEl;
       iframeEl = _iframeEl;
       bus = _bus;
       manager = _manager;
+      slideObserver = _slideObserver ?? null;
 
       // Create pin container
       pinContainer = document.createElement('div');
@@ -156,6 +167,7 @@ export function createPinRenderer(): PinRenderer {
       unsubs.push(
         bus.on('pins:visibility', (e) => renderer.setVisible(e.visible)),
       );
+      unsubs.push(bus.on('slide:changed', () => renderer.render()));
 
       // Scroll sync
       attachScrollSync();
@@ -179,11 +191,21 @@ export function createPinRenderer(): PinRenderer {
 
       if (!visible) return;
 
-      const annotations = manager.getAll();
+      const allAnnotations = manager.getAll();
+      const activeSlide = slideObserver?.getActiveSlide() ?? null;
+
+      // Filter: show only annotations for the active slide (or all if not a slide deck)
+      const annotations = activeSlide === null
+        ? allAnnotations
+        : allAnnotations.filter(
+            (ann) => ann.slideIndex === undefined || ann.slideIndex === activeSlide,
+          );
+
       const { scrollX, scrollY } = getIframeScroll();
 
-      annotations.forEach((ann, index) => {
-        const pin = createPinElement(ann, index);
+      annotations.forEach((ann) => {
+        const globalIndex = allAnnotations.indexOf(ann);
+        const pin = createPinElement(ann, globalIndex);
         pin.style.left = `${ann.anchorPoint.x - scrollX - 12}px`;
         pin.style.top = `${ann.anchorPoint.y - scrollY - 12}px`;
         pinContainer!.appendChild(pin);

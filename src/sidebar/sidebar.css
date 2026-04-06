@@ -196,6 +196,24 @@
   overflow-x: hidden;
 }
 
+/* --- Slide group headers --- */
+
+.dn-slide-group-header {
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dn-text-secondary);
+  background: var(--dn-bg-secondary);
+  border-bottom: 1px solid var(--dn-border);
+  user-select: none;
+}
+
+.dn-slide-group-header--active {
+  color: var(--dn-accent);
+}
+
 /* --- Note row --- */
 
 .dn-note-row {
