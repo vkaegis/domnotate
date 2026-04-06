@@ -12,6 +12,7 @@ import { initTheme } from '@/theme/theme-toggle';
 import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
+import { createSlideObserver } from '@/slides/slide-observer';
 
 // ============================================================
 // Domnotate — Main Integration
@@ -35,7 +36,8 @@ const pinRenderer = createPinRenderer();
 const notePopover = createNotePopover();
 const formatter = createOutputFormatter();
 const store = createSessionStore();
-const sidebar = createSidebar(sidebarEl, bus, manager, picker);
+const slideObserver = createSlideObserver();
+const sidebar = createSidebar(sidebarEl, bus, manager, picker, slideObserver);
 const contentAreaEl = document.getElementById('content-area')!;
 const toast = createToast(contentAreaEl, bus);
 
@@ -93,7 +95,8 @@ bus.on('content:loaded', (e) => {
   };
 
   picker.init(iframeEl, overlayEl, bus);
-  pinRenderer.init(overlayEl, iframeEl, bus, manager);
+  slideObserver.init(iframeEl, bus);
+  pinRenderer.init(overlayEl, iframeEl, bus, manager, slideObserver);
   notePopover.init(overlayEl, iframeEl, bus, manager);
   sidebar.show();
 });
@@ -106,6 +109,7 @@ bus.on('content:unloaded', () => {
   picker.deactivate();
   notePopover.destroy();
   pinRenderer.destroy();
+  slideObserver.destroy();
   sidebar.hide();
   loader.unload();
   manager.clearAll();
@@ -127,8 +131,21 @@ bus.on('picker:select', (e) => {
     y: e.mouseY - iframeRect.top + scrollY,
   };
 
+  // Resolve slide index for the selected element
+  let slideIndex: number | undefined;
+  if (iframeDoc) {
+    try {
+      const el = iframeDoc.querySelector(e.element.cssSelector);
+      if (el) {
+        slideIndex = slideObserver.getSlideForElement(el);
+      }
+    } catch {
+      // Selector may be invalid — ignore
+    }
+  }
+
   // Create annotation with empty text — sidebar will focus the input
-  manager.create(e.element, anchorPoint, '');
+  manager.create(e.element, anchorPoint, '', slideIndex);
 
   // Single-shot: deactivate picker after one selection
   picker.deactivate();
@@ -145,20 +162,39 @@ bus.on('annotation:select', (e) => {
   const iframeDoc = iframeEl.contentDocument;
   if (!iframeDoc) return;
 
-  try {
-    const el = iframeDoc.querySelector(annotation.element.cssSelector);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Navigate to the annotation's slide if needed
+  const needsSlideNav =
+    annotation.slideIndex !== undefined &&
+    slideObserver.getActiveSlide() !== null &&
+    slideObserver.getActiveSlide() !== annotation.slideIndex;
 
-      // Add a temporary dashed highlight border
-      const prev = (el as HTMLElement).style.outline;
-      (el as HTMLElement).style.outline = '2px dashed #C4725A';
-      setTimeout(() => {
-        (el as HTMLElement).style.outline = prev;
-      }, 2000);
+  if (needsSlideNav) {
+    slideObserver.goToSlide(annotation.slideIndex!);
+  }
+
+  // Wait a tick for slide transition before scrolling to element
+  const scrollToElement = () => {
+    try {
+      const el = iframeDoc.querySelector(annotation.element.cssSelector);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Add a temporary dashed highlight border
+        const prev = (el as HTMLElement).style.outline;
+        (el as HTMLElement).style.outline = '2px dashed #C4725A';
+        setTimeout(() => {
+          (el as HTMLElement).style.outline = prev;
+        }, 2000);
+      }
+    } catch {
+      // Selector may be invalid — ignore
     }
-  } catch {
-    // Selector may be invalid — ignore
+  };
+
+  if (needsSlideNav) {
+    requestAnimationFrame(scrollToElement);
+  } else {
+    scrollToElement();
   }
 });
 

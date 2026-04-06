@@ -8,6 +8,7 @@ import { reanchorAnnotation } from '@/output/reanchor';
 import { generateDescriptor, generateCssSelector, generateXPath } from '@/picker/selector-engine';
 import { createNotePopover } from '@/popover/popover';
 import { createToast } from '@/toast/toast';
+import { createSlideObserver } from '@/slides/slide-observer';
 
 describe('smoke: core module exports', () => {
   test('all core modules export expected functions', () => {
@@ -23,5 +24,6 @@ describe('smoke: core module exports', () => {
     expect(typeof generateXPath).toBe('function');
     expect(typeof createNotePopover).toBe('function');
     expect(typeof createToast).toBe('function');
+    expect(typeof createSlideObserver).toBe('function');
   });
 });

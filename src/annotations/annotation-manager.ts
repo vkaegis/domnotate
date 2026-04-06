@@ -41,6 +41,7 @@ export function createAnnotationManager(): AnnotationManager {
       element: ElementDescriptor,
       anchorPoint: { x: number; y: number },
       text: string,
+      slideIndex?: number,
     ): Annotation {
       const b = requireBus();
       const timestamp = now();
@@ -51,6 +52,7 @@ export function createAnnotationManager(): AnnotationManager {
         anchorPoint,
         text,
         color: '#C4725A',
+        ...(slideIndex !== undefined && { slideIndex }),
         createdAt: timestamp,
         updatedAt: timestamp,
       };

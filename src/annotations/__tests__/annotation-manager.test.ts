@@ -97,6 +97,16 @@ describe('AnnotationManager', () => {
     expect(manager.getById(annotations[0].id)).toBeDefined();
   });
 
+  test('create stores slideIndex when provided', () => {
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'Slide note', 3);
+    expect(ann.slideIndex).toBe(3);
+  });
+
+  test('create omits slideIndex when not provided', () => {
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'No slide');
+    expect(ann.slideIndex).toBeUndefined();
+  });
+
   test('clearAll removes all annotations', () => {
     manager.create(makeDescriptor(), { x: 0, y: 0 }, 'a');
     manager.create(makeDescriptor(), { x: 0, y: 0 }, 'b');
