@@ -55,7 +55,7 @@ bus.on('annotation:delete', (e) => {
 bus.on('pins:visibility', (e) => { pinsVisible = e.visible; });
 
 // Keyboard shortcuts
-createKeyboardShortcuts({
+const shortcuts = createKeyboardShortcuts({
   bus,
   picker,
   isContentLoaded: () => currentSession !== null,
@@ -98,6 +98,7 @@ bus.on('content:loaded', (e) => {
   slideObserver.init(iframeEl, bus);
   pinRenderer.init(overlayEl, iframeEl, bus, manager, slideObserver);
   notePopover.init(overlayEl, iframeEl, bus, manager);
+  shortcuts.attachIframe(iframeEl);
   sidebar.show();
 });
 
@@ -110,6 +111,7 @@ bus.on('content:unloaded', () => {
   notePopover.destroy();
   pinRenderer.destroy();
   slideObserver.destroy();
+  shortcuts.detachIframe();
   sidebar.hide();
   loader.unload();
   manager.clearAll();

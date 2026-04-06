@@ -9,6 +9,7 @@ import { generateDescriptor, generateCssSelector, generateXPath } from '@/picker
 import { createNotePopover } from '@/popover/popover';
 import { createToast } from '@/toast/toast';
 import { createSlideObserver } from '@/slides/slide-observer';
+import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 
 describe('smoke: core module exports', () => {
   test('all core modules export expected functions', () => {
@@ -25,5 +26,6 @@ describe('smoke: core module exports', () => {
     expect(typeof createNotePopover).toBe('function');
     expect(typeof createToast).toBe('function');
     expect(typeof createSlideObserver).toBe('function');
+    expect(typeof createKeyboardShortcuts).toBe('function');
   });
 });
