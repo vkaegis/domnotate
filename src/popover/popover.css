@@ -1,0 +1,55 @@
+/* ============================================================
+   Domnotate — Inline Note Popover
+   ============================================================ */
+
+.dn-popover {
+  position: absolute;
+  z-index: var(--dn-z-popover);
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  /* Nudge up so the first line of text aligns with pin center */
+  transform: translateY(-8px);
+  animation: dn-popover-in 120ms ease;
+}
+
+@keyframes dn-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-8px);
+  }
+}
+
+.dn-popover__bubble {
+  background: var(--dn-bg-elevated);
+  border: 1px solid var(--dn-border);
+  border-radius: var(--dn-radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
+  padding: 8px 10px;
+  min-width: 180px;
+  max-width: 280px;
+}
+
+.dn-popover__input {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--dn-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  overflow: hidden;
+  min-height: 20px;
+}
+
+.dn-popover__input::placeholder {
+  color: var(--dn-text-muted);
+}

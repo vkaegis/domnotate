@@ -52,7 +52,8 @@
   --dn-z-overlay: 1000;
   --dn-z-pins: 1001;
   --dn-z-sidebar: 1002;
-  --dn-z-resize-handle: 1003;
+  --dn-z-popover: 1003;
+  --dn-z-resize-handle: 1004;
 }
 
 /* --- Dark theme --- */
