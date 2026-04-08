@@ -236,11 +236,17 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 14px 12px;
+  margin: 2px 8px;
   border-bottom: 1px dashed var(--dn-border);
+  border-radius: 9px;
   cursor: pointer;
   transition: background var(--dn-transition-fast);
   position: relative;
+}
+
+.dn-note-row:last-child {
+  border-bottom: none;
 }
 
 .dn-note-row:hover {
