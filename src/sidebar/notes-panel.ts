@@ -16,106 +16,15 @@ const ICONS = {
   check: `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
 } as const;
 
-// --- Typewriter engine ---
-
-interface TypewriterState {
-  el: HTMLElement;
-  originalText: string;
-  charTimer: ReturnType<typeof setTimeout> | null;
-  revertTimer: ReturnType<typeof setTimeout> | null;
-  isAnimating: boolean;
-}
-
-function createTypewriter(el: HTMLElement): {
-  type(message: string, opts?: { revertDelay?: number }): void;
-  restoreNow(): void;
-  setOriginal(text: string): void;
-  destroy(): void;
-} {
-  const state: TypewriterState = {
-    el,
-    originalText: el.textContent ?? '',
-    charTimer: null,
-    revertTimer: null,
-    isAnimating: false,
-  };
-
-  const CHAR_DELAY = 70; // leisurely
-  const CURSOR_LINGER = 400; // cursor stays after last char
-  const DEFAULT_REVERT_DELAY = 2000; // ms before reverting to filename
-
-  function clearTimers(): void {
-    if (state.charTimer) { clearTimeout(state.charTimer); state.charTimer = null; }
-    if (state.revertTimer) { clearTimeout(state.revertTimer); state.revertTimer = null; }
-  }
-
-  function restoreFilename(): void {
-    clearTimers();
-    state.isAnimating = false;
-    state.el.classList.add('dn-file-label--fade-out');
-    setTimeout(() => {
-      state.el.textContent = state.originalText;
-      state.el.classList.remove('dn-file-label--typing', 'dn-file-label--fade-out');
-      state.el.classList.add('dn-file-label--fade-in');
-      setTimeout(() => state.el.classList.remove('dn-file-label--fade-in'), 300);
-    }, 300);
-  }
-
-  function typeMessage(message: string, revertDelay: number): void {
-    clearTimers();
-    state.isAnimating = true;
-    state.el.textContent = '';
-    state.el.classList.add('dn-file-label--typing');
-
-    // Create text node and cursor
-    const textNode = document.createTextNode('');
-    const cursor = document.createElement('span');
-    cursor.className = 'dn-typewriter-cursor';
-    state.el.appendChild(textNode);
-    state.el.appendChild(cursor);
-
-    let charIndex = 0;
-
-    function typeNext(): void {
-      if (charIndex < message.length) {
-        textNode.textContent = message.slice(0, charIndex + 1);
-        charIndex++;
-        state.charTimer = setTimeout(typeNext, CHAR_DELAY);
-      } else {
-        // Done typing — linger cursor, then schedule revert
-        state.charTimer = setTimeout(() => {
-          cursor.remove();
-          state.revertTimer = setTimeout(restoreFilename, revertDelay);
-        }, CURSOR_LINGER);
-      }
-    }
-
-    typeNext();
-  }
-
-  return {
-    type(message: string, opts?: { revertDelay?: number }): void {
-      typeMessage(message, opts?.revertDelay ?? DEFAULT_REVERT_DELAY);
-    },
-    restoreNow(): void {
-      restoreFilename();
-    },
-    setOriginal(text: string): void {
-      state.originalText = text;
-      if (!state.isAnimating) {
-        state.el.textContent = text;
-      }
-    },
-    destroy(): void {
-      clearTimers();
-    },
-  };
-}
-
 // --- Icon pop helper ---
 
 function setIconWithPop(btn: HTMLButtonElement, iconHtml: string): void {
-  btn.innerHTML = iconHtml;
+  const iconSpan = btn.querySelector('.dn-action-btn__icon');
+  if (iconSpan) {
+    iconSpan.innerHTML = iconHtml;
+  } else {
+    btn.innerHTML = iconHtml;
+  }
   const svg = btn.querySelector('svg');
   if (svg) {
     svg.classList.add('dn-icon-enter');
@@ -141,19 +50,11 @@ export function createNotesPanel(
   const actionBar = document.createElement('div');
   actionBar.className = 'dn-action-bar';
 
-  const actionLeft = document.createElement('div');
-  actionLeft.className = 'dn-action-bar__left';
-
-  const fileLabel = document.createElement('span');
-  fileLabel.className = 'dn-file-label';
-  fileLabel.textContent = '';
-  actionLeft.appendChild(fileLabel);
-
-  const actionRight = document.createElement('div');
-  actionRight.className = 'dn-action-bar__right';
+  const tabBar = document.createElement('div');
+  tabBar.className = 'dn-tab-bar';
 
   // Annotate button (pencil)
-  const annotateBtn = makeActionBtn(ICONS.pencil, 'Annotate an element (A)', () => {
+  const annotateBtn = makeActionBtn(ICONS.pencil, 'Annotate', 'A', 'Annotate an element (A)', () => {
     if (picker.isActive()) {
       picker.deactivate();
     } else {
@@ -161,7 +62,7 @@ export function createNotesPanel(
     }
   });
   // Pencil always shows terracotta to stand out from other muted icons
-  annotateBtn.style.color = 'var(--dn-accent)';
+  annotateBtn.classList.add('dn-action-btn--accent');
 
   // --- Sync annotate button with picker state (handles keyboard shortcut toggles) ---
   const originalActivate = picker.activate.bind(picker);
@@ -172,7 +73,6 @@ export function createNotesPanel(
     originalActivate();
     if (!wasActive && picker.isActive()) {
       annotateBtn.classList.add('dn-action-btn--active');
-      typewriter.type('Annotating...', { revertDelay: 60000 });
     }
   };
 
@@ -181,22 +81,21 @@ export function createNotesPanel(
     originalDeactivate();
     if (wasActive) {
       annotateBtn.classList.remove('dn-action-btn--active');
-      typewriter.restoreNow();
     }
   };
 
-  // Spacer after pencil
-  const spacer = document.createElement('div');
-  spacer.className = 'dn-action-spacer';
+  // Divider after annotate
+  const divider = document.createElement('div');
+  divider.className = 'dn-tab-bar__divider';
 
   // Pins toggle (eye) — feedback handled by bus listener
-  const pinsBtn = makeActionBtn(ICONS.eye, 'Toggle pin visibility (H)', () => {
+  const pinsBtn = makeActionBtn(ICONS.eye, 'Hide Pins', 'H', 'Toggle pin visibility (H)', () => {
     pinsVisible = !pinsVisible;
     bus.emit({ type: 'pins:visibility', visible: pinsVisible });
   });
 
   // Copy button (clipboard)
-  const copyBtn = makeActionBtn(ICONS.clipboard, 'Copy as Markdown (C)', () => {
+  const copyBtn = makeActionBtn(ICONS.clipboard, 'Copy', 'C', 'Copy as Markdown (C)', () => {
     bus.emit({ type: 'output:copy', format: 'markdown' });
   });
 
@@ -255,7 +154,6 @@ export function createNotesPanel(
     setTimeout(() => {
       setIconWithPop(copyBtn, ICONS.check);
       copyBtn.classList.add('dn-action-btn--copied');
-      typewriter.type('Copied!');
     }, landDelay);
 
     if (copyTimer) clearTimeout(copyTimer);
@@ -270,7 +168,6 @@ export function createNotesPanel(
   function showExportFeedback(): void {
     setIconWithPop(exportBtn, ICONS.check);
     exportBtn.classList.add('dn-action-btn--success');
-    typewriter.type('Exported!');
     if (exportTimer) clearTimeout(exportTimer);
     exportTimer = setTimeout(() => {
       setIconWithPop(exportBtn, ICONS.download);
@@ -283,7 +180,6 @@ export function createNotesPanel(
   function showClearFeedback(): void {
     setIconWithPop(clearBtn, ICONS.check);
     clearBtn.classList.add('dn-action-btn--success');
-    typewriter.type('Cleared');
     if (clearTimer) clearTimeout(clearTimer);
     clearTimer = setTimeout(() => {
       setIconWithPop(clearBtn, ICONS.trash);
@@ -293,28 +189,24 @@ export function createNotesPanel(
   }
 
   // Export button (download)
-  const exportBtn = makeActionBtn(ICONS.download, 'Export as JSON (D)', () => {
+  const exportBtn = makeActionBtn(ICONS.download, 'Download', 'D', 'Download as JSON (D)', () => {
     bus.emit({ type: 'output:download', format: 'json' });
   });
 
   // Clear button (trash)
-  const clearBtn = makeActionBtn(ICONS.trash, 'Clear all annotations', () => {
+  const clearBtn = makeActionBtn(ICONS.trash, 'Clear', null, 'Clear all annotations', () => {
     bus.emit({ type: 'session:cleared' });
   });
 
-  actionRight.appendChild(annotateBtn);
-  actionRight.appendChild(spacer);
-  actionRight.appendChild(pinsBtn);
-  actionRight.appendChild(copyBtn);
-  actionRight.appendChild(exportBtn);
-  actionRight.appendChild(clearBtn);
+  tabBar.appendChild(annotateBtn);
+  tabBar.appendChild(divider);
+  tabBar.appendChild(pinsBtn);
+  tabBar.appendChild(copyBtn);
+  tabBar.appendChild(exportBtn);
+  tabBar.appendChild(clearBtn);
 
-  actionBar.appendChild(actionLeft);
-  actionBar.appendChild(actionRight);
+  actionBar.appendChild(tabBar);
   container.appendChild(actionBar);
-
-  // --- Typewriter for file label ---
-  const typewriter = createTypewriter(fileLabel);
 
   // --- Notes list / empty state container ---
   const notesListEl = document.createElement('div');
@@ -344,11 +236,6 @@ export function createNotesPanel(
     }
 
     updateActionBarState(false);
-
-    // Shortcut hint footer
-    const hint = document.createElement('div');
-    hint.className = 'dn-shortcut-hint';
-    hint.innerHTML = '<kbd>C</kbd> copy &middot; <kbd>D</kbd> export &middot; <kbd>A</kbd> annotate';
 
     const isSlideContent = slideObserver?.getSlideCount() !== null && slideObserver?.getSlideCount() !== undefined;
     const activeSlide = slideObserver?.getActiveSlide() ?? null;
@@ -393,7 +280,7 @@ export function createNotesPanel(
       }
     }
 
-    notesListEl.appendChild(hint);
+
   }
 
   function renderEmptyState(): void {
@@ -485,13 +372,32 @@ export function createNotesPanel(
 
   function makeActionBtn(
     icon: string,
+    label: string,
+    shortcut: string | null,
     title: string,
     onClick: () => void,
   ): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'dn-action-btn';
     btn.title = title;
-    btn.innerHTML = icon;
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'dn-action-btn__icon';
+    iconSpan.innerHTML = icon;
+    btn.appendChild(iconSpan);
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'dn-action-btn__label';
+    labelSpan.textContent = label;
+    btn.appendChild(labelSpan);
+
+    if (shortcut) {
+      const kbd = document.createElement('kbd');
+      kbd.className = 'dn-action-btn__shortcut';
+      kbd.textContent = shortcut;
+      btn.appendChild(kbd);
+    }
+
     btn.addEventListener('click', onClick);
     return btn;
   }
@@ -502,9 +408,6 @@ export function createNotesPanel(
   unsubs.push(bus.on('annotation:create', (e) => {
     // Auto-deactivate annotate button
     annotateBtn.classList.remove('dn-action-btn--active');
-    // Typewriter feedback with annotation count
-    const count = manager.getAll().length;
-    typewriter.type(`Added #${count}`);
     // Select the new annotation
     selectedId = e.annotation.id;
     renderNotesList();
@@ -524,8 +427,6 @@ export function createNotesPanel(
   }));
 
   unsubs.push(bus.on('annotation:delete', () => {
-    const remaining = manager.getAll().length;
-    typewriter.type(remaining > 0 ? `${remaining} remaining` : 'All clear');
     renderNotesList();
   }));
 
@@ -550,14 +451,6 @@ export function createNotesPanel(
     renderNotesList();
   }));
 
-  unsubs.push(bus.on('content:loaded', (e) => {
-    typewriter.setOriginal(e.sourceName);
-  }));
-
-  unsubs.push(bus.on('content:unloaded', () => {
-    typewriter.setOriginal('');
-  }));
-
   unsubs.push(bus.on('output:copy', () => {
     showCopyFeedback();
   }));
@@ -573,7 +466,6 @@ export function createNotesPanel(
   unsubs.push(bus.on('pins:visibility', (e) => {
     pinsVisible = e.visible;
     setIconWithPop(pinsBtn, pinsVisible ? ICONS.eye : ICONS.eyeOff);
-    typewriter.type(pinsVisible ? 'Pins visible' : 'Pins hidden');
   }));
 
   // Initial render (empty state)
@@ -587,7 +479,6 @@ export function createNotesPanel(
       if (copyTimer) clearTimeout(copyTimer);
       if (exportTimer) clearTimeout(exportTimer);
       if (clearTimer) clearTimeout(clearTimer);
-      typewriter.destroy();
       // Restore original picker methods
       picker.activate = originalActivate;
       picker.deactivate = originalDeactivate;

@@ -46,53 +46,52 @@
 
 .dn-action-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--dn-border);
+  padding: 12px 12px 8px;
   flex-shrink: 0;
 }
 
-.dn-action-bar__left {
-  display: flex;
-  align-items: center;
-}
+/* --- Floating tab bar --- */
 
-.dn-action-bar__right {
+.dn-tab-bar {
   display: flex;
-  align-items: center;
+  width: 100%;
+  border-radius: 12px;
+  padding: 6px;
   gap: 2px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1.5px dashed var(--dn-border);
 }
 
-.dn-file-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--dn-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 160px;
+/* --- Tab bar divider --- */
+
+.dn-tab-bar__divider {
+  width: 1px;
+  margin: 6px 2px;
+  background: var(--dn-border);
+  flex-shrink: 0;
 }
+
+/* --- Action button --- */
 
 .dn-action-btn {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
+  gap: 3px;
+  flex: 1 1 0%;
+  padding: 8px 4px 5px;
   border: none;
-  border-radius: var(--dn-radius-sm);
+  border-radius: 9px;
   background: transparent;
-  color: var(--dn-accent-muted);
+  color: #8A7968;
   cursor: pointer;
   transition: background var(--dn-transition-fast), color var(--dn-transition-fast);
-  flex-shrink: 0;
+  position: relative;
 }
 
 .dn-action-btn:hover {
-  background: var(--dn-bg-secondary);
-  color: var(--dn-text-primary);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .dn-action-btn--active {
@@ -102,6 +101,14 @@
 
 .dn-action-btn--active:hover {
   background: var(--dn-accent-hover);
+  color: #fff;
+}
+
+.dn-action-btn--accent {
+  color: var(--dn-accent);
+}
+
+.dn-action-btn--accent.dn-action-btn--active {
   color: #fff;
 }
 
@@ -116,6 +123,62 @@
 
 .dn-action-btn--success {
   color: #34c759;
+}
+
+/* --- Button icon container --- */
+
+.dn-action-btn__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dn-action-btn__icon svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- Button label --- */
+
+.dn-action-btn__label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 12px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dn-action-btn--active .dn-action-btn__label {
+  font-weight: 600;
+}
+
+/* --- Keyboard shortcut badge --- */
+
+.dn-action-btn__shortcut {
+  position: absolute;
+  top: 3px;
+  right: 6px;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 10px;
+  text-align: center;
+  color: #B5A998;
+  background: rgba(0, 0, 0, 0.04);
+  border: none;
+  pointer-events: none;
+}
+
+.dn-action-btn--active .dn-action-btn__shortcut {
+  color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 /* --- Pencil glow pulse during annotate mode --- */
@@ -137,55 +200,8 @@
   100% { transform: scale(1); opacity: 1; }
 }
 
-.dn-action-btn svg.dn-icon-enter {
+.dn-action-btn__icon svg.dn-icon-enter {
   animation: dn-icon-pop 250ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-/* --- Typewriter file label --- */
-
-.dn-file-label--typing {
-  color: var(--dn-accent);
-}
-
-.dn-typewriter-cursor {
-  display: inline-block;
-  width: 1px;
-  height: 1em;
-  background: var(--dn-accent);
-  margin-left: 1px;
-  vertical-align: text-bottom;
-  animation: dn-cursor-blink 600ms steps(1) infinite;
-}
-
-@keyframes dn-cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-/* Fade transition back to filename */
-.dn-file-label--fade-out {
-  transition: opacity 300ms ease;
-  opacity: 0;
-}
-
-.dn-file-label--fade-in {
-  transition: opacity 300ms ease;
-  opacity: 1;
-}
-
-.dn-action-btn svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.dn-action-spacer {
-  width: 6px;
-  flex-shrink: 0;
 }
 
 /* --- Notes list --- */
@@ -206,7 +222,7 @@
   letter-spacing: 0.05em;
   color: var(--dn-text-secondary);
   background: var(--dn-bg-secondary);
-  border-bottom: 1px solid var(--dn-border);
+  border-bottom: 1px dashed var(--dn-border);
   user-select: none;
 }
 
@@ -219,9 +235,9 @@
 .dn-note-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--dn-border);
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px dashed var(--dn-border);
   cursor: pointer;
   transition: background var(--dn-transition-fast);
   position: relative;
@@ -333,8 +349,7 @@
 
 /* --- Keyboard hints --- */
 
-.dn-empty-state kbd,
-.dn-shortcut-hint kbd {
+.dn-empty-state kbd {
   display: inline-block;
   min-width: 20px;
   padding: 1px 6px;
@@ -349,19 +364,6 @@
   border-radius: 4px;
   box-shadow: 0 1px 0 var(--dn-border);
   vertical-align: baseline;
-}
-
-.dn-shortcut-hint {
-  padding: 10px 16px;
-  font-size: 11px;
-  color: var(--dn-text-muted);
-  text-align: center;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-}
-
-.dn-shortcut-hint:hover {
-  opacity: 1;
 }
 
 /* --- Copy ghost (note pin flies to button) --- */
