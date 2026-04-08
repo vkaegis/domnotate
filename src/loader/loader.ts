@@ -141,7 +141,8 @@ export function createContentLoader(): ContentLoader {
 
     async loadUrl(url: string): Promise<void> {
       try {
-        const response = await fetch(url);
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+        const response = await fetch(proxyUrl);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
