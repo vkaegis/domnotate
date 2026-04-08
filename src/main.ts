@@ -37,6 +37,12 @@ const notePopover = createNotePopover();
 const formatter = createOutputFormatter();
 const store = createSessionStore();
 const slideObserver = createSlideObserver();
+// Clear annotations before sidebar listeners re-render (event ordering matters)
+bus.on('session:cleared', () => {
+  manager.clearAll();
+  pinRenderer.render();
+});
+
 const sidebar = createSidebar(sidebarEl, bus, manager, picker, slideObserver);
 const contentAreaEl = document.getElementById('content-area')!;
 const toast = createToast(contentAreaEl, bus);
@@ -248,12 +254,15 @@ bus.on('annotation:update', autoSave);
 bus.on('annotation:delete', autoSave);
 
 // ============================================================
-// Session cleared
+// Session cleared — auto-save cleared session
 // ============================================================
 
 bus.on('session:cleared', () => {
-  manager.clearAll();
-  pinRenderer.render();
+  if (currentSession) {
+    currentSession.annotations = [];
+    currentSession.updatedAt = new Date().toISOString();
+    store.save(currentSession);
+  }
 });
 
 console.log('[Domnotate] Ready');

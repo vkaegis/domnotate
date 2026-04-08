@@ -194,8 +194,42 @@ export function createNotesPanel(
   });
 
   // Clear button (trash)
+  let clearAnimating = false;
   const clearBtn = makeActionBtn(ICONS.trash, 'Clear', null, 'Clear all annotations', () => {
-    bus.emit({ type: 'session:cleared' });
+    if (clearAnimating) return;
+
+    const rows = notesListEl.querySelectorAll('.dn-note-row, .dn-slide-group-header');
+    if (rows.length === 0) {
+      bus.emit({ type: 'session:cleared' });
+      return;
+    }
+
+    clearAnimating = true;
+    const STAGGER = 40;
+    const DURATION = 120;
+    let finished = 0;
+
+    rows.forEach((row, i) => {
+      const anim = (row as HTMLElement).animate(
+        [
+          { transform: 'translateX(0)', opacity: 1 },
+          { transform: 'translateX(40px)', opacity: 0 },
+        ],
+        {
+          duration: DURATION,
+          delay: i * STAGGER,
+          easing: 'linear',
+          fill: 'forwards',
+        },
+      );
+      anim.onfinish = () => {
+        finished++;
+        if (finished === rows.length) {
+          clearAnimating = false;
+          bus.emit({ type: 'session:cleared' });
+        }
+      };
+    });
   });
 
   tabBar.appendChild(annotateBtn);
