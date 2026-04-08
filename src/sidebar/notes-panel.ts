@@ -466,6 +466,8 @@ export function createNotesPanel(
   unsubs.push(bus.on('pins:visibility', (e) => {
     pinsVisible = e.visible;
     setIconWithPop(pinsBtn, pinsVisible ? ICONS.eye : ICONS.eyeOff);
+    const pinLabel = pinsBtn.querySelector('.dn-action-btn__label');
+    if (pinLabel) pinLabel.textContent = pinsVisible ? 'Hide Pins' : 'Show Pins';
   }));
 
   // Initial render (empty state)
