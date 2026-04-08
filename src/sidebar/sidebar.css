@@ -247,12 +247,6 @@
   background: var(--dn-bg-secondary);
 }
 
-.dn-note-row--selected {
-  background: var(--dn-accent-subtle);
-  border-left: 3px solid var(--dn-accent);
-  padding-left: 13px; /* 16 - 3 to compensate for border */
-}
-
 .dn-note-pin {
   width: 22px;
   height: 22px;

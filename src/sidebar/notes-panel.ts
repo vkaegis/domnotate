@@ -317,10 +317,6 @@ export function createNotesPanel(
     row.className = 'dn-note-row';
     row.dataset.annotationId = annotation.id;
 
-    if (annotation.id === selectedId) {
-      row.classList.add('dn-note-row--selected');
-    }
-
     // Pin number
     const pin = document.createElement('div');
     pin.className = 'dn-note-pin';
