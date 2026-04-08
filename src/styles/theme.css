@@ -13,11 +13,14 @@
   /* Border */
   --dn-border: #E4D9CA;
   --dn-border-hover: #D4C9BA;
+  --dn-border-warm: #D4C4AD;
 
   /* Text */
   --dn-text-primary: #2C2016;
   --dn-text-secondary: #6B5D4F;
   --dn-text-muted: #B0A48F;
+  --dn-text-warm: #A0937E;
+  --dn-text-warm-strong: #7A6B5A;
 
   /* Accent — terracotta */
   --dn-accent: #C4725A;
@@ -65,10 +68,13 @@
 
   --dn-border: #3D352B;
   --dn-border-hover: #4D453B;
+  --dn-border-warm: #4A3F33;
 
   --dn-text-primary: #F0EBE4;
   --dn-text-secondary: #A89B8C;
   --dn-text-muted: #6B5D4F;
+  --dn-text-warm: #7A6D5C;
+  --dn-text-warm-strong: #9A8B78;
 
   --dn-accent: #D4836A;
   --dn-accent-hover: #E4937A;
@@ -91,10 +97,13 @@
 
     --dn-border: #3D352B;
     --dn-border-hover: #4D453B;
+    --dn-border-warm: #4A3F33;
 
     --dn-text-primary: #F0EBE4;
     --dn-text-secondary: #A89B8C;
     --dn-text-muted: #6B5D4F;
+    --dn-text-warm: #7A6D5C;
+    --dn-text-warm-strong: #9A8B78;
 
     --dn-accent: #D4836A;
     --dn-accent-hover: #E4937A;

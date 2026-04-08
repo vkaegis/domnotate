@@ -88,7 +88,7 @@ export function createNotePopover(): NotePopover {
     // Position: to the right of the pin, top-aligned with pin center
     const pinSize = 24;
     const pinOffset = pinSize / 2; // pin is centered on anchorPoint
-    const gap = 8;
+    const gap = 14;
     const left = annotation.anchorPoint.x - scrollX + pinOffset + gap;
     const top = annotation.anchorPoint.y - scrollY - pinOffset;
 

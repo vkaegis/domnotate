@@ -99,32 +99,35 @@
   gap: 20px;
   max-width: 380px;
   width: 100%;
+  padding: 48px 40px;
+  border: 2px dashed var(--dn-border-warm);
+  border-radius: 12px;
+  background: var(--dn-bg-primary);
+  box-sizing: border-box;
+  transition: border-color var(--dn-transition-normal), background var(--dn-transition-normal);
+}
+
+.dn-landing__card:has(.dn-drop-area--active) {
+  border-color: var(--dn-accent);
+  background: var(--dn-accent-subtle);
 }
 
 /* Drop area */
 
 .dn-drop-area {
-  border: 2px dashed var(--dn-border);
-  border-radius: var(--dn-radius-lg);
-  padding: 48px 32px;
-  width: 100%;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
   cursor: pointer;
-  transition: border-color var(--dn-transition-normal), background var(--dn-transition-normal);
-  background: var(--dn-bg-overlay);
-}
-
-.dn-drop-area:hover {
-  border-color: var(--dn-border-hover);
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
 .dn-drop-area--active {
-  border-color: var(--dn-accent);
-  background: var(--dn-accent-subtle);
+  /* Drag-active state applied to parent card instead */
 }
 
 .dn-drop-area__icon {
@@ -163,15 +166,15 @@
 .dn-landing__sep-line {
   flex: 1;
   height: 1px;
-  background: var(--dn-border);
+  background: var(--dn-border-warm);
 }
 
 .dn-landing__sep-text {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--dn-text-muted);
+  color: var(--dn-text-warm);
   flex-shrink: 0;
 }
 
@@ -188,10 +191,10 @@
   padding: 10px 14px;
   font-size: 14px;
   font-family: inherit;
-  background: var(--dn-bg-elevated);
+  background: var(--dn-bg-secondary);
   color: var(--dn-text-primary);
-  border: 1px solid var(--dn-border);
-  border-radius: var(--dn-radius-sm);
+  border: 1px solid var(--dn-border-warm);
+  border-radius: 8px;
   outline: none;
   transition: border-color var(--dn-transition-fast);
   min-width: 0;
@@ -206,14 +209,14 @@
 }
 
 .dn-load-btn {
-  padding: 10px 24px;
+  padding: 10px 20px;
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
   background: var(--dn-accent);
   color: #fff;
   border: none;
-  border-radius: var(--dn-radius-sm);
+  border-radius: 8px;
   cursor: pointer;
   transition: background var(--dn-transition-fast);
   white-space: nowrap;
@@ -229,20 +232,20 @@
 .dn-browse-btn {
   padding: 10px 24px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   font-family: inherit;
   background: transparent;
-  color: var(--dn-text-primary);
-  border: 1px solid var(--dn-border);
-  border-radius: var(--dn-radius-sm);
+  color: var(--dn-text-warm-strong);
+  border: 1.5px solid var(--dn-border-warm);
+  border-radius: 8px;
   cursor: pointer;
   transition: border-color var(--dn-transition-fast), background var(--dn-transition-fast);
   width: 100%;
 }
 
 .dn-browse-btn:hover {
-  border-color: var(--dn-border-hover);
-  background: var(--dn-bg-elevated);
+  border-color: var(--dn-accent-muted);
+  background: var(--dn-accent-subtle);
 }
 
 /* Error */
