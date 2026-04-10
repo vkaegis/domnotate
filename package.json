@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ci": "vitest run",
+    "deploy": "wrangler pages deploy dist",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
