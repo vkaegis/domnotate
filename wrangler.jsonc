@@ -3,8 +3,5 @@
   // Do NOT use `wrangler deploy` — that's for Workers, not Pages.
   "name": "domnotate",
   "compatibility_date": "2026-03-30",
-  "pages_build_output_dir": "./dist",
-  "build": {
-    "command": "npm run build"
-  }
+  "pages_build_output_dir": "./dist"
 }
