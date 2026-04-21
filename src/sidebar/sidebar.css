@@ -58,7 +58,7 @@
   border-radius: 12px;
   padding: 6px;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--dn-bg-overlay);
   border: 1.5px dashed var(--dn-border);
 }
 
@@ -84,7 +84,7 @@
   border: none;
   border-radius: 9px;
   background: transparent;
-  color: #8A7968;
+  color: var(--dn-text-secondary);
   cursor: pointer;
   transition: background var(--dn-transition-fast), color var(--dn-transition-fast);
   position: relative;
@@ -170,7 +170,7 @@
   font-weight: 600;
   line-height: 10px;
   text-align: center;
-  color: #B5A998;
+  color: var(--dn-text-muted);
   background: rgba(0, 0, 0, 0.04);
   border: none;
   pointer-events: none;
