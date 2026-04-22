@@ -29,7 +29,7 @@
   background: var(--dn-bg-elevated);
   border: 1px solid var(--dn-border);
   border-radius: var(--dn-radius-md);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--dn-shadow-md);
   padding: 8px 10px;
   min-width: 180px;
   max-width: 280px;

@@ -58,7 +58,7 @@
   border-radius: 12px;
   padding: 6px;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--dn-tab-bar-bg);
   border: 1.5px dashed var(--dn-border);
 }
 
@@ -84,24 +84,24 @@
   border: none;
   border-radius: 9px;
   background: transparent;
-  color: #8A7968;
+  color: var(--dn-text-warm-strong);
   cursor: pointer;
   transition: background var(--dn-transition-fast), color var(--dn-transition-fast);
   position: relative;
 }
 
 .dn-action-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--dn-bg-hover);
 }
 
 .dn-action-btn--active {
   background: var(--dn-accent);
-  color: #fff;
+  color: var(--dn-text-on-accent);
 }
 
 .dn-action-btn--active:hover {
   background: var(--dn-accent-hover);
-  color: #fff;
+  color: var(--dn-text-on-accent);
 }
 
 .dn-action-btn--accent {
@@ -109,7 +109,7 @@
 }
 
 .dn-action-btn--accent.dn-action-btn--active {
-  color: #fff;
+  color: var(--dn-text-on-accent);
 }
 
 .dn-action-btn--dimmed {
@@ -118,11 +118,11 @@
 }
 
 .dn-action-btn--copied {
-  color: #34c759;
+  color: var(--dn-success);
 }
 
 .dn-action-btn--success {
-  color: #34c759;
+  color: var(--dn-success);
 }
 
 /* --- Button icon container --- */
@@ -170,15 +170,15 @@
   font-weight: 600;
   line-height: 10px;
   text-align: center;
-  color: #B5A998;
-  background: rgba(0, 0, 0, 0.04);
+  color: var(--dn-text-muted);
+  background: var(--dn-bg-hover);
   border: none;
   pointer-events: none;
 }
 
 .dn-action-btn--active .dn-action-btn__shortcut {
-  color: rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.15);
+  color: var(--dn-text-on-accent-muted);
+  background: var(--dn-bg-on-accent);
 }
 
 /* --- Pencil glow pulse during annotate mode --- */
@@ -188,8 +188,8 @@
 }
 
 @keyframes dn-glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(196, 114, 90, 0.4); }
-  50% { box-shadow: 0 0 8px 2px rgba(196, 114, 90, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 0 var(--dn-accent-glow); }
+  50% { box-shadow: 0 0 8px 2px var(--dn-accent-glow-soft); }
 }
 
 /* --- Icon pop animation --- */
@@ -258,7 +258,7 @@
   height: 22px;
   border-radius: 50%;
   background: var(--dn-pin-color);
-  color: #fff;
+  color: var(--dn-text-on-accent);
   font-size: 11px;
   font-weight: 700;
   line-height: 22px;
@@ -378,7 +378,7 @@
   position: fixed;
   border-radius: 50%;
   background: var(--dn-pin-color);
-  color: #fff;
+  color: var(--dn-text-on-accent);
   font-size: 11px;
   font-weight: 700;
   line-height: 22px;

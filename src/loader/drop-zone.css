@@ -214,7 +214,7 @@
   font-weight: 600;
   font-family: inherit;
   background: var(--dn-accent);
-  color: #fff;
+  color: var(--dn-text-on-accent);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -252,12 +252,12 @@
 
 .dn-landing__error {
   display: none;
-  color: #ef4444;
+  color: var(--dn-error);
   font-size: 13px;
   text-align: center;
   padding: 8px 12px;
   border-radius: var(--dn-radius-sm);
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--dn-error-subtle);
   width: 100%;
   box-sizing: border-box;
 }
