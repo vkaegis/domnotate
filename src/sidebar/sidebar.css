@@ -58,7 +58,7 @@
   border-radius: 12px;
   padding: 6px;
   gap: 2px;
-  background: var(--dn-tab-bar-bg);
+  background: var(--dn-bg-overlay);
   border: 1.5px dashed var(--dn-border);
 }
 
@@ -84,7 +84,7 @@
   border: none;
   border-radius: 9px;
   background: transparent;
-  color: var(--dn-text-warm-strong);
+  color: var(--dn-text-secondary);
   cursor: pointer;
   transition: background var(--dn-transition-fast), color var(--dn-transition-fast);
   position: relative;

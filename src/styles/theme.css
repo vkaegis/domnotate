@@ -43,7 +43,6 @@
 
   /* Interactive surfaces */
   --dn-bg-hover: rgba(0, 0, 0, 0.04);
-  --dn-tab-bar-bg: rgba(255, 255, 255, 0.6);
 
   /* Tooltip */
   --dn-tooltip-bg: #2C2016;
@@ -118,7 +117,6 @@
   --dn-bg-on-accent: rgba(255, 255, 255, 0.15);
 
   --dn-bg-hover: rgba(255, 255, 255, 0.04);
-  --dn-tab-bar-bg: rgba(255, 255, 255, 0.06);
 
   --dn-tooltip-bg: #F0EBE4;
   --dn-tooltip-text: #1A1612;
@@ -167,7 +165,6 @@
     --dn-bg-on-accent: rgba(255, 255, 255, 0.15);
 
     --dn-bg-hover: rgba(255, 255, 255, 0.04);
-    --dn-tab-bar-bg: rgba(255, 255, 255, 0.06);
 
     --dn-tooltip-bg: #F0EBE4;
     --dn-tooltip-text: #1A1612;
