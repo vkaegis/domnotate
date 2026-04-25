@@ -189,7 +189,7 @@ bus.on('annotation:select', (e) => {
 
         // Add a temporary dashed highlight border
         const prev = (el as HTMLElement).style.outline;
-        (el as HTMLElement).style.outline = '2px dashed #C4725A';
+        (el as HTMLElement).style.outline = '2px dashed var(--dn-accent)';
         setTimeout(() => {
           (el as HTMLElement).style.outline = prev;
         }, 2000);

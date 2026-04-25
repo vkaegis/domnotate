@@ -30,8 +30,8 @@ export function createHighlighter(
   Object.assign(tooltip.style, {
     position: 'absolute',
     pointerEvents: 'none',
-    background: '#1e293b',
-    color: '#f1f5f9',
+    background: 'var(--dn-tooltip-bg)',
+    color: 'var(--dn-tooltip-text)',
     fontSize: '11px',
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
     lineHeight: '1.4',
@@ -41,7 +41,7 @@ export function createHighlighter(
     zIndex: '10001',
     transition: 'top 0.1s ease, left 0.1s ease, opacity 0.15s ease',
     opacity: '0',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+    boxShadow: 'var(--dn-shadow-sm)',
   });
 
   overlayEl.appendChild(box);

@@ -31,6 +31,31 @@
   /* Pin */
   --dn-pin-color: #C4725A;
 
+  /* Semantic status */
+  --dn-error: #ef4444;
+  --dn-error-subtle: rgba(239, 68, 68, 0.1);
+  --dn-success: #34c759;
+
+  /* On-accent (text/bg on accent-colored surfaces) */
+  --dn-text-on-accent: #fff;
+  --dn-text-on-accent-muted: rgba(255, 255, 255, 0.45);
+  --dn-bg-on-accent: rgba(255, 255, 255, 0.15);
+
+  /* Interactive surfaces */
+  --dn-bg-hover: rgba(0, 0, 0, 0.04);
+
+  /* Tooltip */
+  --dn-tooltip-bg: #2C2016;
+  --dn-tooltip-text: #F0EBE4;
+
+  /* Shadows */
+  --dn-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.15);
+  --dn-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
+
+  /* Glow (accent pulse animation) */
+  --dn-accent-glow: rgba(196, 114, 90, 0.4);
+  --dn-accent-glow-soft: rgba(196, 114, 90, 0.3);
+
   /* Highlight overlay */
   --dn-highlight-bg: rgba(196, 114, 90, 0.12);
   --dn-highlight-border: rgba(196, 114, 90, 0.6);
@@ -83,6 +108,25 @@
 
   --dn-pin-color: #D4836A;
 
+  --dn-error: #ef4444;
+  --dn-error-subtle: rgba(239, 68, 68, 0.1);
+  --dn-success: #34c759;
+
+  --dn-text-on-accent: #fff;
+  --dn-text-on-accent-muted: rgba(255, 255, 255, 0.45);
+  --dn-bg-on-accent: rgba(255, 255, 255, 0.15);
+
+  --dn-bg-hover: rgba(255, 255, 255, 0.04);
+
+  --dn-tooltip-bg: #F0EBE4;
+  --dn-tooltip-text: #1A1612;
+
+  --dn-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --dn-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --dn-accent-glow: rgba(212, 131, 106, 0.4);
+  --dn-accent-glow-soft: rgba(212, 131, 106, 0.3);
+
   --dn-highlight-bg: rgba(212, 131, 106, 0.15);
   --dn-highlight-border: rgba(212, 131, 106, 0.6);
 }
@@ -111,6 +155,25 @@
     --dn-accent-muted: #8A7D6B;
 
     --dn-pin-color: #D4836A;
+
+    --dn-error: #ef4444;
+    --dn-error-subtle: rgba(239, 68, 68, 0.1);
+    --dn-success: #34c759;
+
+    --dn-text-on-accent: #fff;
+    --dn-text-on-accent-muted: rgba(255, 255, 255, 0.45);
+    --dn-bg-on-accent: rgba(255, 255, 255, 0.15);
+
+    --dn-bg-hover: rgba(255, 255, 255, 0.04);
+
+    --dn-tooltip-bg: #F0EBE4;
+    --dn-tooltip-text: #1A1612;
+
+    --dn-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
+    --dn-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15);
+
+    --dn-accent-glow: rgba(212, 131, 106, 0.4);
+    --dn-accent-glow-soft: rgba(212, 131, 106, 0.3);
 
     --dn-highlight-bg: rgba(212, 131, 106, 0.15);
     --dn-highlight-border: rgba(212, 131, 106, 0.6);

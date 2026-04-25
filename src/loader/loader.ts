@@ -78,12 +78,12 @@ export function createContentLoader(): ContentLoader {
       errEl = document.createElement('div');
       errEl.setAttribute('data-dn-error', '');
       Object.assign(errEl.style, {
-        color: '#ef4444',
+        color: 'var(--dn-error)',
         fontSize: '13px',
         textAlign: 'center',
         padding: '12px 16px',
         borderRadius: 'var(--dn-radius-sm)',
-        background: 'rgba(239,68,68,0.1)',
+        background: 'var(--dn-error-subtle)',
         position: 'fixed',
         bottom: '24px',
         left: '50%',
