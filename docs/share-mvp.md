@@ -149,12 +149,14 @@ Detect `/share/:id` early in startup:
 
 The free-tier reasoning we covered:
 
-- **No paid Workers plan.** Stay on free, where exceeding daily caps returns errors instead of charging.
-- **No credit card on R2** unless required. Hard cap protection.
+- **No paid Workers plan required.** Stay on the Workers/Pages free plan for the MVP and set the Pages project to fail closed when Functions allowance is exhausted.
+- **R2 is usage-based with a free tier.** Use Standard storage, keep shares under the app cap, and rely on lifecycle cleanup to bound storage growth.
 - **5 MB body cap** in the share endpoints; reject earlier with a 413.
 - **R2 lifecycle rule** auto-deletes anything older than 30 days; bounds storage growth.
-- **Cloudflare Rate Limiting rule** (free tier) on `/api/share*`: e.g. 30 requests/min/IP. Even with debounce, a runaway client can't blow KV/R2 budgets.
+- **Cloudflare Rate Limiting rule** on `/api/share*`: recommended target is 30 requests/min/IP, or 5 requests/10s/IP if the account plan only exposes 10-second free-plan counting.
 - **Billing alert** at $1 as a tripwire even though we expect $0.
+
+Exact Cloudflare account settings are documented in `docs/share-deployment-safeguards.md`.
 
 ## Known limitations (document in README)
 

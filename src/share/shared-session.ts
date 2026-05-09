@@ -14,6 +14,10 @@ export interface PublishShareRequest {
   annotations: Annotation[];
 }
 
+export interface UpdateShareRequest {
+  annotations: Annotation[];
+}
+
 export interface SharedSessionBlob extends PublishShareRequest {
   schemaVersion: typeof SHARED_SESSION_SCHEMA_VERSION;
   id: string;
@@ -31,6 +35,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  const allowed = new Set(keys);
+  return Object.keys(value).every((key) => allowed.has(key));
+}
+
+function hasValidHtmlSize(html: string): boolean {
+  return getUtf8ByteLength(html) <= MAX_SHARE_BYTES;
 }
 
 function validateAnnotation(value: unknown): value is Annotation {
@@ -74,6 +87,10 @@ export function validatePublishShareRequest(data: unknown): ValidationResult<Pub
     return { ok: false, error: 'Request body must be an object' };
   }
 
+  if (!hasOnlyKeys(data, ['sourceType', 'sourceName', 'html', 'annotations'])) {
+    return { ok: false, error: 'Request body has unexpected fields' };
+  }
+
   if (data.sourceType !== 'file' && data.sourceType !== 'url') {
     return { ok: false, error: 'sourceType must be "file" or "url"' };
   }
@@ -84,6 +101,10 @@ export function validatePublishShareRequest(data: unknown): ValidationResult<Pub
 
   if (typeof data.html !== 'string' || data.html.length === 0) {
     return { ok: false, error: 'html is required' };
+  }
+
+  if (!hasValidHtmlSize(data.html)) {
+    return { ok: false, error: 'Artifact HTML exceeds 5 MB' };
   }
 
   if (!Array.isArray(data.annotations) || !data.annotations.every(validateAnnotation)) {
@@ -101,10 +122,52 @@ export function validatePublishShareRequest(data: unknown): ValidationResult<Pub
   };
 }
 
+export function validateUpdateShareRequest(data: unknown): ValidationResult<UpdateShareRequest> {
+  if (!isRecord(data)) {
+    return { ok: false, error: 'Request body must be an object' };
+  }
+
+  if (!hasOnlyKeys(data, ['annotations'])) {
+    return { ok: false, error: 'Request body has unexpected fields' };
+  }
+
+  if (!Array.isArray(data.annotations) || !data.annotations.every(validateAnnotation)) {
+    return { ok: false, error: 'annotations must be valid Annotation objects' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      annotations: data.annotations,
+    },
+  };
+}
+
 export function validateSharedSessionBlob(data: unknown): ValidationResult<SharedSessionBlob> {
-  const validation = validatePublishShareRequest(data);
-  if (!validation.ok) return validation;
   if (!isRecord(data)) return { ok: false, error: 'Shared session blob must be an object' };
+
+  if (
+    !hasOnlyKeys(data, [
+      'schemaVersion',
+      'id',
+      'sourceType',
+      'sourceName',
+      'html',
+      'annotations',
+      'createdAt',
+      'updatedAt',
+    ])
+  ) {
+    return { ok: false, error: 'Shared session blob has unexpected fields' };
+  }
+
+  const validation = validatePublishShareRequest({
+    sourceType: data.sourceType,
+    sourceName: data.sourceName,
+    html: data.html,
+    annotations: data.annotations,
+  });
+  if (!validation.ok) return validation;
 
   if (data.schemaVersion !== SHARED_SESSION_SCHEMA_VERSION) {
     return { ok: false, error: 'Unsupported shared session schema version' };

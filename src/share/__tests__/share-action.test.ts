@@ -58,4 +58,28 @@ describe('publishOrCopyShare', () => {
     expect(copyToClipboard).toHaveBeenCalledWith('https://domnotate.example.com/share/share-new');
     expect(cacheSession).toHaveBeenCalledWith(session);
   });
+
+  test('caches the share id before reporting a clipboard failure', async () => {
+    const session = makeSession({
+      html: '<html><body>Local</body></html>',
+    });
+    const publishShare = vi.fn().mockResolvedValue({ id: 'share-new' });
+    const copyToClipboard = vi.fn().mockResolvedValue(false);
+    const cacheSession = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      publishOrCopyShare(session, {
+        origin: 'https://domnotate.example.com',
+        publishShare,
+        copyToClipboard,
+        cacheSession,
+      }),
+    ).rejects.toThrow('Share created, but the link could not be copied');
+
+    expect(session.shareId).toBe('share-new');
+    expect(cacheSession).toHaveBeenCalledWith(session);
+    expect(cacheSession.mock.invocationCallOrder[0]).toBeLessThan(
+      copyToClipboard.mock.invocationCallOrder[0],
+    );
+  });
 });

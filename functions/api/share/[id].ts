@@ -3,9 +3,8 @@ import {
   getUtf8ByteLength,
   serializeSharedSessionBlob,
   validateSharedSessionBlob,
-  validatePublishShareRequest,
+  validateUpdateShareRequest,
 } from '../../../src/share/shared-session';
-import type { Annotation } from '../../../src/types/core';
 
 interface Env {
   SHARES: R2Bucket;
@@ -38,17 +37,15 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-function getValidAnnotations(data: unknown): Annotation[] | string {
-  if (data === null || typeof data !== 'object') return 'Request body must be an object';
-  const body = data as Record<string, unknown>;
-  const validation = validatePublishShareRequest({
-    sourceType: 'file',
-    sourceName: 'annotations-update',
-    html: '<html></html>',
-    annotations: body.annotations,
-  });
-  if (!validation.ok) return validation.error;
-  return validation.value.annotations;
+function isOversizedRequest(request: Request): boolean {
+  const contentLength = request.headers.get('content-length');
+  if (!contentLength) return false;
+  const byteLength = Number(contentLength);
+  return Number.isFinite(byteLength) && byteLength > MAX_SHARE_BYTES;
+}
+
+function statusForValidationError(error: string): number {
+  return error.includes('5 MB') ? 413 : 500;
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
@@ -62,7 +59,26 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
     return noStoreResponse('Share not found', { status: 404 });
   }
 
-  return noStoreResponse(await object.text(), {
+  const storedText = await object.text();
+  if (getUtf8ByteLength(storedText) > MAX_SHARE_BYTES) {
+    return noStoreResponse('Stored share exceeds 5 MB', { status: 413 });
+  }
+
+  let storedData: unknown;
+  try {
+    storedData = JSON.parse(storedText);
+  } catch {
+    return noStoreResponse('Stored share is invalid', { status: 500 });
+  }
+
+  const validation = validateSharedSessionBlob(storedData);
+  if (!validation.ok) {
+    return noStoreResponse('Stored share is invalid', {
+      status: statusForValidationError(validation.error),
+    });
+  }
+
+  return noStoreResponse(serializeSharedSessionBlob(validation.value), {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -75,6 +91,10 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
     return noStoreResponse('Share not found', { status: 404 });
   }
 
+  if (isOversizedRequest(request)) {
+    return new Response('Share payload exceeds 5 MB', { status: 413 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -82,9 +102,9 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
     return new Response('Invalid JSON body', { status: 400 });
   }
 
-  const annotations = getValidAnnotations(body);
-  if (typeof annotations === 'string') {
-    return new Response(annotations, { status: 400 });
+  const updateValidation = validateUpdateShareRequest(body);
+  if (!updateValidation.ok) {
+    return new Response(updateValidation.error, { status: 400 });
   }
 
   const key = `share/${id}.json`;
@@ -107,7 +127,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
 
   const nextBlob = {
     ...validation.value,
-    annotations,
+    annotations: updateValidation.value.annotations,
     updatedAt: new Date().toISOString(),
   };
   const serialized = serializeSharedSessionBlob(nextBlob);

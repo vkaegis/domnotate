@@ -1,4 +1,8 @@
-import { createSharedSessionBlob, serializeSharedSessionBlob } from '../../src/share/shared-session';
+import {
+  MAX_SHARE_BYTES,
+  createSharedSessionBlob,
+  serializeSharedSessionBlob,
+} from '../../src/share/shared-session';
 
 interface Env {
   SHARES: R2Bucket;
@@ -14,7 +18,18 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
+function isOversizedRequest(request: Request): boolean {
+  const contentLength = request.headers.get('content-length');
+  if (!contentLength) return false;
+  const byteLength = Number(contentLength);
+  return Number.isFinite(byteLength) && byteLength > MAX_SHARE_BYTES;
+}
+
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  if (isOversizedRequest(request)) {
+    return new Response('Share payload exceeds 5 MB', { status: 413 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();

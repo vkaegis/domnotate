@@ -34,12 +34,13 @@ export async function publishOrCopyShare(
   const { id } = await options.publishShare(session);
   session.shareId = id;
   const url = getShareUrl(options.origin, id);
+  await options.cacheSession?.(session);
+
   const copied = await options.copyToClipboard(url);
 
   if (!copied) {
     throw new Error('Share created, but the link could not be copied');
   }
 
-  await options.cacheSession?.(session);
   return { id, url, published: true };
 }
