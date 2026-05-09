@@ -167,8 +167,8 @@ export interface SlideObserver {
 }
 
 export interface SessionStore {
-  save(session: AnnotationSession): Promise<void>;
-  load(id: string): Promise<AnnotationSession | null>;
+  save(session: AnnotationSession, options?: { cacheOnly?: boolean }): Promise<void>;
+  load(id: string, options?: { preferCloud?: boolean }): Promise<AnnotationSession | null>;
   listSessions(): Promise<Array<{ id: string; sourceName: string; updatedAt: string }>>;
   delete(id: string): Promise<void>;
   exportJSON(session: AnnotationSession): string;

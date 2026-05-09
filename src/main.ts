@@ -13,9 +13,8 @@ import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
-import { fetchShare, publishShare, republishAnnotations } from '@/share/share-client';
-import type { SharedSessionBlob } from '@/share/shared-session';
-import { sessionFromSharedBlob } from '@/share/hydration';
+import { publishShare } from '@/share/share-client';
+import { publishOrCopyShare } from '@/share/share-action';
 
 // ============================================================
 // Domnotate — Main Integration
@@ -54,7 +53,7 @@ const toast = createToast(contentAreaEl, bus);
 let currentSession: AnnotationSession | null = null;
 let selectedAnnotationId: string | null = null;
 let pinsVisible = true;
-let pendingSharedBlob: SharedSessionBlob | null = null;
+let pendingSharedSession: AnnotationSession | null = null;
 
 // Track selection and pin visibility via bus
 bus.on('annotation:select', (e) => { selectedAnnotationId = e.id; });
@@ -94,11 +93,15 @@ manager.init(bus);
 // ============================================================
 
 bus.on('content:loaded', (e) => {
-  const sharedBlob = pendingSharedBlob;
-  pendingSharedBlob = null;
+  const sharedSession = pendingSharedSession;
+  pendingSharedSession = null;
 
-  currentSession = sharedBlob
-    ? sessionFromSharedBlob(sharedBlob, e.url)
+  currentSession = sharedSession
+    ? {
+        ...sharedSession,
+        loadedUrl: e.url,
+        html: sharedSession.html ?? e.html,
+      }
     : {
         id: crypto.randomUUID(),
         sourceType: e.sourceType,
@@ -117,13 +120,10 @@ bus.on('content:loaded', (e) => {
   shortcuts.attachIframe(iframeEl);
   sidebar.show();
 
-  if (sharedBlob) {
+  if (sharedSession) {
     manager.clearAll();
     manager.loadAnnotations(currentSession.annotations);
     bus.emit({ type: 'session:loaded', session: currentSession });
-    store.save(currentSession).catch((error) => {
-      console.error('[Domnotate] shared session cache error:', error);
-    });
   }
 });
 
@@ -269,17 +269,13 @@ bus.on('share:publish', async () => {
   currentSession.updatedAt = new Date().toISOString();
 
   try {
-    const { id } = await publishShare(currentSession);
-    currentSession.shareId = id;
-    const url = `${window.location.origin}/share/${id}`;
-    const copied = await copyToClipboard(url);
-
-    if (!copied) {
-      throw new Error('Share created, but the link could not be copied');
-    }
-
+    const { id, url } = await publishOrCopyShare(currentSession, {
+      origin: window.location.origin,
+      publishShare,
+      copyToClipboard,
+      cacheSession: (session) => store.save(session, { cacheOnly: true }),
+    });
     bus.emit({ type: 'share:copied', id, url });
-    await store.save(currentSession);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to publish share';
     bus.emit({ type: 'share:error', message });
@@ -296,24 +292,40 @@ async function persistCurrentSession(): Promise<void> {
   currentSession.updatedAt = new Date().toISOString();
 
   try {
-    if (currentSession.shareId) {
-      await republishAnnotations(currentSession.shareId, currentSession.annotations);
-    }
     await store.save(currentSession);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to save annotations';
+    const message = currentSession.shareId
+      ? 'Offline: changes saved locally but could not sync to the shared link'
+      : error instanceof Error ? error.message : 'Unable to save annotations';
     bus.emit({ type: 'share:error', message });
     console.error('[Domnotate] session save error:', error);
   }
 }
 
-const autoSave = debounce(() => {
+const localAutoSave = debounce(() => {
   void persistCurrentSession();
 }, 1000);
 
-bus.on('annotation:create', autoSave);
-bus.on('annotation:update', autoSave);
-bus.on('annotation:delete', autoSave);
+const sharedTextAutoSave = debounce(() => {
+  void persistCurrentSession();
+}, 10000);
+
+function persistAnnotationChange(mode: 'immediate' | 'text'): void {
+  if (!currentSession?.shareId) {
+    localAutoSave();
+    return;
+  }
+
+  if (mode === 'immediate') {
+    void persistCurrentSession();
+  } else {
+    sharedTextAutoSave();
+  }
+}
+
+bus.on('annotation:create', () => persistAnnotationChange('immediate'));
+bus.on('annotation:update', () => persistAnnotationChange('text'));
+bus.on('annotation:delete', () => persistAnnotationChange('immediate'));
 
 // ============================================================
 // Session cleared — auto-save cleared session
@@ -344,13 +356,17 @@ async function loadSharedRoute(): Promise<void> {
   if (!shareId) return;
 
   try {
-    const sharedBlob = await fetchShare(shareId);
-    pendingSharedBlob = sharedBlob;
-    await loader.loadHtml(sharedBlob.html, sharedBlob.sourceType, sharedBlob.sourceName, {
+    const sharedSession = await store.load(shareId, { preferCloud: true });
+    if (!sharedSession?.html) {
+      throw new Error('Share not found');
+    }
+
+    pendingSharedSession = sharedSession;
+    await loader.loadHtml(sharedSession.html, sharedSession.sourceType, sharedSession.sourceName, {
       allowScripts: false,
     });
   } catch (error) {
-    pendingSharedBlob = null;
+    pendingSharedSession = null;
     const message = error instanceof Error ? error.message : 'Unable to load share';
     bus.emit({ type: 'share:error', message });
     console.error('[Domnotate] shared route load error:', error);
