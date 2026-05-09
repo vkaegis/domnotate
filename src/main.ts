@@ -13,7 +13,7 @@ import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
-import { fetchShare, publishShare } from '@/share/share-client';
+import { fetchShare, publishShare, republishAnnotations } from '@/share/share-client';
 import type { SharedSessionBlob } from '@/share/shared-session';
 import { sessionFromSharedBlob } from '@/share/hydration';
 
@@ -270,6 +270,7 @@ bus.on('share:publish', async () => {
 
   try {
     const { id } = await publishShare(currentSession);
+    currentSession.shareId = id;
     const url = `${window.location.origin}/share/${id}`;
     const copied = await copyToClipboard(url);
 
@@ -278,6 +279,7 @@ bus.on('share:publish', async () => {
     }
 
     bus.emit({ type: 'share:copied', id, url });
+    await store.save(currentSession);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to publish share';
     bus.emit({ type: 'share:error', message });
@@ -288,11 +290,25 @@ bus.on('share:publish', async () => {
 // Auto-save to IndexedDB
 // ============================================================
 
-const autoSave = debounce(() => {
+async function persistCurrentSession(): Promise<void> {
   if (!currentSession) return;
   currentSession.annotations = manager.getAll();
   currentSession.updatedAt = new Date().toISOString();
-  store.save(currentSession);
+
+  try {
+    if (currentSession.shareId) {
+      await republishAnnotations(currentSession.shareId, currentSession.annotations);
+    }
+    await store.save(currentSession);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to save annotations';
+    bus.emit({ type: 'share:error', message });
+    console.error('[Domnotate] session save error:', error);
+  }
+}
+
+const autoSave = debounce(() => {
+  void persistCurrentSession();
 }, 1000);
 
 bus.on('annotation:create', autoSave);
@@ -307,7 +323,7 @@ bus.on('session:cleared', () => {
   if (currentSession) {
     currentSession.annotations = [];
     currentSession.updatedAt = new Date().toISOString();
-    store.save(currentSession);
+    void persistCurrentSession();
   }
 });
 
@@ -330,7 +346,9 @@ async function loadSharedRoute(): Promise<void> {
   try {
     const sharedBlob = await fetchShare(shareId);
     pendingSharedBlob = sharedBlob;
-    await loader.loadHtml(sharedBlob.html, sharedBlob.sourceType, sharedBlob.sourceName);
+    await loader.loadHtml(sharedBlob.html, sharedBlob.sourceType, sharedBlob.sourceName, {
+      allowScripts: false,
+    });
   } catch (error) {
     pendingSharedBlob = null;
     const message = error instanceof Error ? error.message : 'Unable to load share';

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { makeAnnotation, makeSession } from '@/__tests__/fixtures';
-import { fetchShare, publishShare } from '@/share/share-client';
+import { fetchShare, publishShare, republishAnnotations } from '@/share/share-client';
 
 describe('share-client', () => {
   afterEach(() => {
@@ -97,5 +97,29 @@ describe('share-client', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'bad' }))));
 
     await expect(fetchShare('bad')).rejects.toThrow('Invalid shared session');
+  });
+
+  test('republishes annotations to an existing share', async () => {
+    const annotation = makeAnnotation();
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(republishAnnotations('share-123', [annotation])).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith('/api/share/share-123', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ annotations: [annotation] }),
+    });
+  });
+
+  test('throws on invalid update response shape', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false }))));
+
+    await expect(republishAnnotations('share-123', [])).rejects.toThrow('invalid response');
   });
 });

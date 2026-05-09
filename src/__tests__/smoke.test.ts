@@ -11,7 +11,7 @@ import { createToast } from '@/toast/toast';
 import { createSlideObserver } from '@/slides/slide-observer';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createContentLoader } from '@/loader/loader';
-import { fetchShare, publishShare } from '@/share/share-client';
+import { fetchShare, publishShare, republishAnnotations } from '@/share/share-client';
 import { sessionFromSharedBlob } from '@/share/hydration';
 import { createSharedSessionBlob } from '@/share/shared-session';
 
@@ -34,6 +34,7 @@ describe('smoke: core module exports', () => {
     expect(typeof createContentLoader).toBe('function');
     expect(typeof publishShare).toBe('function');
     expect(typeof fetchShare).toBe('function');
+    expect(typeof republishAnnotations).toBe('function');
     expect(typeof sessionFromSharedBlob).toBe('function');
     expect(typeof createSharedSessionBlob).toBe('function');
   });

@@ -106,7 +106,12 @@ export interface ContentLoader {
   init(iframeEl: HTMLIFrameElement, dropZoneEl: HTMLElement, bus: EventBus): void;
   loadFile(file: File): Promise<void>;
   loadUrl(url: string): Promise<void>;
-  loadHtml(html: string, sourceType: 'file' | 'url', sourceName: string): Promise<void>;
+  loadHtml(
+    html: string,
+    sourceType: 'file' | 'url',
+    sourceName: string,
+    options?: { allowScripts?: boolean },
+  ): Promise<void>;
   getIframeDocument(): Document | null;
   unload(): void;
 }
