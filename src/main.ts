@@ -13,6 +13,9 @@ import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
+import { fetchShare, publishShare } from '@/share/share-client';
+import type { SharedSessionBlob } from '@/share/shared-session';
+import { sessionFromSharedBlob } from '@/share/hydration';
 
 // ============================================================
 // Domnotate — Main Integration
@@ -51,6 +54,7 @@ const toast = createToast(contentAreaEl, bus);
 let currentSession: AnnotationSession | null = null;
 let selectedAnnotationId: string | null = null;
 let pinsVisible = true;
+let pendingSharedBlob: SharedSessionBlob | null = null;
 
 // Track selection and pin visibility via bus
 bus.on('annotation:select', (e) => { selectedAnnotationId = e.id; });
@@ -90,15 +94,21 @@ manager.init(bus);
 // ============================================================
 
 bus.on('content:loaded', (e) => {
-  currentSession = {
-    id: crypto.randomUUID(),
-    sourceType: e.sourceType,
-    sourceName: e.sourceName,
-    loadedUrl: e.url,
-    annotations: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const sharedBlob = pendingSharedBlob;
+  pendingSharedBlob = null;
+
+  currentSession = sharedBlob
+    ? sessionFromSharedBlob(sharedBlob, e.url)
+    : {
+        id: crypto.randomUUID(),
+        sourceType: e.sourceType,
+        sourceName: e.sourceName,
+        loadedUrl: e.url,
+        html: e.html,
+        annotations: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
   picker.init(iframeEl, overlayEl, bus);
   slideObserver.init(iframeEl, bus);
@@ -106,6 +116,15 @@ bus.on('content:loaded', (e) => {
   notePopover.init(overlayEl, iframeEl, bus, manager);
   shortcuts.attachIframe(iframeEl);
   sidebar.show();
+
+  if (sharedBlob) {
+    manager.clearAll();
+    manager.loadAnnotations(currentSession.annotations);
+    bus.emit({ type: 'session:loaded', session: currentSession });
+    store.save(currentSession).catch((error) => {
+      console.error('[Domnotate] shared session cache error:', error);
+    });
+  }
 });
 
 // ============================================================
@@ -239,6 +258,33 @@ bus.on('output:download', (e) => {
 });
 
 // ============================================================
+// Share: publish session HTML + annotations, then copy link
+// ============================================================
+
+bus.on('share:publish', async () => {
+  if (!currentSession) return;
+
+  bus.emit({ type: 'share:publishing' });
+  currentSession.annotations = manager.getAll();
+  currentSession.updatedAt = new Date().toISOString();
+
+  try {
+    const { id } = await publishShare(currentSession);
+    const url = `${window.location.origin}/share/${id}`;
+    const copied = await copyToClipboard(url);
+
+    if (!copied) {
+      throw new Error('Share created, but the link could not be copied');
+    }
+
+    bus.emit({ type: 'share:copied', id, url });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to publish share';
+    bus.emit({ type: 'share:error', message });
+  }
+});
+
+// ============================================================
 // Auto-save to IndexedDB
 // ============================================================
 
@@ -266,3 +312,31 @@ bus.on('session:cleared', () => {
 });
 
 console.log('[Domnotate] Ready');
+
+function getSharedRouteId(): string | null {
+  const match = window.location.pathname.match(/^\/share\/([^/]+)\/?$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+async function loadSharedRoute(): Promise<void> {
+  const shareId = getSharedRouteId();
+  if (!shareId) return;
+
+  try {
+    const sharedBlob = await fetchShare(shareId);
+    pendingSharedBlob = sharedBlob;
+    await loader.loadHtml(sharedBlob.html, sharedBlob.sourceType, sharedBlob.sourceName);
+  } catch (error) {
+    pendingSharedBlob = null;
+    const message = error instanceof Error ? error.message : 'Unable to load share';
+    bus.emit({ type: 'share:error', message });
+    console.error('[Domnotate] shared route load error:', error);
+  }
+}
+
+void loadSharedRoute();

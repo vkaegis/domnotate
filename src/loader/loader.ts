@@ -51,6 +51,7 @@ export function createContentLoader(): ContentLoader {
           url: blobUrl,
           sourceType,
           sourceName,
+          html,
         });
 
         resolve();
@@ -159,6 +160,14 @@ export function createContentLoader(): ContentLoader {
         showDropZoneError(message);
         throw err;
       }
+    },
+
+    loadHtml(
+      html: string,
+      sourceType: 'file' | 'url',
+      sourceName: string,
+    ): Promise<void> {
+      return loadHtmlText(html, sourceType, sourceName);
     },
 
     getIframeDocument(): Document | null {

@@ -47,10 +47,14 @@ export interface Annotation {
 
 export interface AnnotationSession {
   id: string;
+  /** Cloud share id when this session was loaded from or published to /share/:id */
+  shareId?: string;
   sourceType: 'file' | 'url';
   sourceName: string;
   /** Blob URL or original URL loaded in iframe */
   loadedUrl: string;
+  /** Original HTML text loaded into the iframe, used for share publishing */
+  html?: string;
   annotations: Annotation[];
   createdAt: string;
   updatedAt: string;
@@ -59,7 +63,7 @@ export interface AnnotationSession {
 // === Event Bus ===
 
 export type DomnotateEvent =
-  | { type: 'content:loaded'; url: string; sourceType: 'file' | 'url'; sourceName: string }
+  | { type: 'content:loaded'; url: string; sourceType: 'file' | 'url'; sourceName: string; html?: string }
   | { type: 'content:unloaded' }
   | { type: 'picker:hover'; element: ElementDescriptor; mouseX: number; mouseY: number }
   | { type: 'picker:unhover' }
@@ -75,6 +79,10 @@ export type DomnotateEvent =
   | { type: 'session:cleared' }
   | { type: 'output:copy'; format: 'markdown' | 'compact' | 'json' }
   | { type: 'output:download'; format: 'markdown' | 'json' }
+  | { type: 'share:publish' }
+  | { type: 'share:publishing' }
+  | { type: 'share:copied'; id: string; url: string }
+  | { type: 'share:error'; message: string }
   | { type: 'slide:changed'; slideIndex: number };
 
 export type DomnotateEventType = DomnotateEvent['type'];
@@ -98,6 +106,7 @@ export interface ContentLoader {
   init(iframeEl: HTMLIFrameElement, dropZoneEl: HTMLElement, bus: EventBus): void;
   loadFile(file: File): Promise<void>;
   loadUrl(url: string): Promise<void>;
+  loadHtml(html: string, sourceType: 'file' | 'url', sourceName: string): Promise<void>;
   getIframeDocument(): Document | null;
   unload(): void;
 }

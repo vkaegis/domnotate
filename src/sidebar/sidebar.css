@@ -125,6 +125,11 @@
   color: var(--dn-success);
 }
 
+.dn-action-btn--loading {
+  color: var(--dn-accent);
+  cursor: progress;
+}
+
 /* --- Button icon container --- */
 
 .dn-action-btn__icon {
