@@ -39,7 +39,7 @@ describe('share-client', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(publishShare(makeSession())).rejects.toThrow('loaded HTML is unavailable');
+    await expect(publishShare(makeSession())).rejects.toThrow('page HTML is unavailable');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -56,7 +56,15 @@ describe('share-client', () => {
 
     await expect(
       publishShare(makeSession({ html: '<html></html>' })),
-    ).rejects.toThrow('invalid response');
+    ).rejects.toThrow('invalid server response');
+  });
+
+  test('throws a concise oversized publish error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Share payload exceeds 5 MB', { status: 413 })));
+
+    await expect(
+      publishShare(makeSession({ html: '<html></html>' })),
+    ).rejects.toThrow('Share is over the 5 MB limit');
   });
 
   test('fetches a shared session blob', async () => {
@@ -90,7 +98,13 @@ describe('share-client', () => {
   test('throws not found for missing shared sessions', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Share not found', { status: 404 })));
 
-    await expect(fetchShare('missing')).rejects.toThrow('Share not found');
+    await expect(fetchShare('missing')).rejects.toThrow('Shared link not found');
+  });
+
+  test('throws a concise oversized shared-link error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Stored share exceeds 5 MB', { status: 413 })));
+
+    await expect(fetchShare('large')).rejects.toThrow('Shared link is over the 5 MB limit');
   });
 
   test('throws on invalid shared session response shape', async () => {
@@ -120,6 +134,12 @@ describe('share-client', () => {
   test('throws on invalid update response shape', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false }))));
 
-    await expect(republishAnnotations('share-123', [])).rejects.toThrow('invalid response');
+    await expect(republishAnnotations('share-123', [])).rejects.toThrow('invalid server response');
+  });
+
+  test('throws a concise oversized annotation update error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Share payload exceeds 5 MB', { status: 413 })));
+
+    await expect(republishAnnotations('share-123', [])).rejects.toThrow('Annotations are over the 5 MB limit');
   });
 });

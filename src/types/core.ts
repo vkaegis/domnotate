@@ -82,6 +82,7 @@ export type DomnotateEvent =
   | { type: 'share:publish' }
   | { type: 'share:publishing' }
   | { type: 'share:copied'; id: string; url: string }
+  | { type: 'share:notice'; message: string }
   | { type: 'share:error'; message: string }
   | { type: 'slide:changed'; slideIndex: number };
 

@@ -75,7 +75,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         await cacheSession(session);
         return session;
       } catch (error) {
-        if (error instanceof Error && error.message === 'Share not found') {
+        if (error instanceof Error && error.message === 'Shared link not found') {
           return null;
         }
         if (cached) return cached;

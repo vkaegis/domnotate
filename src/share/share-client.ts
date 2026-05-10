@@ -19,9 +19,33 @@ function readErrorMessage(error: unknown): string {
   return 'Share request failed';
 }
 
+async function readResponseText(response: Response): Promise<string> {
+  return response.text().catch(() => response.statusText);
+}
+
+function mapPublishError(status: number, text: string): string {
+  if (status === 413) return 'Share is over the 5 MB limit';
+  if (text) return text;
+  return 'Unable to publish share';
+}
+
+function mapFetchError(status: number, text: string): string {
+  if (status === 404) return 'Shared link not found';
+  if (status === 413) return 'Shared link is over the 5 MB limit';
+  if (text) return text;
+  return 'Unable to load shared link';
+}
+
+function mapUpdateError(status: number, text: string): string {
+  if (status === 404) return 'Shared link not found';
+  if (status === 413) return 'Annotations are over the 5 MB limit';
+  if (text) return text;
+  return 'Could not save changes to shared link';
+}
+
 function getPublishPayload(session: AnnotationSession): PublishShareRequest {
   if (!session.html) {
-    throw new Error('Cannot publish this session because the loaded HTML is unavailable');
+    throw new Error('Unable to publish share: page HTML is unavailable');
   }
 
   return {
@@ -43,12 +67,11 @@ export async function publishShare(session: AnnotationSession): Promise<PublishS
       body: JSON.stringify(payload),
     });
   } catch (error) {
-    throw new Error(readErrorMessage(error));
+    throw new Error(readErrorMessage(error) || 'Unable to publish share');
   }
 
   if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
-    throw new Error(message || `Share publish failed with HTTP ${response.status}`);
+    throw new Error(mapPublishError(response.status, await readResponseText(response)));
   }
 
   const data: unknown = await response.json();
@@ -58,7 +81,7 @@ export async function publishShare(session: AnnotationSession): Promise<PublishS
     typeof (data as { id?: unknown }).id !== 'string' ||
     (data as { id: string }).id.length === 0
   ) {
-    throw new Error('Share publish returned an invalid response');
+    throw new Error('Unable to publish share: invalid server response');
   }
 
   return { id: (data as { id: string }).id };
@@ -73,15 +96,11 @@ export async function fetchShare(id: string): Promise<SharedSessionBlob> {
       cache: 'no-store',
     });
   } catch (error) {
-    throw new Error(readErrorMessage(error));
+    throw new Error(readErrorMessage(error) || 'Unable to load shared link');
   }
 
   if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error('Share not found');
-    }
-    const message = await response.text().catch(() => response.statusText);
-    throw new Error(message || `Share fetch failed with HTTP ${response.status}`);
+    throw new Error(mapFetchError(response.status, await readResponseText(response)));
   }
 
   return parseSharedSessionBlob(await response.json());
@@ -99,17 +118,16 @@ export async function republishAnnotations(
       body: JSON.stringify({ annotations }),
     });
   } catch (error) {
-    throw new Error(readErrorMessage(error));
+    throw new Error(readErrorMessage(error) || 'Could not save changes to shared link');
   }
 
   if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
-    throw new Error(message || `Share update failed with HTTP ${response.status}`);
+    throw new Error(mapUpdateError(response.status, await readResponseText(response)));
   }
 
   const data: unknown = await response.json();
   if (data === null || typeof data !== 'object' || (data as { ok?: unknown }).ok !== true) {
-    throw new Error('Share update returned an invalid response');
+    throw new Error('Could not save changes to shared link: invalid server response');
   }
 
   return { ok: true };

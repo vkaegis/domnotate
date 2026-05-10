@@ -10,7 +10,18 @@ Personal project. Actively used by me, shared in case it's useful to others. I m
 
 Load any HTML page (from a file or URL), pin annotations to specific elements, and export the feedback as structured JSON. The output is designed to be fed back to coding agents so they can act on the feedback without a human transcribing it.
 
-Annotations are persisted locally in IndexedDB. No backend, no accounts, no data leaves your browser.
+Annotations are persisted locally in IndexedDB. Shared links use Cloudflare R2 to store the captured HTML and annotations.
+
+## Sharing limitations
+
+Shared links are intentionally simple for the MVP:
+
+- There are no accounts or permissions. Anyone with the link can view and edit the annotations.
+- Concurrent edits are last-write-wins, so one editor can overwrite another editor's recent annotation changes.
+- Shared sessions are cloud-bound. Annotation edits on a shared link must sync to the share backend; offline writes stay local only until a later successful save.
+- The captured HTML is immutable after publish, but dynamic pages may render differently from the original live page.
+- URL-loaded captures may miss external assets such as images, fonts, scripts, or styles if the remote site blocks them or relies on dynamic loading.
+- Shares are capped at 5 MB and are intended to expire after 30 days through the Cloudflare R2 lifecycle policy.
 
 ## Running it locally
 

@@ -358,16 +358,23 @@ async function loadSharedRoute(): Promise<void> {
   try {
     const sharedSession = await store.load(shareId, { preferCloud: true });
     if (!sharedSession?.html) {
-      throw new Error('Share not found');
+      throw new Error('Shared link not found');
     }
 
     pendingSharedSession = sharedSession;
     await loader.loadHtml(sharedSession.html, sharedSession.sourceType, sharedSession.sourceName, {
       allowScripts: false,
     });
+
+    if (sharedSession.sourceType === 'url') {
+      bus.emit({
+        type: 'share:notice',
+        message: 'Some external assets may be missing from this shared URL capture',
+      });
+    }
   } catch (error) {
     pendingSharedSession = null;
-    const message = error instanceof Error ? error.message : 'Unable to load share';
+    const message = error instanceof Error ? error.message : 'Unable to load shared link';
     bus.emit({ type: 'share:error', message });
     console.error('[Domnotate] shared route load error:', error);
   }

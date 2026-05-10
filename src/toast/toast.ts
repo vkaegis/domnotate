@@ -48,6 +48,7 @@ export function createToast(
   unsubs.push(bus.on('session:cleared', () => show('Cleared all annotations')));
   unsubs.push(bus.on('share:publishing', () => show('Publishing share...')));
   unsubs.push(bus.on('share:copied', () => show('Share link copied')));
+  unsubs.push(bus.on('share:notice', (event) => show(event.message)));
   unsubs.push(bus.on('share:error', (event) => show(event.message)));
 
   // Start hidden
