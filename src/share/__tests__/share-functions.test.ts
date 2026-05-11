@@ -48,6 +48,21 @@ describe('share Pages Functions', () => {
     expect(response.status).toBe(400);
   });
 
+  test('POST rejects oversized bodies even when content-length is absent', async () => {
+    const put = vi.fn();
+    const response = await onRequestPost({
+      request: new Request('https://example.com/api/share', {
+        method: 'POST',
+        body: 'x'.repeat(MAX_SHARE_BYTES + 1),
+      }),
+      env: { SHARES: { put } },
+    } as never);
+
+    await expect(response.text()).resolves.toBe('Share payload exceeds 5 MB');
+    expect(response.status).toBe(413);
+    expect(put).not.toHaveBeenCalled();
+  });
+
   test('GET validates and normalizes the stored blob before returning it', async () => {
     const blob = makeBlob();
     const response = await onRequestGet({
@@ -85,6 +100,24 @@ describe('share Pages Functions', () => {
 
     await expect(response.text()).resolves.toBe('Request body has unexpected fields');
     expect(response.status).toBe(400);
+  });
+
+  test('PUT rejects oversized bodies even when content-length is absent', async () => {
+    const get = vi.fn();
+    const put = vi.fn();
+    const response = await onRequestPut({
+      request: new Request('https://example.com/api/share/share-123', {
+        method: 'PUT',
+        body: 'x'.repeat(MAX_SHARE_BYTES + 1),
+      }),
+      env: { SHARES: { get, put } },
+      params: { id: 'share-123' },
+    } as never);
+
+    await expect(response.text()).resolves.toBe('Share payload exceeds 5 MB');
+    expect(response.status).toBe(413);
+    expect(get).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
   });
 
   test('PUT returns 413 when the merged blob exceeds the cap', async () => {

@@ -44,6 +44,32 @@ function isOversizedRequest(request: Request): boolean {
   return Number.isFinite(byteLength) && byteLength > MAX_SHARE_BYTES;
 }
 
+async function readJsonBody(request: Request): Promise<
+  | { ok: true; value: unknown }
+  | { ok: false; response: Response }
+> {
+  if (isOversizedRequest(request)) {
+    return { ok: false, response: new Response('Share payload exceeds 5 MB', { status: 413 }) };
+  }
+
+  let text: string;
+  try {
+    text = await request.text();
+  } catch {
+    return { ok: false, response: new Response('Invalid request body', { status: 400 }) };
+  }
+
+  if (getUtf8ByteLength(text) > MAX_SHARE_BYTES) {
+    return { ok: false, response: new Response('Share payload exceeds 5 MB', { status: 413 }) };
+  }
+
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false, response: new Response('Invalid JSON body', { status: 400 }) };
+  }
+}
+
 function statusForValidationError(error: string): number {
   return error.includes('5 MB') ? 413 : 500;
 }
@@ -91,18 +117,10 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
     return noStoreResponse('Share not found', { status: 404 });
   }
 
-  if (isOversizedRequest(request)) {
-    return new Response('Share payload exceeds 5 MB', { status: 413 });
-  }
+  const body = await readJsonBody(request);
+  if (!body.ok) return body.response;
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response('Invalid JSON body', { status: 400 });
-  }
-
-  const updateValidation = validateUpdateShareRequest(body);
+  const updateValidation = validateUpdateShareRequest(body.value);
   if (!updateValidation.ok) {
     return new Response(updateValidation.error, { status: 400 });
   }
