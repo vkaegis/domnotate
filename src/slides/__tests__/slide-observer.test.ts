@@ -27,6 +27,42 @@ function makeFakeIframe(doc: Document): HTMLIFrameElement {
   return iframe;
 }
 
+function makeTabDoc(activeIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('tabs');
+  const tabList = doc.createElement('div');
+  tabList.setAttribute('role', 'tablist');
+
+  for (let i = 0; i < 3; i++) {
+    const tab = doc.createElement('button');
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', `part-${i}`);
+    tab.setAttribute('aria-selected', i === activeIndex ? 'true' : 'false');
+    tab.textContent = `Part ${i}`;
+    tab.addEventListener('click', () => {
+      doc.querySelectorAll('[role="tab"]').forEach((el, tabIndex) => {
+        el.setAttribute('aria-selected', tabIndex === i ? 'true' : 'false');
+      });
+      doc.querySelectorAll('[role="tabpanel"]').forEach((el, panelIndex) => {
+        (el as HTMLElement).hidden = panelIndex !== i;
+      });
+    });
+    tabList.appendChild(tab);
+  }
+
+  doc.body.appendChild(tabList);
+
+  for (let i = 0; i < 3; i++) {
+    const panel = doc.createElement('div');
+    panel.id = `part-${i}`;
+    panel.setAttribute('role', 'tabpanel');
+    panel.hidden = i !== activeIndex;
+    panel.innerHTML = `<p>Part ${i} content</p>`;
+    doc.body.appendChild(panel);
+  }
+
+  return doc;
+}
+
 describe('SlideObserver', () => {
   let bus: EventBus;
   let observer: SlideObserver;
@@ -70,6 +106,26 @@ describe('SlideObserver', () => {
     expect(observer.getSlideForElement(slide0)).toBe(0);
   });
 
+  test('detects ARIA tab panels and reports the visible panel as active', () => {
+    const doc = makeTabDoc(1);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getSlideCount()).toBe(3);
+    expect(observer.getActiveSlide()).toBe(1);
+  });
+
+  test('getSlideForElement returns correct index inside a tab panel', () => {
+    const doc = makeTabDoc(0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    const p = doc.querySelector('#part-2 p')!;
+    expect(observer.getSlideForElement(p)).toBe(2);
+  });
+
   test('getSlideForElement returns undefined for elements outside slides', () => {
     const doc = makeSlideDoc(3, 0);
     // Add an element outside the deck
@@ -109,6 +165,17 @@ describe('SlideObserver', () => {
     expect(goToFn).toHaveBeenCalledWith(1);
   });
 
+  test('goToSlide clicks the controlling tab for tab panels', () => {
+    const doc = makeTabDoc(0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+    observer.goToSlide(2);
+
+    expect((doc.querySelector('#part-0') as HTMLElement).hidden).toBe(true);
+    expect((doc.querySelector('#part-2') as HTMLElement).hidden).toBe(false);
+  });
+
   test('emits slide:changed when active class changes via MutationObserver', async () => {
     const doc = makeSlideDoc(3, 0);
     const iframe = makeFakeIframe(doc);
@@ -122,6 +189,24 @@ describe('SlideObserver', () => {
     const slides = doc.querySelectorAll('.slide');
     slides[0].classList.remove('active');
     slides[1].classList.add('active');
+
+    // MutationObserver fires asynchronously
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(handler).toHaveBeenCalledWith({ type: 'slide:changed', slideIndex: 1 });
+  });
+
+  test('emits slide:changed when active tab panel hidden state changes', async () => {
+    const doc = makeTabDoc(0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    const handler = vi.fn();
+    bus.on('slide:changed', handler);
+
+    (doc.querySelector('#part-0') as HTMLElement).hidden = true;
+    (doc.querySelector('#part-1') as HTMLElement).hidden = false;
 
     // MutationObserver fires asynchronously
     await new Promise((r) => setTimeout(r, 10));
