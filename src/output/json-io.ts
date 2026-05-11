@@ -25,6 +25,8 @@ export function validateSession(data: unknown): data is AnnotationSession {
   if (obj.sourceType !== 'file' && obj.sourceType !== 'url') return false;
   if (typeof obj.sourceName !== 'string') return false;
   if (typeof obj.loadedUrl !== 'string') return false;
+  if (obj.shareId !== undefined && typeof obj.shareId !== 'string') return false;
+  if (obj.html !== undefined && typeof obj.html !== 'string') return false;
   if (typeof obj.createdAt !== 'string') return false;
   if (typeof obj.updatedAt !== 'string') return false;
 

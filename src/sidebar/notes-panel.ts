@@ -10,6 +10,7 @@ const ICONS = {
   eye: `<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeOff: `<svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`,
   clipboard: `<svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`,
+  link: `<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.5 4.43"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.33-1.33"/></svg>`,
   download: `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   trash: `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
   x: `<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
@@ -45,6 +46,8 @@ export function createNotesPanel(
   let selectedId: string | null = null;
   let pinsVisible = true;
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
+  let shareTimer: ReturnType<typeof setTimeout> | null = null;
+  let shareBusy = false;
 
   // --- Action bar ---
   const actionBar = document.createElement('div');
@@ -97,6 +100,11 @@ export function createNotesPanel(
   // Copy button (clipboard)
   const copyBtn = makeActionBtn(ICONS.clipboard, 'Copy', 'C', 'Copy as Markdown (C)', () => {
     bus.emit({ type: 'output:copy', format: 'markdown' });
+  });
+
+  const shareBtn = makeActionBtn(ICONS.link, 'Share', null, 'Publish and copy share link', () => {
+    if (shareBusy) return;
+    bus.emit({ type: 'share:publish' });
   });
 
   function animateNotesToButton(): void {
@@ -176,6 +184,38 @@ export function createNotesPanel(
     }, 1500);
   }
 
+  function setShareLabel(label: string): void {
+    const shareLabel = shareBtn.querySelector('.dn-action-btn__label');
+    if (shareLabel) shareLabel.textContent = label;
+  }
+
+  function showSharePublishing(): void {
+    shareBusy = true;
+    setShareLabel('Sharing');
+    shareBtn.classList.add('dn-action-btn--loading');
+  }
+
+  function showShareFeedback(): void {
+    shareBusy = false;
+    shareBtn.classList.remove('dn-action-btn--loading');
+    setShareLabel('Copied');
+    setIconWithPop(shareBtn, ICONS.check);
+    shareBtn.classList.add('dn-action-btn--success');
+    if (shareTimer) clearTimeout(shareTimer);
+    shareTimer = setTimeout(() => {
+      setIconWithPop(shareBtn, ICONS.link);
+      shareBtn.classList.remove('dn-action-btn--success');
+      setShareLabel('Share');
+      shareTimer = null;
+    }, 1500);
+  }
+
+  function showShareError(): void {
+    shareBusy = false;
+    shareBtn.classList.remove('dn-action-btn--loading');
+    setShareLabel('Share');
+  }
+
   let clearTimer: ReturnType<typeof setTimeout> | null = null;
   function showClearFeedback(): void {
     setIconWithPop(clearBtn, ICONS.check);
@@ -236,6 +276,7 @@ export function createNotesPanel(
   tabBar.appendChild(divider);
   tabBar.appendChild(pinsBtn);
   tabBar.appendChild(copyBtn);
+  tabBar.appendChild(shareBtn);
   tabBar.appendChild(exportBtn);
   tabBar.appendChild(clearBtn);
 
@@ -489,6 +530,18 @@ export function createNotesPanel(
     showExportFeedback();
   }));
 
+  unsubs.push(bus.on('share:publishing', () => {
+    showSharePublishing();
+  }));
+
+  unsubs.push(bus.on('share:copied', () => {
+    showShareFeedback();
+  }));
+
+  unsubs.push(bus.on('share:error', () => {
+    showShareError();
+  }));
+
   unsubs.push(bus.on('slide:changed', () => {
     renderNotesList();
   }));
@@ -509,6 +562,7 @@ export function createNotesPanel(
     destroy(): void {
       for (const unsub of unsubs) unsub();
       if (copyTimer) clearTimeout(copyTimer);
+      if (shareTimer) clearTimeout(shareTimer);
       if (exportTimer) clearTimeout(exportTimer);
       if (clearTimer) clearTimeout(clearTimer);
       // Restore original picker methods

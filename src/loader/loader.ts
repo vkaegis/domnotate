@@ -16,6 +16,7 @@ export function createContentLoader(): ContentLoader {
     html: string,
     sourceType: 'file' | 'url',
     sourceName: string,
+    options: { allowScripts?: boolean } = {},
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!iframeEl || !bus || !dropZoneEl) {
@@ -36,6 +37,9 @@ export function createContentLoader(): ContentLoader {
       const iframe = iframeEl;
       const eventBus = bus;
       const dzEl = dropZoneEl;
+      const sandboxTokens = options.allowScripts === false
+        ? 'allow-same-origin'
+        : 'allow-same-origin allow-scripts';
 
       const onLoad = (): void => {
         iframe.removeEventListener('load', onLoad);
@@ -51,6 +55,7 @@ export function createContentLoader(): ContentLoader {
           url: blobUrl,
           sourceType,
           sourceName,
+          html,
         });
 
         resolve();
@@ -64,6 +69,7 @@ export function createContentLoader(): ContentLoader {
 
       iframe.addEventListener('load', onLoad);
       iframe.addEventListener('error', onError);
+      iframe.setAttribute('sandbox', sandboxTokens);
       iframe.src = blobUrl;
     });
   }
@@ -159,6 +165,15 @@ export function createContentLoader(): ContentLoader {
         showDropZoneError(message);
         throw err;
       }
+    },
+
+    loadHtml(
+      html: string,
+      sourceType: 'file' | 'url',
+      sourceName: string,
+      options?: { allowScripts?: boolean },
+    ): Promise<void> {
+      return loadHtmlText(html, sourceType, sourceName, options);
     },
 
     getIframeDocument(): Document | null {

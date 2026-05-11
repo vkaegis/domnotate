@@ -13,6 +13,8 @@ import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
+import { publishShare } from '@/share/share-client';
+import { publishOrCopyShare } from '@/share/share-action';
 
 // ============================================================
 // Domnotate — Main Integration
@@ -51,6 +53,7 @@ const toast = createToast(contentAreaEl, bus);
 let currentSession: AnnotationSession | null = null;
 let selectedAnnotationId: string | null = null;
 let pinsVisible = true;
+let pendingSharedSession: AnnotationSession | null = null;
 
 // Track selection and pin visibility via bus
 bus.on('annotation:select', (e) => { selectedAnnotationId = e.id; });
@@ -90,15 +93,25 @@ manager.init(bus);
 // ============================================================
 
 bus.on('content:loaded', (e) => {
-  currentSession = {
-    id: crypto.randomUUID(),
-    sourceType: e.sourceType,
-    sourceName: e.sourceName,
-    loadedUrl: e.url,
-    annotations: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const sharedSession = pendingSharedSession;
+  pendingSharedSession = null;
+
+  currentSession = sharedSession
+    ? {
+        ...sharedSession,
+        loadedUrl: e.url,
+        html: sharedSession.html ?? e.html,
+      }
+    : {
+        id: crypto.randomUUID(),
+        sourceType: e.sourceType,
+        sourceName: e.sourceName,
+        loadedUrl: e.url,
+        html: e.html,
+        annotations: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
   picker.init(iframeEl, overlayEl, bus);
   slideObserver.init(iframeEl, bus);
@@ -106,6 +119,12 @@ bus.on('content:loaded', (e) => {
   notePopover.init(overlayEl, iframeEl, bus, manager);
   shortcuts.attachIframe(iframeEl);
   sidebar.show();
+
+  if (sharedSession) {
+    manager.clearAll();
+    manager.loadAnnotations(currentSession.annotations);
+    bus.emit({ type: 'session:loaded', session: currentSession });
+  }
 });
 
 // ============================================================
@@ -239,19 +258,74 @@ bus.on('output:download', (e) => {
 });
 
 // ============================================================
+// Share: publish session HTML + annotations, then copy link
+// ============================================================
+
+bus.on('share:publish', async () => {
+  if (!currentSession) return;
+
+  bus.emit({ type: 'share:publishing' });
+  currentSession.annotations = manager.getAll();
+  currentSession.updatedAt = new Date().toISOString();
+
+  try {
+    const { id, url } = await publishOrCopyShare(currentSession, {
+      origin: window.location.origin,
+      publishShare,
+      copyToClipboard,
+      cacheSession: (session) => store.save(session, { cacheOnly: true }),
+    });
+    bus.emit({ type: 'share:copied', id, url });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to publish share';
+    bus.emit({ type: 'share:error', message });
+  }
+});
+
+// ============================================================
 // Auto-save to IndexedDB
 // ============================================================
 
-const autoSave = debounce(() => {
+async function persistCurrentSession(): Promise<void> {
   if (!currentSession) return;
   currentSession.annotations = manager.getAll();
   currentSession.updatedAt = new Date().toISOString();
-  store.save(currentSession);
+
+  try {
+    await store.save(currentSession);
+  } catch (error) {
+    const message = currentSession.shareId
+      ? 'Offline: changes saved locally but could not sync to the shared link'
+      : error instanceof Error ? error.message : 'Unable to save annotations';
+    bus.emit({ type: 'share:error', message });
+    console.error('[Domnotate] session save error:', error);
+  }
+}
+
+const localAutoSave = debounce(() => {
+  void persistCurrentSession();
 }, 1000);
 
-bus.on('annotation:create', autoSave);
-bus.on('annotation:update', autoSave);
-bus.on('annotation:delete', autoSave);
+const sharedTextAutoSave = debounce(() => {
+  void persistCurrentSession();
+}, 10000);
+
+function persistAnnotationChange(mode: 'immediate' | 'text'): void {
+  if (!currentSession?.shareId) {
+    localAutoSave();
+    return;
+  }
+
+  if (mode === 'immediate') {
+    void persistCurrentSession();
+  } else {
+    sharedTextAutoSave();
+  }
+}
+
+bus.on('annotation:create', () => persistAnnotationChange('immediate'));
+bus.on('annotation:update', () => persistAnnotationChange('text'));
+bus.on('annotation:delete', () => persistAnnotationChange('immediate'));
 
 // ============================================================
 // Session cleared — auto-save cleared session
@@ -261,8 +335,49 @@ bus.on('session:cleared', () => {
   if (currentSession) {
     currentSession.annotations = [];
     currentSession.updatedAt = new Date().toISOString();
-    store.save(currentSession);
+    void persistCurrentSession();
   }
 });
 
 console.log('[Domnotate] Ready');
+
+function getSharedRouteId(): string | null {
+  const match = window.location.pathname.match(/^\/share\/([^/]+)\/?$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+async function loadSharedRoute(): Promise<void> {
+  const shareId = getSharedRouteId();
+  if (!shareId) return;
+
+  try {
+    const sharedSession = await store.load(shareId, { preferCloud: true });
+    if (!sharedSession?.html) {
+      throw new Error('Shared link not found');
+    }
+
+    pendingSharedSession = sharedSession;
+    await loader.loadHtml(sharedSession.html, sharedSession.sourceType, sharedSession.sourceName, {
+      allowScripts: false,
+    });
+
+    if (sharedSession.sourceType === 'url') {
+      bus.emit({
+        type: 'share:notice',
+        message: 'Some external assets may be missing from this shared URL capture',
+      });
+    }
+  } catch (error) {
+    pendingSharedSession = null;
+    const message = error instanceof Error ? error.message : 'Unable to load shared link';
+    bus.emit({ type: 'share:error', message });
+    console.error('[Domnotate] shared route load error:', error);
+  }
+}
+
+void loadSharedRoute();

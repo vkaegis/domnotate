@@ -51,6 +51,12 @@ describe('createToast', () => {
     expect(el.textContent).toBe('Cleared all annotations');
   });
 
+  test('shows share notices', () => {
+    bus.emit({ type: 'share:notice', message: 'Some external assets may be missing' });
+    const el = anchor.querySelector('.dn-toast')!;
+    expect(el.textContent).toBe('Some external assets may be missing');
+  });
+
   test('hides after timeout', () => {
     vi.useFakeTimers();
     bus.emit({ type: 'output:copy', format: 'markdown' });
