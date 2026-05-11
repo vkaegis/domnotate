@@ -2,6 +2,8 @@ import type { Annotation, ElementDescriptor, AnnotationSession } from '@/types/c
 
 let counter = 0;
 
+type TabVisibilityMode = 'hidden' | 'aria-hidden';
+
 export function makeDescriptor(overrides: Partial<ElementDescriptor> = {}): ElementDescriptor {
   counter++;
   return {
@@ -46,4 +48,92 @@ export function makeSession(overrides: Partial<AnnotationSession> = {}): Annotat
     updatedAt: now,
     ...overrides,
   };
+}
+
+export function makePlainDocument(bodyHtml = '<main><p>Hello</p></main>'): Document {
+  const doc = document.implementation.createHTMLDocument('plain');
+  doc.body.innerHTML = bodyHtml;
+  return doc;
+}
+
+export function makeDeckSlideDocument(slideCount: number, activeIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('deck slides');
+  const deck = doc.createElement('div');
+  deck.className = 'deck';
+
+  for (let i = 0; i < slideCount; i++) {
+    const slide = doc.createElement('section');
+    slide.className = `slide${i === activeIndex ? ' active' : ''}`;
+    slide.setAttribute('data-slide', String(i));
+    slide.innerHTML = `<p>Slide ${i} content</p>`;
+    deck.appendChild(slide);
+  }
+
+  doc.body.appendChild(deck);
+  return doc;
+}
+
+export function makeActiveSlideDocument(slideCount: number, activeIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('active slides');
+
+  for (let i = 0; i < slideCount; i++) {
+    const slide = doc.createElement('section');
+    slide.className = `slide${i === activeIndex ? ' active' : ''}`;
+    slide.innerHTML = `<p>Active slide ${i} content</p>`;
+    doc.body.appendChild(slide);
+  }
+
+  return doc;
+}
+
+function setTabPanelVisibility(panel: HTMLElement, active: boolean, mode: TabVisibilityMode): void {
+  if (mode === 'hidden') {
+    panel.hidden = !active;
+    return;
+  }
+
+  panel.setAttribute('aria-hidden', active ? 'false' : 'true');
+}
+
+export function makeAriaTabDocument(activeIndex = 0, mode: TabVisibilityMode = 'hidden'): Document {
+  const doc = document.implementation.createHTMLDocument(`${mode} tabs`);
+  const tabList = doc.createElement('div');
+  tabList.setAttribute('role', 'tablist');
+
+  for (let i = 0; i < 3; i++) {
+    const tab = doc.createElement('button');
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', `part-${i}`);
+    tab.setAttribute('aria-selected', i === activeIndex ? 'true' : 'false');
+    tab.textContent = `Part ${i}`;
+    tab.addEventListener('click', () => {
+      doc.querySelectorAll('[role="tab"]').forEach((el, tabIndex) => {
+        el.setAttribute('aria-selected', tabIndex === i ? 'true' : 'false');
+      });
+      doc.querySelectorAll('[role="tabpanel"]').forEach((el, panelIndex) => {
+        setTabPanelVisibility(el as HTMLElement, panelIndex === i, mode);
+      });
+    });
+    tabList.appendChild(tab);
+  }
+
+  doc.body.appendChild(tabList);
+
+  for (let i = 0; i < 3; i++) {
+    const panel = doc.createElement('div');
+    panel.id = `part-${i}`;
+    panel.setAttribute('role', 'tabpanel');
+    setTabPanelVisibility(panel, i === activeIndex, mode);
+    panel.innerHTML = `<p>Part ${i} content</p>`;
+    doc.body.appendChild(panel);
+  }
+
+  return doc;
+}
+
+export function makeFakeIframe(doc: Document, contentWindow: Record<string, unknown> = {}): HTMLIFrameElement {
+  const iframe = document.createElement('iframe');
+  Object.defineProperty(iframe, 'contentDocument', { value: doc, writable: true });
+  Object.defineProperty(iframe, 'contentWindow', { value: contentWindow, writable: true });
+  return iframe;
 }
