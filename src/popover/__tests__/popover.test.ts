@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from 'vitest';
+import { afterEach, describe, test, expect, beforeEach, vi } from 'vitest';
 import { createNotePopover } from '@/popover/popover';
 import { createEventBus } from '@/events';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
@@ -24,6 +24,11 @@ describe('NotePopover', () => {
 
     popover = createNotePopover();
     popover.init(overlayEl, iframeEl, bus, manager);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.replaceChildren();
   });
 
   test('createNotePopover returns expected interface', () => {
@@ -93,5 +98,27 @@ describe('NotePopover', () => {
     const textarea = overlayEl.querySelector('.dn-popover__input') as HTMLTextAreaElement;
     expect(textarea).not.toBeNull();
     expect(textarea.value).toBe('hello world');
+  });
+
+  test('scroll repositions the existing popover without rebuilding it', () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+
+    manager.create(makeDescriptor(), { x: 100, y: 100 }, 'hello');
+
+    const popoverEl = overlayEl.querySelector('.dn-popover') as HTMLElement;
+    const textarea = overlayEl.querySelector('.dn-popover__input') as HTMLTextAreaElement;
+    expect(popoverEl.style.top).toBe('88px');
+
+    const doc = iframeEl.contentDocument!;
+    doc.documentElement.scrollTop = 20;
+    doc.dispatchEvent(new Event('scroll'));
+
+    expect(overlayEl.querySelector('.dn-popover')).toBe(popoverEl);
+    expect(overlayEl.querySelector('.dn-popover__input')).toBe(textarea);
+    expect(popoverEl.style.top).toBe('68px');
   });
 });

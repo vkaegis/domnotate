@@ -27,6 +27,9 @@ export function createNotePopover(): NotePopover {
   let popoverEl: HTMLElement | null = null;
   let textareaEl: HTMLTextAreaElement | null = null;
   let activeAnnotationId: string | null = null;
+  let rafId = 0;
+  let scrollDocument: Document | null = null;
+  let onIframeLoad: (() => void) | null = null;
   const unsubs: (() => void)[] = [];
 
   function getIframeScroll(): { scrollX: number; scrollY: number } {
@@ -48,6 +51,36 @@ export function createNotePopover(): NotePopover {
     if (!textareaEl) return;
     textareaEl.style.height = 'auto';
     textareaEl.style.height = `${textareaEl.scrollHeight}px`;
+  }
+
+  function getPopoverPosition(annotationId: string): { left: number; top: number } | null {
+    const annotation = manager.getById(annotationId);
+    if (!annotation) return null;
+
+    const { scrollX, scrollY } = getIframeScroll();
+
+    // Position: to the right of the pin, top-aligned with pin center
+    const pinSize = 24;
+    const pinOffset = pinSize / 2; // pin is centered on anchorPoint
+    const gap = 14;
+
+    return {
+      left: annotation.anchorPoint.x - scrollX + pinOffset + gap,
+      top: annotation.anchorPoint.y - scrollY - pinOffset,
+    };
+  }
+
+  function updatePopoverPosition(): void {
+    if (!popoverEl || !activeAnnotationId) return;
+    const position = getPopoverPosition(activeAnnotationId);
+    if (!position) return;
+    popoverEl.style.left = `${position.left}px`;
+    popoverEl.style.top = `${position.top}px`;
+  }
+
+  function schedulePopoverPositionUpdate(): void {
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(updatePopoverPosition);
   }
 
   function commitAndDismiss(): void {
@@ -83,20 +116,10 @@ export function createNotePopover(): NotePopover {
 
     activeAnnotationId = annotationId;
 
-    const { scrollX, scrollY } = getIframeScroll();
-
-    // Position: to the right of the pin, top-aligned with pin center
-    const pinSize = 24;
-    const pinOffset = pinSize / 2; // pin is centered on anchorPoint
-    const gap = 14;
-    const left = annotation.anchorPoint.x - scrollX + pinOffset + gap;
-    const top = annotation.anchorPoint.y - scrollY - pinOffset;
-
     // Build popover DOM
     popoverEl = document.createElement('div');
     popoverEl.className = 'dn-popover';
-    popoverEl.style.left = `${left}px`;
-    popoverEl.style.top = `${top}px`;
+    updatePopoverPosition();
 
     const bubble = document.createElement('div');
     bubble.className = 'dn-popover__bubble';
@@ -150,6 +173,30 @@ export function createNotePopover(): NotePopover {
     });
   }
 
+  function attachScrollSync(): void {
+    try {
+      const doc = iframeEl.contentDocument;
+      if (doc && doc !== scrollDocument) {
+        detachScrollSync();
+        scrollDocument = doc;
+        doc.addEventListener('scroll', schedulePopoverPositionUpdate, { passive: true });
+      }
+    } catch {
+      // Cross-origin
+    }
+  }
+
+  function detachScrollSync(): void {
+    try {
+      if (scrollDocument) {
+        scrollDocument.removeEventListener('scroll', schedulePopoverPositionUpdate);
+        scrollDocument = null;
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
   const popover: NotePopover = {
     init(
       _overlayEl: HTMLElement,
@@ -182,21 +229,9 @@ export function createNotePopover(): NotePopover {
       unsubs.push(bus.on('content:unloaded', () => dismiss()));
 
       // Reposition on iframe scroll
-      try {
-        const doc = iframeEl.contentDocument;
-        if (doc) {
-          doc.addEventListener('scroll', () => {
-            if (activeAnnotationId) {
-              // Re-show to reposition
-              const id = activeAnnotationId;
-              dismiss();
-              show(id);
-            }
-          }, { passive: true });
-        }
-      } catch {
-        // Cross-origin
-      }
+      attachScrollSync();
+      onIframeLoad = attachScrollSync;
+      iframeEl.addEventListener('load', onIframeLoad);
     },
 
     show,
@@ -209,6 +244,12 @@ export function createNotePopover(): NotePopover {
     destroy(): void {
       for (const unsub of unsubs) unsub();
       unsubs.length = 0;
+      cancelAnimationFrame(rafId);
+      detachScrollSync();
+      if (onIframeLoad) {
+        iframeEl.removeEventListener('load', onIframeLoad);
+        onIframeLoad = null;
+      }
       dismiss();
     },
   };
