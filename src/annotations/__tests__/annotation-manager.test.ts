@@ -2,7 +2,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createEventBus } from '@/events';
 import { makeDescriptor, makeAnnotation } from '@/__tests__/fixtures';
-import type { EventBus, AnnotationManager } from '@/types/core';
+import type { EventBus, AnnotationManager, ViewScope } from '@/types/core';
 
 describe('AnnotationManager', () => {
   let bus: EventBus;
@@ -102,9 +102,30 @@ describe('AnnotationManager', () => {
     expect(ann.slideIndex).toBe(3);
   });
 
+  test('create stores viewScope when provided in options', () => {
+    const viewScope: ViewScope = {
+      kind: 'tabpanel',
+      id: 'details',
+      index: 1,
+      label: 'Details',
+      selector: '#details',
+      controllerSelector: '[aria-controls="details"]',
+      activation: 'click-controller',
+    };
+
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'Scoped note', {
+      viewScope,
+      slideIndex: 4,
+    });
+
+    expect(ann.viewScope).toBe(viewScope);
+    expect(ann.slideIndex).toBe(4);
+  });
+
   test('create omits slideIndex when not provided', () => {
     const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'No slide');
     expect(ann.slideIndex).toBeUndefined();
+    expect(ann.viewScope).toBeUndefined();
   });
 
   test('clearAll removes all annotations', () => {

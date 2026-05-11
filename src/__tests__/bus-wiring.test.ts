@@ -1,6 +1,6 @@
 import { describe, test, expect, vi } from 'vitest';
 import { createEventBus } from '@/events';
-import { makeAnnotation } from '@/__tests__/fixtures';
+import { makeAnnotation, makeViewScope } from '@/__tests__/fixtures';
 
 describe('EventBus integration wiring', () => {
   test('emitting annotation:create triggers subscribed handlers', () => {
@@ -40,5 +40,17 @@ describe('EventBus integration wiring', () => {
 
     expect(createHandler).not.toHaveBeenCalled();
     expect(deleteHandler).toHaveBeenCalledOnce();
+  });
+
+  test('emitting scope:changed triggers subscribed handlers', () => {
+    const bus = createEventBus();
+    const handler = vi.fn();
+    const previousScope = makeViewScope({ id: 'previous', index: 0 });
+    const scope = makeViewScope({ id: 'next', index: 1 });
+
+    bus.on('scope:changed', handler);
+    bus.emit({ type: 'scope:changed', scope, previousScope });
+
+    expect(handler).toHaveBeenCalledWith({ type: 'scope:changed', scope, previousScope });
   });
 });

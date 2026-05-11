@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { makeAnnotation } from '@/__tests__/fixtures';
+import { makeAnnotation, makeViewScope } from '@/__tests__/fixtures';
 import {
   MAX_SHARE_BYTES,
   createSharedSessionBlob,
@@ -117,6 +117,88 @@ describe('shared-session', () => {
     expect(validateUpdateShareRequest({ annotations: [], sourceType: 'file' })).toEqual({
       ok: false,
       error: 'Request body has unexpected fields',
+    });
+  });
+
+  test('accepts annotations without viewScope for old shared JSON', () => {
+    const annotation = makeAnnotation({ slideIndex: 1 });
+    const { viewScope: _, ...legacyAnnotation } = annotation;
+
+    expect(
+      validatePublishShareRequest({
+        sourceType: 'file',
+        sourceName: 'page.html',
+        html: '<html></html>',
+        annotations: [legacyAnnotation],
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        sourceType: 'file',
+        sourceName: 'page.html',
+        html: '<html></html>',
+        annotations: [legacyAnnotation],
+      },
+    });
+  });
+
+  test('validates annotations with viewScope in publish and update requests', () => {
+    const annotation = makeAnnotation({
+      viewScope: makeViewScope({
+        kind: 'slide',
+        id: 'slide-2',
+        index: 2,
+        label: 'Slide 3',
+        selector: '.slide:nth-of-type(3)',
+        activeSelector: '.slide.active',
+        activation: 'toggle-active',
+      }),
+      slideIndex: 2,
+    });
+
+    expect(
+      validatePublishShareRequest({
+        sourceType: 'file',
+        sourceName: 'page.html',
+        html: '<html></html>',
+        annotations: [annotation],
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        sourceType: 'file',
+        sourceName: 'page.html',
+        html: '<html></html>',
+        annotations: [annotation],
+      },
+    });
+    expect(validateUpdateShareRequest({ annotations: [annotation] })).toEqual({
+      ok: true,
+      value: { annotations: [annotation] },
+    });
+  });
+
+  test('rejects malformed annotation viewScope in publish and update requests', () => {
+    const annotation = makeAnnotation({
+      viewScope: {
+        kind: 'tabs',
+        id: 'bad-scope',
+        index: 0,
+        selector: '#bad-scope',
+      } as any,
+    });
+
+    expect(
+      validatePublishShareRequest({
+        sourceType: 'file',
+        sourceName: 'page.html',
+        html: '<html></html>',
+        annotations: [annotation],
+      }),
+    ).toEqual({ ok: false, error: 'annotations must be valid Annotation objects' });
+    expect(validateUpdateShareRequest({ annotations: [annotation] })).toEqual({
+      ok: false,
+      error: 'annotations must be valid Annotation objects',
     });
   });
 

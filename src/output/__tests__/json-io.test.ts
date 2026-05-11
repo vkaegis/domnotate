@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { serializeSession, deserializeSession, validateSession } from '@/output/json-io';
-import { makeSession, makeAnnotation } from '@/__tests__/fixtures';
+import { makeSession, makeAnnotation, makeViewScope } from '@/__tests__/fixtures';
 
 describe('json-io', () => {
   describe('validateSession', () => {
@@ -51,6 +51,49 @@ describe('json-io', () => {
       const ann = makeAnnotation();
       const session = makeSession({ annotations: [{ ...ann, anchorPoint: { x: 'bad', y: 0 } } as any] });
       expect(validateSession(session)).toBe(false);
+    });
+
+    test('accepts old JSON annotations without viewScope', () => {
+      const annotation = makeAnnotation({ slideIndex: 2 });
+      const { viewScope: _, ...legacyAnnotation } = annotation;
+      const session = makeSession({ annotations: [legacyAnnotation] });
+
+      expect(validateSession(session)).toBe(true);
+      expect(deserializeSession(JSON.stringify(session)).annotations[0].viewScope).toBeUndefined();
+    });
+
+    test('accepts valid annotation viewScope', () => {
+      const viewScope = makeViewScope({
+        kind: 'tabpanel',
+        id: 'why-now',
+        index: 1,
+        label: 'Why now',
+        selector: '#why-now',
+        controllerSelector: '[aria-controls="why-now"]',
+        activation: 'click-controller',
+      });
+      const session = makeSession({
+        annotations: [makeAnnotation({ viewScope })],
+      });
+
+      expect(validateSession(session)).toBe(true);
+      expect(deserializeSession(JSON.stringify(session)).annotations[0].viewScope).toEqual(viewScope);
+    });
+
+    test('rejects malformed annotation viewScope', () => {
+      const annotation = makeAnnotation({
+        viewScope: {
+          kind: 'tabpanel',
+          id: 'why-now',
+          index: 1,
+          label: 'Why now',
+          activation: 'click-controller',
+        } as any,
+      });
+      const session = makeSession({ annotations: [annotation] });
+
+      expect(validateSession(session)).toBe(false);
+      expect(() => deserializeSession(JSON.stringify(session))).toThrow('Invalid session JSON');
     });
 
     test('rejects annotation with missing element fields', () => {

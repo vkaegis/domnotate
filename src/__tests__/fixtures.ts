@@ -1,4 +1,4 @@
-import type { Annotation, ElementDescriptor, AnnotationSession } from '@/types/core';
+import type { Annotation, ElementDescriptor, AnnotationSession, ViewScope } from '@/types/core';
 
 let counter = 0;
 
@@ -31,6 +31,20 @@ export function makeAnnotation(overrides: Partial<Annotation> = {}): Annotation 
     color: '#C4725A',
     createdAt: now,
     updatedAt: now,
+    ...overrides,
+  };
+}
+
+export function makeViewScope(overrides: Partial<ViewScope> = {}): ViewScope {
+  counter++;
+  return {
+    kind: 'tabpanel',
+    id: `panel-${counter}`,
+    index: counter,
+    label: `Panel ${counter}`,
+    selector: `#panel-${counter}`,
+    controllerSelector: `[aria-controls="panel-${counter}"]`,
+    activation: 'click-controller',
     ...overrides,
   };
 }
@@ -126,6 +140,22 @@ export function makeAriaTabDocument(activeIndex = 0, mode: TabVisibilityMode = '
     setTabPanelVisibility(panel, i === activeIndex, mode);
     panel.innerHTML = `<p>Part ${i} content</p>`;
     doc.body.appendChild(panel);
+  }
+
+  return doc;
+}
+
+export function makeExplicitScopeDocument(activeIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('explicit scopes');
+
+  for (let i = 0; i < 3; i++) {
+    const section = doc.createElement('section');
+    section.setAttribute('data-domnotate-scope', i === 1 ? 'wizard-step' : '');
+    section.setAttribute('data-domnotate-scope-id', `scope-${i}`);
+    section.setAttribute('data-domnotate-scope-label', `Scope ${i}`);
+    section.className = i === activeIndex ? 'active' : '';
+    section.innerHTML = `<p>Scope ${i} content</p>`;
+    doc.body.appendChild(section);
   }
 
   return doc;

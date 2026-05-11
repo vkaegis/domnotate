@@ -6,6 +6,7 @@ import {
   makeActiveSlideDocument,
   makeAriaTabDocument,
   makeDeckSlideDocument,
+  makeExplicitScopeDocument,
   makeFakeIframe,
   makePlainDocument,
 } from '@/__tests__/fixtures';
@@ -29,6 +30,38 @@ describe('SlideObserver', () => {
     expect(observer.getActiveSlide()).toBe(2);
   });
 
+  test('returns stable ViewScope records for slide decks', () => {
+    const doc = makeDeckSlideDocument(3, 1);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getScopes()).toEqual([
+      expect.objectContaining({
+        kind: 'slide',
+        id: '0',
+        index: 0,
+        label: 'Slide 1',
+        selector: '.deck > .slide[data-slide="0"]',
+      }),
+      expect.objectContaining({
+        kind: 'slide',
+        id: '1',
+        index: 1,
+        label: 'Slide 2',
+        selector: '.deck > .slide[data-slide="1"]',
+      }),
+      expect.objectContaining({
+        kind: 'slide',
+        id: '2',
+        index: 2,
+        label: 'Slide 3',
+        selector: '.deck > .slide[data-slide="2"]',
+      }),
+    ]);
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({ kind: 'slide', id: '1' }));
+  });
+
   test('returns null for non-slide content', () => {
     const doc = makePlainDocument('<div><p>Hello</p></div>');
     const iframe = makeFakeIframe(doc);
@@ -37,6 +70,8 @@ describe('SlideObserver', () => {
 
     expect(observer.getSlideCount()).toBeNull();
     expect(observer.getActiveSlide()).toBeNull();
+    expect(observer.getActiveScope()).toBeNull();
+    expect(observer.getScopes()).toEqual([]);
   });
 
   test('getSlideForElement returns correct index', () => {
@@ -60,6 +95,15 @@ describe('SlideObserver', () => {
 
     expect(observer.getSlideCount()).toBe(3);
     expect(observer.getActiveSlide()).toBe(1);
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'tabpanel',
+      id: 'part-1',
+      index: 1,
+      label: 'Part 1',
+      selector: '#part-1',
+      controllerSelector: '[aria-controls="part-1"]',
+      activation: 'click-controller',
+    }));
   });
 
   test('detects ARIA tab panels hidden by aria-hidden', () => {
@@ -90,6 +134,59 @@ describe('SlideObserver', () => {
 
     const p = doc.querySelector('#part-2 p')!;
     expect(observer.getSlideForElement(p)).toBe(2);
+    expect(observer.getScopeForElement(p)).toEqual(expect.objectContaining({
+      kind: 'tabpanel',
+      id: 'part-2',
+      index: 2,
+    }));
+  });
+
+  test('detects explicit Domnotate scope metadata first', () => {
+    const doc = makeExplicitScopeDocument(2);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getSlideCount()).toBe(3);
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'custom',
+      id: 'scope-2',
+      index: 2,
+      label: 'Scope 2',
+      selector: '[data-domnotate-scope-id="scope-2"]',
+    }));
+    expect(observer.getScopes()[1]).toEqual(expect.objectContaining({
+      kind: 'wizard-step',
+      id: 'scope-1',
+      label: 'Scope 1',
+    }));
+  });
+
+  test('activateScope toggles explicit active scopes', () => {
+    const doc = makeExplicitScopeDocument(0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+    const targetScope = observer.getScopes()[2];
+
+    observer.activateScope(targetScope);
+
+    expect(doc.querySelector('[data-domnotate-scope-id="scope-0"]')?.classList.contains('active')).toBe(false);
+    expect(doc.querySelector('[data-domnotate-scope-id="scope-2"]')?.classList.contains('active')).toBe(true);
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({ id: 'scope-2' }));
+  });
+
+  test('activateScope emits slide:changed for explicit non-slide scopes', () => {
+    const doc = makeExplicitScopeDocument(0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+    const handler = vi.fn();
+    bus.on('slide:changed', handler);
+
+    observer.activateScope(observer.getScopes()[1]);
+
+    expect(handler).toHaveBeenCalledWith({ type: 'slide:changed', slideIndex: 1 });
   });
 
   test('getSlideForElement returns undefined for elements outside slides', () => {
@@ -117,6 +214,7 @@ describe('SlideObserver', () => {
     const slides = doc.querySelectorAll('.slide');
     expect(slides[0].classList.contains('active')).toBe(false);
     expect(slides[2].classList.contains('active')).toBe(true);
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({ kind: 'slide', index: 2 }));
   });
 
   test('goToSlide calls iframe goTo function when available', () => {
@@ -139,6 +237,7 @@ describe('SlideObserver', () => {
 
     expect((doc.querySelector('#part-0') as HTMLElement).hidden).toBe(true);
     expect((doc.querySelector('#part-2') as HTMLElement).hidden).toBe(false);
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({ kind: 'tabpanel', index: 2 }));
   });
 
   test('goToSlide clicks the controlling tab for aria-hidden tab panels', () => {
@@ -170,6 +269,28 @@ describe('SlideObserver', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(handler).toHaveBeenCalledWith({ type: 'slide:changed', slideIndex: 1 });
+  });
+
+  test('emits scope:changed when active class changes via MutationObserver', async () => {
+    const doc = makeDeckSlideDocument(3, 0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    const handler = vi.fn();
+    bus.on('scope:changed', handler);
+
+    const slides = doc.querySelectorAll('.slide');
+    slides[0].classList.remove('active');
+    slides[1].classList.add('active');
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(handler).toHaveBeenCalledWith({
+      type: 'scope:changed',
+      scope: expect.objectContaining({ kind: 'slide', index: 1 }),
+      previousScope: expect.objectContaining({ kind: 'slide', index: 0 }),
+    });
   });
 
   test('emits slide:changed when active tab panel hidden state changes', async () => {
