@@ -9,6 +9,7 @@ import type {
   SlideObserver,
   Annotation,
 } from '@/types/core';
+import { isAnnotationVisibleInScope } from '@/annotations/view-scope';
 
 export function createPinRenderer(): PinRenderer {
   let overlayEl: HTMLElement;
@@ -86,13 +87,11 @@ export function createPinRenderer(): PinRenderer {
     const { scrollX, scrollY } = getIframeScroll();
     const pins = pinContainer.children;
     const allAnnotations = manager.getAll();
-    const activeSlide = slideObserver?.getActiveSlide() ?? null;
-
-    const annotations = activeSlide === null
-      ? allAnnotations
-      : allAnnotations.filter(
-          (ann) => ann.slideIndex === undefined || ann.slideIndex === activeSlide,
-        );
+    const activeScope = slideObserver?.getActiveScope() ?? null;
+    const hasScopes = (slideObserver?.getScopes().length ?? 0) > 0;
+    const annotations = allAnnotations.filter((ann) =>
+      isAnnotationVisibleInScope(ann, activeScope, hasScopes),
+    );
 
     for (let i = 0; i < pins.length && i < annotations.length; i++) {
       const pin = pins[i] as HTMLElement;
@@ -167,6 +166,7 @@ export function createPinRenderer(): PinRenderer {
       unsubs.push(
         bus.on('pins:visibility', (e) => renderer.setVisible(e.visible)),
       );
+      unsubs.push(bus.on('scope:changed', () => renderer.render()));
       unsubs.push(bus.on('slide:changed', () => renderer.render()));
 
       // Scroll sync
@@ -192,14 +192,11 @@ export function createPinRenderer(): PinRenderer {
       if (!visible) return;
 
       const allAnnotations = manager.getAll();
-      const activeSlide = slideObserver?.getActiveSlide() ?? null;
-
-      // Filter: show only annotations for the active slide (or all if not a slide deck)
-      const annotations = activeSlide === null
-        ? allAnnotations
-        : allAnnotations.filter(
-            (ann) => ann.slideIndex === undefined || ann.slideIndex === activeSlide,
-          );
+      const activeScope = slideObserver?.getActiveScope() ?? null;
+      const hasScopes = (slideObserver?.getScopes().length ?? 0) > 0;
+      const annotations = allAnnotations.filter((ann) =>
+        isAnnotationVisibleInScope(ann, activeScope, hasScopes),
+      );
 
       const { scrollX, scrollY } = getIframeScroll();
 

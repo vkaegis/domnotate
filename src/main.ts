@@ -13,6 +13,7 @@ import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
+import { createScopedAnnotationOptions, scopesMatch } from '@/annotations/view-scope';
 import { publishShare } from '@/share/share-client';
 import { publishOrCopyShare } from '@/share/share-action';
 
@@ -158,13 +159,18 @@ bus.on('picker:select', (e) => {
     y: e.mouseY - iframeRect.top + scrollY,
   };
 
-  // Resolve slide index for the selected element
-  let slideIndex: number | undefined;
+  // Resolve the logical view scope for the selected element.
+  let scopeOptions: ReturnType<typeof createScopedAnnotationOptions>;
   if (iframeDoc) {
     try {
-      const el = iframeDoc.querySelector(e.element.cssSelector);
+      const overlayRect = overlayEl.getBoundingClientRect();
+      const iframeClientX = e.mouseX + overlayRect.left - iframeRect.left;
+      const iframeClientY = e.mouseY + overlayRect.top - iframeRect.top;
+      const el =
+        iframeDoc.elementFromPoint(iframeClientX, iframeClientY) ??
+        iframeDoc.querySelector(e.element.cssSelector);
       if (el) {
-        slideIndex = slideObserver.getSlideForElement(el);
+        scopeOptions = createScopedAnnotationOptions(slideObserver, el);
       }
     } catch {
       // Selector may be invalid — ignore
@@ -172,7 +178,7 @@ bus.on('picker:select', (e) => {
   }
 
   // Create annotation with empty text — sidebar will focus the input
-  manager.create(e.element, anchorPoint, '', slideIndex);
+  manager.create(e.element, anchorPoint, '', scopeOptions);
 
   // Single-shot: deactivate picker after one selection
   picker.deactivate();
@@ -189,12 +195,19 @@ bus.on('annotation:select', (e) => {
   const iframeDoc = iframeEl.contentDocument;
   if (!iframeDoc) return;
 
-  // Navigate to the annotation's slide if needed
+  const activeScope = slideObserver.getActiveScope();
+  const needsScopeNav =
+    annotation.viewScope !== undefined &&
+    (!activeScope || !scopesMatch(annotation.viewScope, activeScope));
   const needsSlideNav =
+    !needsScopeNav &&
     annotation.slideIndex !== undefined &&
     slideObserver.getActiveSlide() !== null &&
     slideObserver.getActiveSlide() !== annotation.slideIndex;
 
+  if (needsScopeNav) {
+    slideObserver.activateScope(annotation.viewScope!);
+  }
   if (needsSlideNav) {
     slideObserver.goToSlide(annotation.slideIndex!);
   }
@@ -218,7 +231,7 @@ bus.on('annotation:select', (e) => {
     }
   };
 
-  if (needsSlideNav) {
+  if (needsScopeNav || needsSlideNav) {
     requestAnimationFrame(scrollToElement);
   } else {
     scrollToElement();
