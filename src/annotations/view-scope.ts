@@ -63,3 +63,35 @@ export function fallbackScopeLabel(scope: ViewScope): string {
   }
 }
 
+function escapeAttrValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function escapeIdentifier(value: string): string {
+  type CssEscapeApi = { escape?: (ident: string) => string };
+  const css = (globalThis as typeof globalThis & { CSS?: CssEscapeApi }).CSS;
+  if (css?.escape) return css.escape(value);
+  return value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
+
+function queryElement(doc: Document, selector: string | undefined): Element | null {
+  if (!selector) return null;
+  try {
+    return doc.querySelector(selector);
+  } catch {
+    return null;
+  }
+}
+
+export function resolveViewScopeRoot(doc: Document, scope: ViewScope): Element | null {
+  const byStoredSelector = queryElement(doc, scope.selector);
+  if (byStoredSelector) return byStoredSelector;
+
+  const byScopeId = queryElement(
+    doc,
+    `[data-domnotate-scope-id="${escapeAttrValue(scope.id)}"]`,
+  );
+  if (byScopeId) return byScopeId;
+
+  return queryElement(doc, `#${escapeIdentifier(scope.id)}`);
+}

@@ -6,6 +6,7 @@ import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
 import { createNotePopover } from '@/popover/popover';
 import { createOutputFormatter } from '@/output/formatter';
+import { reanchorAnnotation } from '@/output/reanchor';
 import { createSessionStore } from '@/output/store';
 import { copyToClipboard, downloadFile } from '@/output/exporter';
 import { initTheme } from '@/theme/theme-toggle';
@@ -214,20 +215,34 @@ bus.on('annotation:select', (e) => {
 
   // Wait a tick for slide transition before scrolling to element
   const scrollToElement = () => {
-    try {
-      const el = iframeDoc.querySelector(annotation.element.cssSelector);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const activeScopeAfterNavigation = slideObserver.getActiveScope();
+    const selectionScope =
+      annotation.viewScope ??
+      (
+        annotation.slideIndex !== undefined &&
+        activeScopeAfterNavigation?.index === annotation.slideIndex
+          ? activeScopeAfterNavigation
+          : undefined
+      );
 
-        // Add a temporary dashed highlight border
-        const prev = (el as HTMLElement).style.outline;
-        (el as HTMLElement).style.outline = '2px dashed var(--dn-accent)';
-        setTimeout(() => {
-          (el as HTMLElement).style.outline = prev;
-        }, 2000);
-      }
-    } catch {
-      // Selector may be invalid — ignore
+    const match = reanchorAnnotation(
+      annotation.element,
+      iframeDoc,
+      selectionScope ? { viewScope: selectionScope } : undefined,
+    );
+    const el = match?.element;
+    if (!el) return;
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Add a temporary dashed highlight border
+    const htmlEl = el as HTMLElement;
+    if (htmlEl.style) {
+      const prev = htmlEl.style.outline;
+      htmlEl.style.outline = '2px dashed var(--dn-accent)';
+      setTimeout(() => {
+        htmlEl.style.outline = prev;
+      }, 2000);
     }
   };
 
