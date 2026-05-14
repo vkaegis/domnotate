@@ -5,10 +5,15 @@ import type { EventBus, SlideObserver } from '@/types/core';
 import {
   makeActiveSlideDocument,
   makeAriaTabDocument,
+  makeCarouselDocument,
   makeDeckSlideDocument,
   makeExplicitScopeDocument,
   makeFakeIframe,
+  makeGenericActivePanelDocument,
+  makeHashRouteDocument,
+  makeNestedTabSlidesDocument,
   makePlainDocument,
+  makeWizardStepDocument,
 } from '@/__tests__/fixtures';
 
 describe('SlideObserver', () => {
@@ -160,6 +165,152 @@ describe('SlideObserver', () => {
       id: 'scope-1',
       label: 'Scope 1',
     }));
+  });
+
+  test('detects hash routes only when route state is explicit', () => {
+    const doc = makeHashRouteDocument('details');
+    const iframe = makeFakeIframe(doc, { location: { hash: '#details' } });
+
+    observer.init(iframe, bus);
+
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'hash-route',
+      id: 'details',
+      label: 'Section 2',
+      selector: '#details',
+      activation: 'set-hash',
+    }));
+
+    observer.activateScope(observer.getScopes()[2]);
+
+    expect((iframe.contentWindow as unknown as { location: { hash: string } }).location.hash).toBe('#settings');
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({ kind: 'hash-route', id: 'settings' }));
+  });
+
+  test('updates hash-route scope when in-frame navigation changes the hash', () => {
+    const doc = makeHashRouteDocument('details');
+    const hashWindow = new EventTarget() as Window & { location: { hash: string } };
+    Object.defineProperty(hashWindow, 'location', {
+      value: { hash: '#details' },
+      writable: true,
+    });
+    const iframe = makeFakeIframe(doc, hashWindow as unknown as Record<string, unknown>);
+    const handler = vi.fn();
+
+    observer.init(iframe, bus);
+    bus.on('scope:changed', handler);
+
+    hashWindow.location.hash = '#settings';
+    hashWindow.dispatchEvent(new Event('hashchange'));
+
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({ kind: 'hash-route', id: 'settings' }));
+    expect(handler).toHaveBeenCalledWith({
+      type: 'scope:changed',
+      scope: expect.objectContaining({ kind: 'hash-route', id: 'settings' }),
+      previousScope: expect.objectContaining({ kind: 'hash-route', id: 'details' }),
+    });
+  });
+
+  test('does not treat ordinary long-form hash navigation as scoped content', () => {
+    const doc = makePlainDocument(`
+      <nav>
+        <a href="#intro">Intro</a>
+        <a href="#details">Details</a>
+      </nav>
+      <section id="intro"><p>Intro</p></section>
+      <section id="details"><p>Details</p></section>
+    `);
+    const iframe = makeFakeIframe(doc, { location: { hash: '' } });
+
+    observer.init(iframe, bus);
+
+    expect(observer.getScopes()).toEqual([]);
+    expect(observer.getActiveScope()).toBeNull();
+  });
+
+  test('detects carousel scopes and activates through controllers', () => {
+    const doc = makeCarouselDocument(1);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'carousel',
+      id: 'item-1',
+      index: 1,
+      label: 'Item 2',
+      controllerSelector: '[aria-controls="item-1"]',
+      activation: 'click-controller',
+    }));
+
+    observer.activateScope(observer.getScopes()[2]);
+
+    expect(doc.querySelector('#item-1')?.classList.contains('active')).toBe(false);
+    expect(doc.querySelector('#item-2')?.classList.contains('active')).toBe(true);
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({ kind: 'carousel', id: 'item-2' }));
+  });
+
+  test('detects wizard step scopes with data-step markers', () => {
+    const doc = makeWizardStepDocument(0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+    observer.activateScope(observer.getScopes()[2]);
+
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'wizard-step',
+      id: 'step-2',
+      index: 2,
+      label: 'Step 3',
+    }));
+    expect(doc.querySelector('#step-0')?.getAttribute('aria-hidden')).toBe('true');
+    expect(doc.querySelector('#step-2')?.getAttribute('aria-hidden')).toBe('false');
+  });
+
+  test('detects generic active panels only with strong container evidence', () => {
+    const doc = makeGenericActivePanelDocument(2);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'active-panel',
+      id: 'panel-2',
+      index: 2,
+      label: 'View 3',
+    }));
+  });
+
+  test('uses the nearest active scope for nested tabs containing slides', () => {
+    const doc = makeNestedTabSlidesDocument(1, 1);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    const nestedParagraph = doc.querySelector('#nested-tab-1 .slide[data-slide="1"] p')!;
+
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'slide',
+      index: 3,
+      label: 'Slide 4',
+    }));
+    expect(observer.getScopeForElement(nestedParagraph)).toEqual(expect.objectContaining({
+      kind: 'slide',
+      index: 3,
+    }));
+  });
+
+  test('uses a unique selector for nested slides with repeated data-slide values', () => {
+    const doc = makeNestedTabSlidesDocument(1, 1);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    const nestedSlide = doc.querySelector('#nested-tab-1 .slide[data-slide="1"]')!;
+    const scope = observer.getScopeForElement(nestedSlide)!;
+
+    expect(scope.selector).not.toBe('.deck > .slide[data-slide="1"]');
+    expect(doc.querySelector(scope.selector)).toBe(nestedSlide);
   });
 
   test('activateScope toggles explicit active scopes', () => {

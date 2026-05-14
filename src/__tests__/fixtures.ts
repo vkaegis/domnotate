@@ -161,6 +161,151 @@ export function makeExplicitScopeDocument(activeIndex = 0): Document {
   return doc;
 }
 
+export function makeHashRouteDocument(activeId = 'details'): Document {
+  const doc = document.implementation.createHTMLDocument('hash routes');
+  const nav = doc.createElement('nav');
+
+  ['overview', 'details', 'settings'].forEach((id) => {
+    const link = doc.createElement('a');
+    link.href = `#${id}`;
+    link.textContent = id;
+    if (id === activeId) link.setAttribute('aria-current', 'page');
+    nav.appendChild(link);
+  });
+  doc.body.appendChild(nav);
+
+  ['overview', 'details', 'settings'].forEach((id) => {
+    const section = doc.createElement('section');
+    section.id = id;
+    section.innerHTML = `<p>${id} route content</p>`;
+    doc.body.appendChild(section);
+  });
+
+  return doc;
+}
+
+export function makeCarouselDocument(activeIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('carousel');
+  const carousel = doc.createElement('div');
+  carousel.setAttribute('aria-roledescription', 'carousel');
+
+  for (let i = 0; i < 3; i++) {
+    const button = doc.createElement('button');
+    button.setAttribute('aria-controls', `item-${i}`);
+    button.textContent = `Item ${i + 1}`;
+    button.addEventListener('click', () => {
+      carousel.querySelectorAll('.carousel-item').forEach((el, itemIndex) => {
+        el.classList.toggle('active', itemIndex === i);
+      });
+    });
+    carousel.appendChild(button);
+  }
+
+  for (let i = 0; i < 3; i++) {
+    const item = doc.createElement('div');
+    item.id = `item-${i}`;
+    item.className = `carousel-item${i === activeIndex ? ' active' : ''}`;
+    item.innerHTML = `<p>Carousel item ${i}</p>`;
+    carousel.appendChild(item);
+  }
+
+  doc.body.appendChild(carousel);
+  return doc;
+}
+
+export function makeWizardStepDocument(activeIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('wizard');
+  const wizard = doc.createElement('form');
+  wizard.setAttribute('data-wizard', '');
+
+  for (let i = 0; i < 3; i++) {
+    const button = doc.createElement('button');
+    button.type = 'button';
+    button.setAttribute('aria-controls', `step-${i}`);
+    button.textContent = `Step ${i + 1}`;
+    button.addEventListener('click', () => {
+      wizard.querySelectorAll('[data-step]').forEach((el, stepIndex) => {
+        el.classList.toggle('active', stepIndex === i);
+        el.setAttribute('aria-hidden', stepIndex === i ? 'false' : 'true');
+      });
+    });
+    wizard.appendChild(button);
+  }
+
+  for (let i = 0; i < 3; i++) {
+    const step = doc.createElement('section');
+    step.id = `step-${i}`;
+    step.setAttribute('data-step', String(i));
+    step.className = i === activeIndex ? 'active' : '';
+    step.setAttribute('aria-hidden', i === activeIndex ? 'false' : 'true');
+    step.innerHTML = `<p>Step ${i} content</p>`;
+    wizard.appendChild(step);
+  }
+
+  doc.body.appendChild(wizard);
+  return doc;
+}
+
+export function makeGenericActivePanelDocument(activeIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('active panels');
+  const container = doc.createElement('div');
+  container.setAttribute('data-panel-container', '');
+
+  for (let i = 0; i < 3; i++) {
+    const panel = doc.createElement('section');
+    panel.id = `panel-${i}`;
+    panel.setAttribute('data-panel', '');
+    panel.className = i === activeIndex ? 'is-active' : '';
+    panel.hidden = i !== activeIndex;
+    panel.innerHTML = `<p>Panel ${i} content</p>`;
+    container.appendChild(panel);
+  }
+
+  doc.body.appendChild(container);
+  return doc;
+}
+
+export function makeNestedTabSlidesDocument(activeTabIndex = 0, activeSlideIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('nested tab slides');
+  const tabs = doc.createElement('div');
+  tabs.setAttribute('role', 'tablist');
+
+  for (let tabIndex = 0; tabIndex < 2; tabIndex++) {
+    const tab = doc.createElement('button');
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', `nested-tab-${tabIndex}`);
+    tab.textContent = `Tab ${tabIndex}`;
+    tab.addEventListener('click', () => {
+      doc.querySelectorAll('[role="tabpanel"]').forEach((el, panelIndex) => {
+        (el as HTMLElement).hidden = panelIndex !== tabIndex;
+      });
+    });
+    tabs.appendChild(tab);
+  }
+  doc.body.appendChild(tabs);
+
+  for (let tabIndex = 0; tabIndex < 2; tabIndex++) {
+    const panel = doc.createElement('section');
+    panel.id = `nested-tab-${tabIndex}`;
+    panel.setAttribute('role', 'tabpanel');
+    panel.hidden = tabIndex !== activeTabIndex;
+
+    const deck = doc.createElement('div');
+    deck.className = 'deck';
+    for (let slideIndex = 0; slideIndex < 2; slideIndex++) {
+      const slide = doc.createElement('section');
+      slide.className = `slide${slideIndex === activeSlideIndex ? ' active' : ''}`;
+      slide.setAttribute('data-slide', String(slideIndex));
+      slide.innerHTML = `<p>Tab ${tabIndex} slide ${slideIndex}</p>`;
+      deck.appendChild(slide);
+    }
+    panel.appendChild(deck);
+    doc.body.appendChild(panel);
+  }
+
+  return doc;
+}
+
 export function makeFakeIframe(doc: Document, contentWindow: Record<string, unknown> = {}): HTMLIFrameElement {
   const iframe = document.createElement('iframe');
   Object.defineProperty(iframe, 'contentDocument', { value: doc, writable: true });
