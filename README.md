@@ -12,6 +12,52 @@ Load any HTML page (from a file or URL), pin annotations to specific elements, a
 
 Annotations are persisted locally in IndexedDB. Shared links use Cloudflare R2 to store the captured HTML and annotations.
 
+## Authoring annotation-friendly artifacts
+
+Domnotate can annotate plain one-page documents without any special markup. For multi-view artifacts such as slides, tabs, carousels, wizards, and route-like panels, artifact generators should mark each logical view with stable Domnotate scope attributes. This lets annotations attach to the view the reviewer was actually looking at, so pins, note navigation, import, export, and shared sessions stay deterministic even when hidden views contain duplicate text or selectors.
+
+Recommended markup:
+
+```html
+<section
+  data-domnotate-scope
+  data-domnotate-scope-id="overview"
+  data-domnotate-scope-label="Overview"
+>
+  ...
+</section>
+```
+
+Use a stable `data-domnotate-scope-id` that will not change between generated versions of the artifact. Use `data-domnotate-scope-label` for the readable name shown in exports and note groups. If the artifact has a known view type, `data-domnotate-scope` may also be set to one of the supported scope kinds:
+
+```html
+<section
+  data-domnotate-scope="wizard-step"
+  data-domnotate-scope-id="setup"
+  data-domnotate-scope-label="Setup"
+>
+  ...
+</section>
+```
+
+Supported scope kinds are `slide`, `tabpanel`, `hash-route`, `carousel`, `wizard-step`, `active-panel`, and `custom`. Explicit Domnotate attributes have the highest priority. Without those attributes, Domnotate also detects common semantic patterns such as `.deck > .slide[data-slide]`, ARIA tab panels, hash-routed sections with route-like navigation, carousel items, wizard steps, and strongly marked active panels.
+
+Activation works best when each view has a clear state change:
+
+- Tabs should connect a controller to the panel with `aria-controls`.
+- Hash-routed sections should have stable ids and matching hash links.
+- Carousels, wizards, and active panels should keep inactive views hidden or clearly inactive with common markers such as `hidden`, `aria-hidden="true"`, `.active`, `.is-active`, or framework-specific active classes.
+- If there is a visible controller for a view, keep it clickable and associated with the target view where possible.
+
+For compatibility with older annotation exports, slide annotations may still include `slideIndex`. New scoped annotations include `viewScope`, and slide annotations may include both fields during the transition. Consumers should prefer `viewScope` when present and treat `slideIndex` as a legacy fallback.
+
+Known limits:
+
+- Canvas-only artifacts need their own semantic HTML overlay if annotations should attach to logical views.
+- Cross-origin iframe content cannot be introspected unless browser security rules allow it.
+- Arbitrary app routers need semantic hints such as Domnotate attributes, hash routes, or clear active panels.
+- Complex animated transitions with no stable hidden or active state may not be inferred reliably.
+
 ## Sharing limitations
 
 Shared links are intentionally simple for the MVP:
