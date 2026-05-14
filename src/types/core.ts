@@ -186,10 +186,14 @@ export interface ViewScopeObserver {
   init(iframeEl: HTMLIFrameElement, bus: EventBus): void;
   /** Active logical view scope, or null when the document is unscoped. */
   getActiveScope(): ViewScope | null;
+  /** All currently active logical view scopes, for documents with independent scope groups. */
+  getActiveScopes(): ViewScope[];
   /** All detected logical view scopes in document order. */
   getScopes(): ViewScope[];
   /** Given a DOM element, return the nearest matching scope. */
   getScopeForElement(el: Element): ViewScope | undefined;
+  /** Return whether a logical view scope is currently active. */
+  isScopeActive(scope: ViewScope): boolean;
   /** Activate a logical view scope inside the iframe. */
   activateScope(scope: ViewScope): void;
   destroy(): void;

@@ -29,14 +29,26 @@ export function isAnnotationVisibleInScope(
   activeScope: ViewScope | null,
   hasScopes: boolean,
 ): boolean {
+  return isAnnotationVisibleInScopes(
+    annotation,
+    activeScope ? [activeScope] : [],
+    hasScopes,
+  );
+}
+
+export function isAnnotationVisibleInScopes(
+  annotation: Annotation,
+  activeScopes: ViewScope[],
+  hasScopes: boolean,
+): boolean {
   if (!hasScopes) return true;
 
   if (annotation.viewScope) {
-    return activeScope !== null && scopesMatch(annotation.viewScope, activeScope);
+    return activeScopes.some((activeScope) => scopesMatch(annotation.viewScope!, activeScope));
   }
 
   if (annotation.slideIndex !== undefined) {
-    return activeScope !== null && annotation.slideIndex === activeScope.index;
+    return activeScopes.some((activeScope) => annotation.slideIndex === activeScope.index);
   }
 
   return true;

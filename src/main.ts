@@ -14,7 +14,7 @@ import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
-import { createScopedAnnotationOptions, scopesMatch } from '@/annotations/view-scope';
+import { createScopedAnnotationOptions } from '@/annotations/view-scope';
 import { publishShare } from '@/share/share-client';
 import { publishOrCopyShare } from '@/share/share-action';
 
@@ -196,10 +196,9 @@ bus.on('annotation:select', (e) => {
   const iframeDoc = iframeEl.contentDocument;
   if (!iframeDoc) return;
 
-  const activeScope = slideObserver.getActiveScope();
   const needsScopeNav =
     annotation.viewScope !== undefined &&
-    (!activeScope || !scopesMatch(annotation.viewScope, activeScope));
+    !slideObserver.isScopeActive(annotation.viewScope);
   const needsSlideNav =
     !needsScopeNav &&
     annotation.slideIndex !== undefined &&

@@ -7,6 +7,8 @@ import type { EventBus, SlideObserver, ViewScope, ViewScopeKind } from '@/types/
 type ScopeRecord = {
   el: Element;
   scope: ViewScope;
+  isActive?: () => boolean;
+  activate?: () => void;
 };
 
 const VIEW_SCOPE_KINDS: ViewScopeKind[] = [
@@ -24,7 +26,9 @@ export function createSlideObserver(): SlideObserver {
   let bus: EventBus | null = null;
   let scopeRecords: ScopeRecord[] = [];
   let activeIndex: number | null = null;
+  let activeSignature = '';
   let mutationObserver: MutationObserver | null = null;
+  let controllerCleanups: Array<() => void> = [];
   let hashChangeWindow: (Window & {
     addEventListener(type: 'hashchange', listener: () => void): void;
     removeEventListener(type: 'hashchange', listener: () => void): void;
@@ -55,6 +59,11 @@ export function createSlideObserver(): SlideObserver {
     if (htmlLike.hidden === true) return true;
     if (htmlLike.style?.display === 'none') return true;
     if (htmlLike.style?.visibility === 'hidden') return true;
+    const view = el.ownerDocument.defaultView;
+    if (view) {
+      const style = view.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') return true;
+    }
     return el.getAttribute('aria-hidden') === 'true';
   }
 
@@ -152,6 +161,8 @@ export function createSlideObserver(): SlideObserver {
     if (controller.id) return `#${escapeIdentifier(controller.id)}`;
     const controls = controller.getAttribute('aria-controls');
     if (controls) return `[aria-controls="${escapeAttrValue(controls)}"]`;
+    const htmlFor = controller.getAttribute('for');
+    if (htmlFor) return `label[for="${escapeAttrValue(htmlFor)}"]`;
     return undefined;
   }
 
@@ -199,8 +210,15 @@ export function createSlideObserver(): SlideObserver {
     index: number,
     kind: ViewScopeKind,
     fallbackPrefix: string,
+    options: {
+      id?: string;
+      label?: string;
+      controller?: Element | null;
+      isActive?: () => boolean;
+      activate?: () => void;
+    } = {},
   ): ScopeRecord {
-    const controller = findController(doc, el);
+    const controller = options.controller ?? findController(doc, el);
     const selector = selectorForElement(el);
     const hasGoTo = kind === 'slide' && typeof (iframeEl?.contentWindow as any)?.goTo === 'function';
     const activation = controller
@@ -217,14 +235,16 @@ export function createSlideObserver(): SlideObserver {
       el,
       scope: {
         kind,
-        id: scopeIdFor(el, index, fallbackPrefix.toLowerCase()),
+        id: options.id ?? scopeIdFor(el, index, fallbackPrefix.toLowerCase()),
         index,
-        label: labelForScope(doc, el, index, fallbackPrefix),
+        label: options.label ?? labelForScope(doc, el, index, fallbackPrefix),
         selector,
         activeSelector: activeSelectorFor(el, kind),
         controllerSelector: controllerSelectorFor(controller),
         activation,
       },
+      isActive: options.isActive,
+      activate: options.activate,
     };
   }
 
@@ -257,6 +277,53 @@ export function createSlideObserver(): SlideObserver {
     const panels = Array.from(doc.querySelectorAll('[role="tabpanel"]'));
     if (panels.length < 2) return [];
     return panels.map((el, index) => createScopeRecord(doc, el, index, 'tabpanel', 'Tab'));
+  }
+
+  function detectRadioTabPanels(doc: Document): ScopeRecord[] {
+    const records: ScopeRecord[] = [];
+    const tabsets = Array.from(doc.querySelectorAll('.tabset'));
+
+    for (const tabset of tabsets) {
+      const inputs = Array.from(
+        tabset.querySelectorAll('input[type="radio"]'),
+      ) as HTMLInputElement[];
+      const panels = Array.from(tabset.querySelectorAll('.tabpanels > .panel'));
+      const hasTabstrip = tabset.querySelector('[role="tablist"], .tabstrip') !== null;
+
+      if (!hasTabstrip || inputs.length < 2 || panels.length < 2) continue;
+
+      const count = Math.min(inputs.length, panels.length);
+      for (let i = 0; i < count; i++) {
+        const input = inputs[i];
+        const panel = panels[i];
+        if (!input.id) continue;
+
+        const controller = tabset.querySelector(`label[for="${escapeAttrValue(input.id)}"]`);
+        const inputSelector = `#${escapeIdentifier(input.id)}`;
+        const record = createScopeRecord(doc, panel, records.length, 'tabpanel', 'Tab', {
+          id: input.id,
+          label: getElementText(controller) ?? `Tab ${records.length + 1}`,
+          controller,
+          isActive: () => input.checked || !isHiddenBySelfOrAncestor(panel),
+          activate: () => {
+            const clickableController = controller as (Element & { click?: () => void }) | null;
+            if (typeof clickableController?.click === 'function') {
+              clickableController.click();
+            } else {
+              input.checked = true;
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          },
+        });
+        record.scope = {
+          ...record.scope,
+          activeSelector: `${inputSelector}:checked`,
+        };
+        records.push(record);
+      }
+    }
+
+    return records.length >= 2 ? records : [];
   }
 
   function detectHashRoutes(doc: Document): ScopeRecord[] {
@@ -405,6 +472,7 @@ export function createSlideObserver(): SlideObserver {
     if (!doc) {
       scopeRecords = [];
       activeIndex = null;
+      activeSignature = '';
       return;
     }
 
@@ -413,6 +481,7 @@ export function createSlideObserver(): SlideObserver {
       ensureUniqueScopeIds(explicitScopes);
       scopeRecords = explicitScopes;
       activeIndex = findActiveIndex();
+      activeSignature = getActiveSignature();
       return;
     }
 
@@ -420,6 +489,7 @@ export function createSlideObserver(): SlideObserver {
     const deckSlides = detectDeckSlides(doc);
     appendUniqueRecords(detectedRecords, deckSlides.length > 0 ? deckSlides : detectActiveSlides(doc));
     appendUniqueRecords(detectedRecords, detectTabPanels(doc));
+    appendUniqueRecords(detectedRecords, detectRadioTabPanels(doc));
     appendUniqueRecords(detectedRecords, detectHashRoutes(doc));
     appendUniqueRecords(detectedRecords, detectCarouselScopes(doc));
     appendUniqueRecords(detectedRecords, detectWizardSteps(doc));
@@ -430,10 +500,63 @@ export function createSlideObserver(): SlideObserver {
 
     if (scopeRecords.length === 0) {
       activeIndex = null;
+      activeSignature = '';
       return;
     }
 
     activeIndex = findActiveIndex();
+    activeSignature = getActiveSignature();
+  }
+
+  function isRecordActive(record: ScopeRecord): boolean {
+    if (record.isActive) return record.isActive();
+    return hasActiveMarker(record.el) || !isHiddenBySelfOrAncestor(record.el);
+  }
+
+  function activeRecordIndexes(): number[] {
+    if (scopeRecords.length === 0) return [];
+
+    const currentHash = getLocationHash();
+    if (currentHash) {
+      const hashIndex = scopeRecords.findIndex(({ scope }) => scope.kind === 'hash-route' && scope.id === currentHash);
+      if (hashIndex !== -1) return [hashIndex];
+    }
+
+    const explicitActiveIndexes = scopeRecords
+      .map((record, index) => ({ record, index }))
+      .filter(({ record }) =>
+        record.isActive ? record.isActive() : hasActiveMarker(record.el) && !isHiddenBySelfOrAncestor(record.el),
+      )
+      .map(({ index }) => index);
+    if (explicitActiveIndexes.length > 0) return explicitActiveIndexes;
+
+    const visibleIndexes = scopeRecords
+      .map((record, index) => ({ record, index }))
+      .filter(({ record }) => !isHiddenBySelfOrAncestor(record.el))
+      .map(({ index }) => index);
+
+    return visibleIndexes.length === 1 ? visibleIndexes : [];
+  }
+
+  function getActiveSignature(): string {
+    return activeRecordIndexes().join(',');
+  }
+
+  function parseActiveSignature(signature: string): number[] {
+    if (!signature) return [];
+    return signature.split(',').map(Number).filter(Number.isFinite);
+  }
+
+  function getChangedActiveIndex(oldSignature: string, newSignature: string, fallbackIndex: number): number {
+    const oldIndexes = new Set(parseActiveSignature(oldSignature));
+    const newIndexes = parseActiveSignature(newSignature);
+    return newIndexes.find((index) => !oldIndexes.has(index)) ?? fallbackIndex;
+  }
+
+  function getPreviousScopeForSignatureChange(oldSignature: string, newSignature: string): ViewScope | null {
+    const newIndexes = new Set(parseActiveSignature(newSignature));
+    const removedIndex = parseActiveSignature(oldSignature).find((index) => !newIndexes.has(index));
+    return removedIndex === undefined ? null : scopeRecords[removedIndex]?.scope ?? null;
   }
 
   function findActiveIndex(): number {
@@ -450,11 +573,11 @@ export function createSlideObserver(): SlideObserver {
         const depth = elementDepth(record.el);
         const visible = !isHiddenBySelfOrAncestor(record.el);
         let score = visible ? 10 : 0;
-        if (record.el.classList.contains('active')) score += 100;
-        if (record.el.classList.contains('is-active')) score += 100;
-        if (record.el.classList.contains('swiper-slide-active')) score += 100;
-        if (record.el.getAttribute('aria-hidden') === 'false') score += 80;
-        if (record.el.getAttribute('aria-selected') === 'true') score += 70;
+        if (visible && record.el.classList.contains('active')) score += 100;
+        if (visible && record.el.classList.contains('is-active')) score += 100;
+        if (visible && record.el.classList.contains('swiper-slide-active')) score += 100;
+        if (visible && record.el.getAttribute('aria-hidden') === 'false') score += 80;
+        if (visible && record.el.getAttribute('aria-selected') === 'true') score += 70;
         return { index, depth, score, visible };
       })
       .filter((candidate) => candidate.score > 0)
@@ -464,7 +587,7 @@ export function createSlideObserver(): SlideObserver {
 
     const visibleScopes = scopeRecords
       .map((record, index) => ({ record, index, depth: elementDepth(record.el) }))
-      .filter(({ record }) => !isHiddenBySelfOrAncestor(record.el));
+      .filter(({ record }) => isRecordActive(record));
     if (visibleScopes.length === 1) return visibleScopes[0].index;
     if (visibleScopes.length > 1) {
       return visibleScopes.sort((a, b) => b.depth - a.depth || a.index - b.index)[0].index;
@@ -484,10 +607,15 @@ export function createSlideObserver(): SlideObserver {
 
   function onMutation(): void {
     const newIndex = findActiveIndex();
-    if (newIndex !== activeIndex) {
-      const previousScope = activeIndex === null ? null : scopeRecords[activeIndex]?.scope ?? null;
+    const newSignature = getActiveSignature();
+    if (newIndex !== activeIndex || newSignature !== activeSignature) {
+      const changedIndex = getChangedActiveIndex(activeSignature, newSignature, newIndex);
+      const previousScope =
+        getPreviousScopeForSignatureChange(activeSignature, newSignature) ??
+        (activeIndex === null ? null : scopeRecords[activeIndex]?.scope ?? null);
       activeIndex = newIndex;
-      emitScopeChange(previousScope, newIndex);
+      activeSignature = newSignature;
+      emitScopeChange(previousScope, changedIndex);
     }
   }
 
@@ -500,6 +628,32 @@ export function createSlideObserver(): SlideObserver {
       mutationObserver.observe(el, {
         attributes: true,
         attributeFilter: ['class', 'hidden', 'aria-hidden', 'style'],
+      });
+    }
+  }
+
+  function detachControllerObservers(): void {
+    for (const cleanup of controllerCleanups) cleanup();
+    controllerCleanups = [];
+  }
+
+  function attachControllerObservers(): void {
+    const doc = iframeEl?.contentDocument;
+    if (!doc) return;
+
+    for (const record of scopeRecords) {
+      if (!record.scope.controllerSelector) continue;
+      const controller = doc.querySelector(record.scope.controllerSelector);
+      if (!controller) continue;
+
+      const handler = () => {
+        requestAnimationFrame(onMutation);
+      };
+      controller.addEventListener('click', handler);
+      controller.addEventListener('change', handler);
+      controllerCleanups.push(() => {
+        controller.removeEventListener('click', handler);
+        controller.removeEventListener('change', handler);
       });
     }
   }
@@ -553,18 +707,26 @@ export function createSlideObserver(): SlideObserver {
   const observer: SlideObserver = {
     init(_iframeEl: HTMLIFrameElement, _bus: EventBus): void {
       mutationObserver?.disconnect();
+      detachControllerObservers();
       detachHashObserver();
       iframeEl = _iframeEl;
       bus = _bus;
 
       detectScopes();
       attachObserver();
+      attachControllerObservers();
       attachHashObserver();
     },
 
     getActiveScope(): ViewScope | null {
       if (scopeRecords.length === 0 || activeIndex === null) return null;
       return scopeRecords[activeIndex]?.scope ?? null;
+    },
+
+    getActiveScopes(): ViewScope[] {
+      return activeRecordIndexes()
+        .map((index) => scopeRecords[index]?.scope)
+        .filter((scope): scope is ViewScope => scope !== undefined);
     },
 
     getScopes(): ViewScope[] {
@@ -582,6 +744,11 @@ export function createSlideObserver(): SlideObserver {
       return undefined;
     },
 
+    isScopeActive(scope: ViewScope): boolean {
+      const index = scopeRecords.findIndex(({ scope: candidate }) => candidate.id === scope.id);
+      return index !== -1 && activeRecordIndexes().includes(index);
+    },
+
     activateScope(scope: ViewScope): void {
       const record = scopeRecords.find(({ scope: candidate }) => candidate.id === scope.id);
       if (!record) return;
@@ -590,6 +757,12 @@ export function createSlideObserver(): SlideObserver {
       if (!doc) return;
 
       const previousScope = activeIndex === null ? null : scopeRecords[activeIndex]?.scope ?? null;
+
+      if (record.activate) {
+        record.activate();
+        onMutation();
+        return;
+      }
 
       if (record.scope.activation === 'click-controller' && record.scope.controllerSelector) {
         const controller = doc.querySelector(record.scope.controllerSelector);
@@ -654,8 +827,10 @@ export function createSlideObserver(): SlideObserver {
         mutationObserver = null;
       }
       detachHashObserver();
+      detachControllerObservers();
       scopeRecords = [];
       activeIndex = null;
+      activeSignature = '';
       iframeEl = null;
       bus = null;
     },

@@ -312,14 +312,14 @@ export function createNotesPanel(
   function getScopeGroupForAnnotation(
     annotation: Annotation,
     scopes: ViewScope[],
-    activeScope: ViewScope | null,
+    activeScopes: ViewScope[],
   ): Omit<NoteGroup, 'annotations'> {
     if (annotation.viewScope) {
       return {
         key: `scope:${annotation.viewScope.id || annotation.viewScope.selector}`,
         label: fallbackScopeLabel(annotation.viewScope),
         index: annotation.viewScope.index,
-        active: activeScope !== null && scopesMatch(annotation.viewScope, activeScope),
+        active: activeScopes.some((activeScope) => scopesMatch(annotation.viewScope!, activeScope)),
       };
     }
 
@@ -330,7 +330,7 @@ export function createNotesPanel(
           key: `legacy:${legacyScope.id || legacyScope.selector}`,
           label: fallbackScopeLabel(legacyScope),
           index: legacyScope.index,
-          active: activeScope !== null && legacyScope.index === activeScope.index,
+          active: activeScopes.some((activeScope) => legacyScope.index === activeScope.index),
         };
       }
 
@@ -363,13 +363,13 @@ export function createNotesPanel(
     updateActionBarState(false);
 
     const scopes = slideObserver?.getScopes() ?? [];
-    const activeScope = slideObserver?.getActiveScope() ?? null;
+    const activeScopes = slideObserver?.getActiveScopes() ?? [];
     const isScopedContent = scopes.length > 0;
 
     if (isScopedContent) {
       const groups = new Map<string, NoteGroup>();
       for (const ann of annotations) {
-        const groupInfo = getScopeGroupForAnnotation(ann, scopes, activeScope);
+        const groupInfo = getScopeGroupForAnnotation(ann, scopes, activeScopes);
         if (!groups.has(groupInfo.key)) {
           groups.set(groupInfo.key, { ...groupInfo, annotations: [] });
         }
@@ -470,8 +470,7 @@ export function createNotesPanel(
     // Row click → navigate to slide if needed, then select annotation
     row.addEventListener('click', () => {
       if (slideObserver) {
-        const activeScope = slideObserver.getActiveScope();
-        if (annotation.viewScope && (!activeScope || !scopesMatch(annotation.viewScope, activeScope))) {
+        if (annotation.viewScope && !slideObserver.isScopeActive(annotation.viewScope)) {
           slideObserver.activateScope(annotation.viewScope);
         } else if (
           annotation.slideIndex !== undefined &&

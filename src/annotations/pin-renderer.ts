@@ -9,7 +9,7 @@ import type {
   SlideObserver,
   Annotation,
 } from '@/types/core';
-import { isAnnotationVisibleInScope } from '@/annotations/view-scope';
+import { isAnnotationVisibleInScopes } from '@/annotations/view-scope';
 
 export function createPinRenderer(): PinRenderer {
   let overlayEl: HTMLElement;
@@ -87,10 +87,10 @@ export function createPinRenderer(): PinRenderer {
     const { scrollX, scrollY } = getIframeScroll();
     const pins = pinContainer.children;
     const allAnnotations = manager.getAll();
-    const activeScope = slideObserver?.getActiveScope() ?? null;
+    const activeScopes = slideObserver?.getActiveScopes() ?? [];
     const hasScopes = (slideObserver?.getScopes().length ?? 0) > 0;
     const annotations = allAnnotations.filter((ann) =>
-      isAnnotationVisibleInScope(ann, activeScope, hasScopes),
+      isAnnotationVisibleInScopes(ann, activeScopes, hasScopes),
     );
 
     for (let i = 0; i < pins.length && i < annotations.length; i++) {
@@ -192,10 +192,10 @@ export function createPinRenderer(): PinRenderer {
       if (!visible) return;
 
       const allAnnotations = manager.getAll();
-      const activeScope = slideObserver?.getActiveScope() ?? null;
+      const activeScopes = slideObserver?.getActiveScopes() ?? [];
       const hasScopes = (slideObserver?.getScopes().length ?? 0) > 0;
       const annotations = allAnnotations.filter((ann) =>
-        isAnnotationVisibleInScope(ann, activeScope, hasScopes),
+        isAnnotationVisibleInScopes(ann, activeScopes, hasScopes),
       );
 
       const { scrollX, scrollY } = getIframeScroll();

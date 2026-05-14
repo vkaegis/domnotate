@@ -17,8 +17,10 @@ function makeObserver(scopes: ViewScope[], activeScope: ViewScope): SlideObserve
   return {
     init: () => undefined,
     getActiveScope: () => activeScope,
+    getActiveScopes: () => [activeScope],
     getScopes: () => scopes,
     getScopeForElement: () => activeScope,
+    isScopeActive: (candidate) => candidate.id === activeScope.id,
     activateScope: vi.fn(),
     destroy: () => undefined,
     getActiveSlide: () => activeScope.index,
@@ -80,4 +82,3 @@ describe('NotesPanel scope grouping', () => {
     panel.destroy();
   });
 });
-

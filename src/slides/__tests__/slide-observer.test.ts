@@ -13,6 +13,7 @@ import {
   makeHashRouteDocument,
   makeNestedTabSlidesDocument,
   makePlainDocument,
+  makeRadioTabsetDocument,
   makeWizardStepDocument,
 } from '@/__tests__/fixtures';
 
@@ -119,6 +120,45 @@ describe('SlideObserver', () => {
 
     expect(observer.getSlideCount()).toBe(3);
     expect(observer.getActiveSlide()).toBe(2);
+  });
+
+  test('detects CSS radio tabsets and keeps independent active scopes', () => {
+    const doc = makeRadioTabsetDocument([1, 2]);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getScopes()).toHaveLength(6);
+    expect(observer.getActiveScopes()).toEqual([
+      expect.objectContaining({ kind: 'tabpanel', id: 'set-0-tab-1', label: 'Set 0 Tab 1' }),
+      expect.objectContaining({ kind: 'tabpanel', id: 'set-1-tab-2', label: 'Set 1 Tab 2' }),
+    ]);
+    expect(observer.getScopeForElement(doc.querySelector('.p-1-2 .target')!)).toEqual(
+      expect.objectContaining({ id: 'set-1-tab-2' }),
+    );
+  });
+
+  test('activates CSS radio tabsets through their label controllers', () => {
+    const doc = makeRadioTabsetDocument([0, 0]);
+    const iframe = makeFakeIframe(doc);
+    const scopeChanged = vi.fn();
+
+    observer.init(iframe, bus);
+    bus.on('scope:changed', scopeChanged);
+    observer.activateScope(observer.getScopes()[5]);
+
+    expect((doc.querySelector('#set-1-tab-2') as HTMLInputElement).checked).toBe(true);
+    expect((doc.querySelector('.p-1-0') as HTMLElement).style.display).toBe('none');
+    expect((doc.querySelector('.p-1-2') as HTMLElement).style.display).toBe('block');
+    expect(observer.getActiveScopes()).toEqual([
+      expect.objectContaining({ id: 'set-0-tab-0' }),
+      expect.objectContaining({ id: 'set-1-tab-2' }),
+    ]);
+    expect(scopeChanged).toHaveBeenCalledWith({
+      type: 'scope:changed',
+      scope: expect.objectContaining({ id: 'set-1-tab-2' }),
+      previousScope: expect.objectContaining({ id: 'set-1-tab-0' }),
+    });
   });
 
   test('detects active-class slide groups without data-slide attributes', () => {

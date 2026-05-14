@@ -10,12 +10,14 @@ class TestResizeObserver {
   disconnect(): void {}
 }
 
-function makeObserver(scopes: ViewScope[], activeScope: ViewScope): SlideObserver {
+function makeObserver(scopes: ViewScope[], activeScope: ViewScope, activeScopes = [activeScope]): SlideObserver {
   return {
     init: () => undefined,
     getActiveScope: () => activeScope,
+    getActiveScopes: () => activeScopes,
     getScopes: () => scopes,
     getScopeForElement: () => activeScope,
+    isScopeActive: (candidate) => activeScopes.some((scope) => scope.id === candidate.id),
     activateScope: vi.fn(),
     destroy: () => undefined,
     getActiveSlide: () => activeScope.index,
@@ -70,5 +72,36 @@ describe('PinRenderer scope filtering', () => {
 
     renderer.destroy();
   });
-});
 
+  test('renders pins from multiple independently active tabsets', () => {
+    const firstSetActive = makeViewScope({ id: 'set-0-tab-1', index: 1, label: 'Set 0 Tab 1' });
+    const secondSetActive = makeViewScope({ id: 'set-1-tab-2', index: 5, label: 'Set 1 Tab 2' });
+    const inactive = makeViewScope({ id: 'set-1-tab-0', index: 3, label: 'Set 1 Tab 0' });
+    const observer = makeObserver(
+      [firstSetActive, inactive, secondSetActive],
+      firstSetActive,
+      [firstSetActive, secondSetActive],
+    );
+    const iframe = makeFakeIframe(makePlainDocument());
+
+    const first = manager.create(makeDescriptor(), { x: 10, y: 10 }, 'first active', {
+      viewScope: firstSetActive,
+    });
+    const second = manager.create(makeDescriptor(), { x: 20, y: 20 }, 'second active', {
+      viewScope: secondSetActive,
+    });
+    const hidden = manager.create(makeDescriptor(), { x: 30, y: 30 }, 'inactive', {
+      viewScope: inactive,
+    });
+
+    const renderer = createPinRenderer();
+    renderer.init(overlay, iframe, bus, manager, observer);
+    renderer.render();
+
+    expect(overlay.querySelector(`[data-annotation-id="${first.id}"]`)).not.toBeNull();
+    expect(overlay.querySelector(`[data-annotation-id="${second.id}"]`)).not.toBeNull();
+    expect(overlay.querySelector(`[data-annotation-id="${hidden.id}"]`)).toBeNull();
+
+    renderer.destroy();
+  });
+});

@@ -145,6 +145,59 @@ export function makeAriaTabDocument(activeIndex = 0, mode: TabVisibilityMode = '
   return doc;
 }
 
+export function makeRadioTabsetDocument(activeIndexes = [0, 0]): Document {
+  const doc = document.implementation.createHTMLDocument('radio tabsets');
+
+  for (let setIndex = 0; setIndex < activeIndexes.length; setIndex++) {
+    const tabset = doc.createElement('div');
+    tabset.className = 'tabset';
+
+    const tabstrip = doc.createElement('div');
+    tabstrip.className = 'tabstrip';
+    tabstrip.setAttribute('role', 'tablist');
+
+    const panels = doc.createElement('div');
+    panels.className = 'tabpanels';
+
+    for (let tabIndex = 0; tabIndex < 3; tabIndex++) {
+      const input = doc.createElement('input');
+      input.type = 'radio';
+      input.className = 'tab-radio';
+      input.name = `set-${setIndex}`;
+      input.id = `set-${setIndex}-tab-${tabIndex}`;
+      input.checked = tabIndex === activeIndexes[setIndex];
+      tabset.appendChild(input);
+
+      const label = doc.createElement('label');
+      label.className = 'tab';
+      label.setAttribute('for', input.id);
+      label.textContent = `Set ${setIndex} Tab ${tabIndex}`;
+      label.addEventListener('click', () => {
+        input.checked = true;
+        Array.from(panels.children).forEach((panel, panelIndex) => {
+          (panel as HTMLElement).style.display = panelIndex === tabIndex ? 'block' : 'none';
+        });
+      });
+      tabstrip.appendChild(label);
+    }
+
+    tabset.appendChild(tabstrip);
+
+    for (let tabIndex = 0; tabIndex < 3; tabIndex++) {
+      const panel = doc.createElement('div');
+      panel.className = `panel p-${setIndex}-${tabIndex}`;
+      panel.style.display = tabIndex === activeIndexes[setIndex] ? 'block' : 'none';
+      panel.innerHTML = `<p class="target">Set ${setIndex} tab ${tabIndex} content</p>`;
+      panels.appendChild(panel);
+    }
+
+    tabset.appendChild(panels);
+    doc.body.appendChild(tabset);
+  }
+
+  return doc;
+}
+
 export function makeExplicitScopeDocument(activeIndex = 0): Document {
   const doc = document.implementation.createHTMLDocument('explicit scopes');
 
