@@ -48,11 +48,13 @@ export function createSlideObserver(): SlideObserver {
   }
 
   function isHiddenScope(el: Element): boolean {
-    if (el instanceof HTMLElement) {
-      if (el.hidden) return true;
-      if (el.style.display === 'none') return true;
-      if (el.style.visibility === 'hidden') return true;
-    }
+    const htmlLike = el as Element & {
+      hidden?: boolean;
+      style?: { display?: string; visibility?: string };
+    };
+    if (htmlLike.hidden === true) return true;
+    if (htmlLike.style?.display === 'none') return true;
+    if (htmlLike.style?.visibility === 'hidden') return true;
     return el.getAttribute('aria-hidden') === 'true';
   }
 
@@ -186,7 +188,7 @@ export function createSlideObserver(): SlideObserver {
     if (el.classList.contains('is-active')) return '.is-active';
     if (el.classList.contains('swiper-slide-active')) return '.swiper-slide-active';
     if (el.getAttribute('aria-hidden') === 'false') return '[aria-hidden="false"]';
-    if (kind === 'tabpanel' && el instanceof HTMLElement && !el.hidden) return ':not([hidden])';
+    if (kind === 'tabpanel' && !isHiddenScope(el)) return ':not([hidden])';
     if (kind === 'hash-route') return ':target';
     return undefined;
   }
@@ -530,8 +532,13 @@ export function createSlideObserver(): SlideObserver {
   function setHiddenActivation(scope: ViewScope): void {
     for (const record of scopeRecords) {
       const isActive = record.scope.id === scope.id;
-      if (record.el instanceof HTMLElement) {
-        record.el.hidden = !isActive;
+      const htmlLike = record.el as Element & { hidden?: boolean };
+      if ('hidden' in htmlLike) {
+        htmlLike.hidden = !isActive;
+      } else if (isActive) {
+        record.el.removeAttribute('hidden');
+      } else {
+        record.el.setAttribute('hidden', '');
       }
       record.el.setAttribute('aria-hidden', isActive ? 'false' : 'true');
     }
@@ -586,8 +593,9 @@ export function createSlideObserver(): SlideObserver {
 
       if (record.scope.activation === 'click-controller' && record.scope.controllerSelector) {
         const controller = doc.querySelector(record.scope.controllerSelector);
-        if (controller instanceof HTMLElement) {
-          controller.click();
+        const clickableController = controller as (Element & { click?: () => void }) | null;
+        if (typeof clickableController?.click === 'function') {
+          clickableController.click();
           onMutation();
           return;
         }
@@ -597,6 +605,7 @@ export function createSlideObserver(): SlideObserver {
         const win = iframeEl?.contentWindow as any;
         if (win && typeof win.goTo === 'function') {
           win.goTo(record.scope.index);
+          onMutation();
           return;
         }
       }
