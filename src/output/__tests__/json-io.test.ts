@@ -62,6 +62,27 @@ describe('json-io', () => {
       expect(deserializeSession(JSON.stringify(session)).annotations[0].viewScope).toBeUndefined();
     });
 
+    test('accepts mixed JSON with legacy slideIndex-only annotations', () => {
+      const legacySlideAnnotation = makeAnnotation({ slideIndex: 1 });
+      const { viewScope: _, ...legacyOnly } = legacySlideAnnotation;
+      const scopedAnnotation = makeAnnotation({
+        viewScope: makeViewScope({
+          kind: 'tabpanel',
+          id: 'why-now',
+          index: 0,
+          label: 'Why now',
+          selector: '#why-now',
+        }),
+      });
+      const session = makeSession({ annotations: [legacyOnly, scopedAnnotation] });
+
+      expect(validateSession(session)).toBe(true);
+      const restored = deserializeSession(JSON.stringify(session));
+      expect(restored.annotations[0].slideIndex).toBe(1);
+      expect(restored.annotations[0].viewScope).toBeUndefined();
+      expect(restored.annotations[1].viewScope?.label).toBe('Why now');
+    });
+
     test('accepts valid annotation viewScope', () => {
       const viewScope = makeViewScope({
         kind: 'tabpanel',
@@ -116,6 +137,23 @@ describe('json-io', () => {
       const json = serializeSession(session);
       const restored = deserializeSession(json);
       expect(restored).toEqual(session);
+    });
+
+    test('scoped session round-trips with viewScope and transition slideIndex', () => {
+      const viewScope = makeViewScope({
+        kind: 'slide',
+        id: 'slide-3',
+        index: 3,
+        label: 'Slide 4',
+        selector: '.slide:nth-of-type(4)',
+      });
+      const session = makeSession({
+        annotations: [makeAnnotation({ viewScope, slideIndex: 3 })],
+      });
+
+      const restored = deserializeSession(serializeSession(session));
+      expect(restored.annotations[0].viewScope).toEqual(viewScope);
+      expect(restored.annotations[0].slideIndex).toBe(3);
     });
 
     test('malformed JSON throws', () => {

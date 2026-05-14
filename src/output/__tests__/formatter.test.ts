@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { createOutputFormatter } from '@/output/formatter';
-import { makeSession, makeAnnotation, makeDescriptor } from '@/__tests__/fixtures';
+import { makeSession, makeAnnotation, makeDescriptor, makeViewScope } from '@/__tests__/fixtures';
 
 const fmt = createOutputFormatter();
 
@@ -54,6 +54,29 @@ describe('OutputFormatter', () => {
       const md = fmt.toMarkdown(session);
       expect(md).toContain('section.hero');
     });
+
+    test('includes readable view scope label when present', () => {
+      const ann = makeAnnotation({
+        viewScope: makeViewScope({ kind: 'tabpanel', label: 'Why now', index: 1 }),
+      });
+      const session = makeSession({ annotations: [ann] });
+      const md = fmt.toMarkdown(session);
+      expect(md).toContain('**Scope:** Why now');
+    });
+
+    test('includes legacy slide scope label without viewScope', () => {
+      const ann = makeAnnotation({ slideIndex: 2 });
+      const session = makeSession({ annotations: [ann] });
+      const md = fmt.toMarkdown(session);
+      expect(md).toContain('**Scope:** Slide 3');
+    });
+
+    test('omits scope line for unscoped annotations', () => {
+      const ann = makeAnnotation();
+      const session = makeSession({ annotations: [ann] });
+      const md = fmt.toMarkdown(session);
+      expect(md).not.toContain('**Scope:**');
+    });
   });
 
   describe('toCompact', () => {
@@ -95,6 +118,17 @@ describe('OutputFormatter', () => {
       const previewLines = lines.filter(l => l.match(/^\s+"/));
       expect(previewLines).toHaveLength(0);
     });
+
+    test('includes scope context for scoped annotations only', () => {
+      const scoped = makeAnnotation({
+        viewScope: makeViewScope({ kind: 'wizard-step', label: 'Account setup', index: 0 }),
+      });
+      const unscoped = makeAnnotation();
+      const session = makeSession({ annotations: [scoped, unscoped] });
+      const out = fmt.toCompact(session);
+      expect(out).toContain('[Account setup]');
+      expect(out).not.toContain('[View');
+    });
   });
 
   describe('toJSON', () => {
@@ -109,6 +143,23 @@ describe('OutputFormatter', () => {
       const session = makeSession();
       const json = fmt.toJSON(session);
       expect(JSON.parse(json)).toEqual(session);
+    });
+
+    test('preserves viewScope and transition slideIndex fields', () => {
+      const viewScope = makeViewScope({
+        kind: 'slide',
+        id: 'slide-2',
+        index: 2,
+        label: 'Slide 3',
+        selector: '.slide:nth-of-type(3)',
+      });
+      const session = makeSession({
+        annotations: [makeAnnotation({ viewScope, slideIndex: 2 })],
+      });
+
+      const parsed = JSON.parse(fmt.toJSON(session));
+      expect(parsed.annotations[0].viewScope).toEqual(viewScope);
+      expect(parsed.annotations[0].slideIndex).toBe(2);
     });
   });
 });
