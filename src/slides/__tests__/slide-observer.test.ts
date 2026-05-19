@@ -3,6 +3,7 @@ import { createSlideObserver } from '@/slides/slide-observer';
 import { createEventBus } from '@/events';
 import type { EventBus, SlideObserver } from '@/types/core';
 import {
+  makeAccordionAsPageDocument,
   makeActiveSlideDocument,
   makeAriaTabDocument,
   makeCarouselDocument,
@@ -11,7 +12,10 @@ import {
   makeFakeIframe,
   makeGenericActivePanelDocument,
   makeHashRouteDocument,
+  makeMixedDashboardDocument,
+  makeMultiGroupRenderedStateDocument,
   makeNestedTabSlidesDocument,
+  makeNonsemanticCssTabsDocument,
   makePlainDocument,
   makeRadioTabsetDocument,
   makeWizardStepDocument,
@@ -371,6 +375,25 @@ describe('SlideObserver', () => {
     expect(doc.querySelector(scope.selector)).toBe(nestedSlide);
   });
 
+  test('activates parent scopes before nested child scopes', () => {
+    const doc = makeNestedTabSlidesDocument(0, 0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    const nestedParagraph = doc.querySelector('#nested-tab-1 .slide[data-slide="1"] p')!;
+    const nestedScope = observer.getScopeForElement(nestedParagraph)!;
+
+    observer.activateScope(nestedScope);
+
+    expect((doc.querySelector('#nested-tab-0') as HTMLElement).hidden).toBe(true);
+    expect((doc.querySelector('#nested-tab-1') as HTMLElement).hidden).toBe(false);
+    expect(doc.querySelector('#nested-tab-1 .slide[data-slide="1"]')?.classList.contains('active')).toBe(true);
+    expect(observer.getActiveScope()).toEqual(
+      expect.objectContaining({ kind: 'slide', index: 3 }),
+    );
+  });
+
   test('activateScope toggles explicit active scopes', () => {
     const doc = makeExplicitScopeDocument(0);
     const iframe = makeFakeIframe(doc);
@@ -549,6 +572,73 @@ describe('SlideObserver', () => {
 
     expect(observer.getSlideCount()).toBeNull();
     expect(observer.getActiveSlide()).toBeNull();
+  });
+
+  test('infers nonsemantic CSS tab scopes from rendered visibility state', () => {
+    const doc = makeNonsemanticCssTabsDocument(1);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getScopes()).toHaveLength(3);
+    expect(observer.getActiveScope()).toEqual(
+      expect.objectContaining({ kind: 'active-panel', id: 'screen-1' }),
+    );
+
+    observer.activateScope(observer.getScopes()[2]);
+
+    expect((doc.querySelector('#screen-1') as HTMLElement).style.display).toBe('none');
+    expect((doc.querySelector('#screen-2') as HTMLElement).style.display).toBe('');
+    expect(observer.getActiveScope()).toEqual(
+      expect.objectContaining({ kind: 'active-panel', id: 'screen-2' }),
+    );
+  });
+
+  test('does not scope mixed dashboard regions where all sections are visible', () => {
+    const doc = makeMixedDashboardDocument();
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getScopes()).toEqual([]);
+    expect(observer.getActiveScope()).toBeNull();
+  });
+
+  test('infers details accordion-as-page scopes and activates by toggling open', () => {
+    const doc = makeAccordionAsPageDocument(0);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getActiveScope()).toEqual(
+      expect.objectContaining({ kind: 'active-panel', id: 'page-0' }),
+    );
+
+    observer.activateScope(observer.getScopes()[2]);
+
+    expect(doc.querySelector('#page-0')?.hasAttribute('open')).toBe(false);
+    expect(doc.querySelector('#page-2')?.hasAttribute('open')).toBe(true);
+    expect(observer.getActiveScope()).toEqual(
+      expect.objectContaining({ kind: 'active-panel', id: 'page-2' }),
+    );
+  });
+
+  test('tracks multiple independent rendered-state groups as separate active scopes', () => {
+    const doc = makeMultiGroupRenderedStateDocument();
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getScopes()).toHaveLength(6);
+    expect(observer.getActiveScopes()).toEqual([
+      expect.objectContaining({ id: 'g0-panel-0' }),
+      expect.objectContaining({ id: 'g1-panel-1' }),
+    ]);
+
+    const g1Target = doc.querySelector('#g1-panel-2 p')!;
+    expect(observer.getScopeForElement(g1Target)).toEqual(
+      expect.objectContaining({ id: 'g1-panel-2' }),
+    );
   });
 
   test('goToSlide ignores out-of-range values', () => {

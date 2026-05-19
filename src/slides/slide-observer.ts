@@ -9,9 +9,10 @@ import {
   getActiveSignature,
   getChangedActiveIndex,
   getPreviousScopeForSignatureChange,
+  isRecordActive,
 } from '@/slides/active-scope-tracker';
 import { detectScopeRecords } from '@/slides/view-scope-detectors';
-import type { ScopeRecord } from '@/slides/view-scope-records';
+import { elementDepth, type ScopeRecord } from '@/slides/view-scope-records';
 import type { EventBus, SlideObserver, ViewScope } from '@/types/core';
 
 type ObserverWindow = Window & {
@@ -54,6 +55,15 @@ export function createSlideObserver(): SlideObserver {
 
   function currentActiveIndex(): number {
     return findActiveIndex(scopeRecords, getLocationHash);
+  }
+
+  function activationPathForRecord(record: ScopeRecord): ScopeRecord[] {
+    const ancestors = scopeRecords
+      .filter((candidate) => candidate !== record && candidate.el.contains(record.el))
+      .filter((candidate) => !isRecordActive(candidate))
+      .sort((a, b) => elementDepth(a.el) - elementDepth(b.el));
+
+    return [...ancestors, record];
   }
 
   function detectScopes(): void {
@@ -218,7 +228,9 @@ export function createSlideObserver(): SlideObserver {
       const doc = iframeEl?.contentDocument;
       if (!doc) return;
 
-      activateScopeRecord(record, scopeRecords, doc, getContentWindow());
+      for (const scopeRecord of activationPathForRecord(record)) {
+        activateScopeRecord(scopeRecord, scopeRecords, doc, getContentWindow());
+      }
       onMutation();
     },
 

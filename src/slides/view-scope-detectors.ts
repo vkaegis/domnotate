@@ -97,7 +97,7 @@ export const SCOPE_DETECTORS: ScopeDetector[] = [
     id: 'rendered-state-inference',
     stage: 'rendered-state',
     priority: 100,
-    confidence: 0,
+    confidence: 45,
     detect: detectRenderedStateScopes,
   },
 ];

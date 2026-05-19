@@ -73,6 +73,16 @@ export function findActiveIndex(scopeRecords: ScopeRecord[], getLocationHash: ()
     if (hashIndex !== -1) return hashIndex;
   }
 
+  const customActiveIndexes = scopeRecords
+    .map((record, index) => ({ record, index }))
+    .filter(({ record }) => record.isActive?.())
+    .map(({ index }) => index);
+  if (customActiveIndexes.length > 0) {
+    return customActiveIndexes
+      .map((index) => ({ index, depth: elementDepth(scopeRecords[index].el) }))
+      .sort((a, b) => b.depth - a.depth || a.index - b.index)[0].index;
+  }
+
   const ranked = scopeRecords
     .map((record, index) => {
       const depth = elementDepth(record.el);

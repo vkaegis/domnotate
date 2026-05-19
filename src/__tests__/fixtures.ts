@@ -359,6 +359,77 @@ export function makeNestedTabSlidesDocument(activeTabIndex = 0, activeSlideIndex
   return doc;
 }
 
+export function makeNonsemanticCssTabsDocument(activeIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('nonsemantic css tabs');
+  const container = doc.createElement('div');
+  container.className = 'screens';
+
+  for (let i = 0; i < 3; i++) {
+    const panel = doc.createElement('div');
+    panel.id = `screen-${i}`;
+    panel.className = 'screen';
+    panel.style.display = i === activeIndex ? 'block' : 'none';
+    panel.innerHTML = `<p class="line">Screen ${i} content here</p>`;
+    container.appendChild(panel);
+  }
+
+  doc.body.appendChild(container);
+  return doc;
+}
+
+export function makeAccordionAsPageDocument(openIndex = 0): Document {
+  const doc = document.implementation.createHTMLDocument('accordion as page');
+  const container = doc.createElement('div');
+  container.className = 'pages';
+
+  for (let i = 0; i < 3; i++) {
+    const details = doc.createElement('details');
+    details.id = `page-${i}`;
+    if (i === openIndex) details.setAttribute('open', '');
+    details.innerHTML = `<summary>Page ${i}</summary><p>Page ${i} body content</p>`;
+    container.appendChild(details);
+  }
+
+  doc.body.appendChild(container);
+  return doc;
+}
+
+export function makeMixedDashboardDocument(): Document {
+  const doc = document.implementation.createHTMLDocument('dashboard');
+  const grid = doc.createElement('div');
+  grid.className = 'dashboard';
+
+  for (let i = 0; i < 3; i++) {
+    const widget = doc.createElement('section');
+    widget.className = 'widget';
+    widget.innerHTML = `<h3>Widget ${i}</h3><p>Widget ${i} body</p>`;
+    grid.appendChild(widget);
+  }
+
+  doc.body.appendChild(grid);
+  return doc;
+}
+
+export function makeMultiGroupRenderedStateDocument(): Document {
+  const doc = document.implementation.createHTMLDocument('multi group rendered state');
+
+  for (let setIndex = 0; setIndex < 2; setIndex++) {
+    const group = doc.createElement('div');
+    group.className = `group-${setIndex}`;
+    for (let i = 0; i < 3; i++) {
+      const panel = doc.createElement('div');
+      panel.id = `g${setIndex}-panel-${i}`;
+      panel.className = 'card';
+      panel.style.display = i === setIndex ? 'block' : 'none';
+      panel.innerHTML = `<p>Group ${setIndex} panel ${i} content</p>`;
+      group.appendChild(panel);
+    }
+    doc.body.appendChild(group);
+  }
+
+  return doc;
+}
+
 export function makeFakeIframe(doc: Document, contentWindow: Record<string, unknown> = {}): HTMLIFrameElement {
   const iframe = document.createElement('iframe');
   Object.defineProperty(iframe, 'contentDocument', { value: doc, writable: true });
