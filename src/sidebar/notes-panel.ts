@@ -467,18 +467,9 @@ export function createNotesPanel(
       }
     });
 
-    // Row click → navigate to slide if needed, then select annotation
+    // Row click → main.ts annotation:select handler owns scope activation +
+    // animation-frame timing before reanchoring, so this only emits the event.
     row.addEventListener('click', () => {
-      if (slideObserver) {
-        if (annotation.viewScope && !slideObserver.isScopeActive(annotation.viewScope)) {
-          slideObserver.activateScope(annotation.viewScope);
-        } else if (
-          annotation.slideIndex !== undefined &&
-          slideObserver.getActiveSlide() !== annotation.slideIndex
-        ) {
-          slideObserver.goToSlide(annotation.slideIndex);
-        }
-      }
       selectedId = annotation.id;
       bus.emit({ type: 'annotation:select', id: annotation.id });
       renderNotesList();

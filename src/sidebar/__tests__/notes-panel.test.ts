@@ -65,19 +65,22 @@ describe('NotesPanel scope grouping', () => {
     panel.destroy();
   });
 
-  test('activates stored viewScope before selecting a note', () => {
+  test('emits annotation:select on row click and does not double-activate the scope', () => {
     const first = makeViewScope({ kind: 'tabpanel', id: 'first', index: 0, label: 'Why now' });
     const second = makeViewScope({ kind: 'tabpanel', id: 'second', index: 1, label: 'Today' });
     const observer = makeObserver([first, second], second);
     const annotation = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'first', {
       viewScope: first,
     });
+    const handler = vi.fn();
+    bus.on('annotation:select', handler);
 
     const panel = createNotesPanel(container, bus, manager, makePicker(), observer);
     const row = container.querySelector(`[data-annotation-id="${annotation.id}"]`) as HTMLElement;
     row.click();
 
-    expect(observer.activateScope).toHaveBeenCalledWith(first);
+    expect(handler).toHaveBeenCalledWith({ type: 'annotation:select', id: annotation.id });
+    expect(observer.activateScope).not.toHaveBeenCalled();
 
     panel.destroy();
   });

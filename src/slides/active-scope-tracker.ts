@@ -3,6 +3,7 @@ import {
   elementDepth,
   hasActiveMarker,
   isHiddenBySelfOrAncestor,
+  recordsInSameActivationGroup,
   type ScopeRecord,
 } from '@/slides/view-scope-records';
 
@@ -20,23 +21,45 @@ export function activeRecordIndexes(scopeRecords: ScopeRecord[], getLocationHash
     if (hashIndex !== -1) return [hashIndex];
   }
 
-  const explicitActiveIndexes = scopeRecords
-    .map((record, index) => ({ record, index }))
-    .filter(({ record }) =>
-      record.isActive ? record.isActive() : hasActiveMarker(record.el) && !isHiddenBySelfOrAncestor(record.el),
-    )
-    .map(({ index }) => index);
-  if (explicitActiveIndexes.length > 0) return explicitActiveIndexes;
+  return activeIndexesByGroup(scopeRecords);
+}
 
-  const visibleIndexes = scopeRecords
-    .map((record, index) => ({ record, index, depth: elementDepth(record.el) }))
-    .filter(({ record }) => !isHiddenBySelfOrAncestor(record.el))
-    .sort((a, b) => b.depth - a.depth || a.index - b.index)
-    .map(({ index }) => index);
+function activeIndexesByGroup(scopeRecords: ScopeRecord[]): number[] {
+  const selectedIndexes: number[] = [];
+  const seenGroups = new Set<ScopeRecord>();
 
-  if (visibleIndexes.length === 1) return visibleIndexes;
-  if (visibleIndexes.length > 1) return [visibleIndexes[0]];
-  return [];
+  for (const record of scopeRecords) {
+    if (seenGroups.has(record)) continue;
+
+    const group = recordsInSameActivationGroup(record, scopeRecords);
+    for (const groupRecord of group) seenGroups.add(groupRecord);
+
+    const explicitIndexes = group
+      .map((groupRecord) => ({ index: scopeRecords.indexOf(groupRecord), record: groupRecord }))
+      .filter(({ record }) =>
+        record.isActive ? record.isActive() : hasActiveMarker(record.el) && !isHiddenBySelfOrAncestor(record.el),
+      )
+      .map(({ index }) => index);
+    if (explicitIndexes.length > 0) {
+      selectedIndexes.push(...explicitIndexes);
+      continue;
+    }
+
+    const ranked = group
+      .map((groupRecord) => ({
+        index: scopeRecords.indexOf(groupRecord),
+        record: groupRecord,
+        depth: elementDepth(groupRecord.el),
+      }))
+      .filter(({ record }) => !isHiddenBySelfOrAncestor(record.el))
+      .sort((a, b) => b.depth - a.depth || a.index - b.index);
+
+    if (ranked.length > 0) {
+      selectedIndexes.push(ranked[0].index);
+    }
+  }
+
+  return selectedIndexes;
 }
 
 export function getActiveSignature(scopeRecords: ScopeRecord[], getLocationHash: () => string): string {

@@ -44,7 +44,14 @@ export interface ViewScope {
   selector: string;
   activeSelector?: string;
   controllerSelector?: string;
-  activation?: 'click-controller' | 'set-hash' | 'call-goTo' | 'toggle-active' | 'set-hidden';
+  activation?:
+    | 'click-controller'
+    | 'radio-input'
+    | 'set-hash'
+    | 'call-goTo'
+    | 'toggle-active'
+    | 'set-hidden'
+    | 'noop';
 }
 
 export interface Annotation {

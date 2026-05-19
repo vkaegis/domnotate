@@ -3,6 +3,7 @@ import type { ViewScope, ViewScopeKind } from '@/types/core';
 export type ScopeRecord = {
   el: Element;
   scope: ViewScope;
+  activationGroup?: Element | null;
   isActive?: () => boolean;
   activate?: () => void;
 };
@@ -197,6 +198,7 @@ export function createScopeRecord(
     id?: string;
     label?: string;
     controller?: Element | null;
+    activationGroup?: Element | null;
     isActive?: () => boolean;
     activate?: () => void;
   } = {},
@@ -227,9 +229,15 @@ export function createScopeRecord(
       controllerSelector: controllerSelectorFor(controller, context.win),
       activation,
     },
+    activationGroup: options.activationGroup ?? el.parentElement,
     isActive: options.isActive,
     activate: options.activate,
   };
+}
+
+export function recordsInSameActivationGroup(record: ScopeRecord, records: ScopeRecord[]): ScopeRecord[] {
+  const group = record.activationGroup ?? record.el.parentElement;
+  return records.filter((candidate) => (candidate.activationGroup ?? candidate.el.parentElement) === group);
 }
 
 export function appendUniqueRecords(records: ScopeRecord[], detected: ScopeRecord[]): void {

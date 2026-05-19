@@ -145,6 +145,28 @@ export function makeAriaTabDocument(activeIndex = 0, mode: TabVisibilityMode = '
   return doc;
 }
 
+export function makeMultiAriaTabDocument(activeIndexes = [0, 1]): Document {
+  const doc = document.implementation.createHTMLDocument('multi aria tabs');
+
+  for (let groupIndex = 0; groupIndex < activeIndexes.length; groupIndex++) {
+    const group = doc.createElement('section');
+    group.className = `aria-group-${groupIndex}`;
+
+    for (let tabIndex = 0; tabIndex < 3; tabIndex++) {
+      const panel = doc.createElement('div');
+      panel.id = `aria-${groupIndex}-part-${tabIndex}`;
+      panel.setAttribute('role', 'tabpanel');
+      panel.hidden = tabIndex !== activeIndexes[groupIndex];
+      panel.innerHTML = `<p>Group ${groupIndex} panel ${tabIndex} content</p>`;
+      group.appendChild(panel);
+    }
+
+    doc.body.appendChild(group);
+  }
+
+  return doc;
+}
+
 export function makeRadioTabsetDocument(activeIndexes = [0, 0]): Document {
   const doc = document.implementation.createHTMLDocument('radio tabsets');
 

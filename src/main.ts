@@ -14,7 +14,7 @@ import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
-import { createScopedAnnotationOptions } from '@/annotations/view-scope';
+import { activateScopeForAnnotation, createScopedAnnotationOptions } from '@/annotations/view-scope';
 import { publishShare } from '@/share/share-client';
 import { publishOrCopyShare } from '@/share/share-action';
 
@@ -196,21 +196,7 @@ bus.on('annotation:select', (e) => {
   const iframeDoc = iframeEl.contentDocument;
   if (!iframeDoc) return;
 
-  const needsScopeNav =
-    annotation.viewScope !== undefined &&
-    !slideObserver.isScopeActive(annotation.viewScope);
-  const needsSlideNav =
-    !needsScopeNav &&
-    annotation.slideIndex !== undefined &&
-    slideObserver.getActiveSlide() !== null &&
-    slideObserver.getActiveSlide() !== annotation.slideIndex;
-
-  if (needsScopeNav) {
-    slideObserver.activateScope(annotation.viewScope!);
-  }
-  if (needsSlideNav) {
-    slideObserver.goToSlide(annotation.slideIndex!);
-  }
+  const navigated = activateScopeForAnnotation(slideObserver, annotation);
 
   // Wait a tick for slide transition before scrolling to element
   const scrollToElement = () => {
@@ -245,7 +231,7 @@ bus.on('annotation:select', (e) => {
     }
   };
 
-  if (needsScopeNav || needsSlideNav) {
+  if (navigated) {
     requestAnimationFrame(scrollToElement);
   } else {
     scrollToElement();

@@ -12,10 +12,12 @@ const VIEW_SCOPE_KINDS = new Set([
 
 const VIEW_SCOPE_ACTIVATIONS = new Set([
   'click-controller',
+  'radio-input',
   'set-hash',
   'call-goTo',
   'toggle-active',
   'set-hidden',
+  'noop',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

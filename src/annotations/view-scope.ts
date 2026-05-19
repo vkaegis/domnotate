@@ -95,6 +95,35 @@ function queryElement(doc: Document, selector: string | undefined): Element | nu
   }
 }
 
+type ScopeNavigator = {
+  isScopeActive(scope: ViewScope): boolean;
+  activateScope(scope: ViewScope): void;
+  getActiveSlide(): number | null;
+  goToSlide(n: number): void;
+};
+
+export function activateScopeForAnnotation(
+  navigator: ScopeNavigator | null | undefined,
+  annotation: Pick<Annotation, 'viewScope' | 'slideIndex'>,
+): boolean {
+  if (!navigator) return false;
+
+  if (annotation.viewScope) {
+    if (navigator.isScopeActive(annotation.viewScope)) return false;
+    navigator.activateScope(annotation.viewScope);
+    return true;
+  }
+
+  if (annotation.slideIndex !== undefined) {
+    const activeSlide = navigator.getActiveSlide();
+    if (activeSlide === null || activeSlide === annotation.slideIndex) return false;
+    navigator.goToSlide(annotation.slideIndex);
+    return true;
+  }
+
+  return false;
+}
+
 export function resolveViewScopeRoot(doc: Document, scope: ViewScope): Element | null {
   const byStoredSelector = queryElement(doc, scope.selector);
   if (byStoredSelector) return byStoredSelector;

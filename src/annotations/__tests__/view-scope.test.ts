@@ -1,5 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import {
+  activateScopeForAnnotation,
   createScopedAnnotationOptions,
   fallbackScopeLabel,
   isAnnotationVisibleInScope,
@@ -56,6 +57,56 @@ describe('view scope annotation helpers', () => {
 
     expect(isAnnotationVisibleInScope(makeAnnotation({ viewScope: activeSlide }), activeSlide, true)).toBe(true);
     expect(isAnnotationVisibleInScope(makeAnnotation({ viewScope: inactiveSlide }), activeSlide, true)).toBe(false);
+  });
+
+  test('activateScopeForAnnotation activates inactive viewScope and reports navigation', () => {
+    const inactive = makeViewScope({ kind: 'tabpanel', id: 'inactive', index: 0 });
+    const active = makeViewScope({ kind: 'tabpanel', id: 'active', index: 1 });
+    const observer = makeObserver(active);
+    const activate = vi.spyOn(observer, 'activateScope');
+
+    const navigated = activateScopeForAnnotation(observer, { viewScope: inactive });
+
+    expect(navigated).toBe(true);
+    expect(activate).toHaveBeenCalledWith(inactive);
+  });
+
+  test('activateScopeForAnnotation skips activation when the scope is already active', () => {
+    const active = makeViewScope({ kind: 'tabpanel', id: 'active', index: 1 });
+    const observer = makeObserver(active);
+    const activate = vi.spyOn(observer, 'activateScope');
+
+    const navigated = activateScopeForAnnotation(observer, { viewScope: active });
+
+    expect(navigated).toBe(false);
+    expect(activate).not.toHaveBeenCalled();
+  });
+
+  test('activateScopeForAnnotation falls back to slideIndex navigation for legacy annotations', () => {
+    const active = makeViewScope({ kind: 'slide', id: 'slide-0', index: 0 });
+    const observer = makeObserver(active);
+    const goTo = vi.spyOn(observer, 'goToSlide');
+
+    const navigated = activateScopeForAnnotation(observer, { slideIndex: 2 });
+
+    expect(navigated).toBe(true);
+    expect(goTo).toHaveBeenCalledWith(2);
+  });
+
+  test('activateScopeForAnnotation does nothing for unscoped content', () => {
+    const active = makeViewScope({ kind: 'slide', id: 'slide-0', index: 0 });
+    const observer: SlideObserver = {
+      ...makeObserver(active),
+      getActiveSlide: () => null,
+    };
+    const activate = vi.spyOn(observer, 'activateScope');
+    const goTo = vi.spyOn(observer, 'goToSlide');
+
+    const navigated = activateScopeForAnnotation(observer, { slideIndex: 2 });
+
+    expect(navigated).toBe(false);
+    expect(activate).not.toHaveBeenCalled();
+    expect(goTo).not.toHaveBeenCalled();
   });
 
   test('uses kind-specific fallback labels', () => {

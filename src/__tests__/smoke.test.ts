@@ -9,6 +9,7 @@ import { generateDescriptor, generateCssSelector, generateXPath } from '@/picker
 import { createNotePopover } from '@/popover/popover';
 import { createToast } from '@/toast/toast';
 import { createSlideObserver } from '@/slides/slide-observer';
+import { activateScopeRecord, ACTIVATION_STRATEGIES } from '@/slides/activation-strategy';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createContentLoader } from '@/loader/loader';
 import { fetchShare, publishShare, republishAnnotations } from '@/share/share-client';
@@ -30,6 +31,8 @@ describe('smoke: core module exports', () => {
     expect(typeof createNotePopover).toBe('function');
     expect(typeof createToast).toBe('function');
     expect(typeof createSlideObserver).toBe('function');
+    expect(typeof activateScopeRecord).toBe('function');
+    expect(Array.isArray(ACTIVATION_STRATEGIES)).toBe(true);
     expect(typeof createKeyboardShortcuts).toBe('function');
     expect(typeof createContentLoader).toBe('function');
     expect(typeof publishShare).toBe('function');

@@ -13,6 +13,7 @@ import {
   makeGenericActivePanelDocument,
   makeHashRouteDocument,
   makeMixedDashboardDocument,
+  makeMultiAriaTabDocument,
   makeMultiGroupRenderedStateDocument,
   makeNestedTabSlidesDocument,
   makeNonsemanticCssTabsDocument,
@@ -124,6 +125,37 @@ describe('SlideObserver', () => {
 
     expect(observer.getSlideCount()).toBe(3);
     expect(observer.getActiveSlide()).toBe(2);
+  });
+
+  test('keeps active scopes for multiple independent hidden tab groups', () => {
+    const doc = makeMultiAriaTabDocument([0, 1]);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getActiveScopes()).toEqual([
+      expect.objectContaining({ id: 'aria-0-part-0' }),
+      expect.objectContaining({ id: 'aria-1-part-1' }),
+    ]);
+  });
+
+  test('fallback hidden activation only changes the target tab group', () => {
+    const doc = makeMultiAriaTabDocument([0, 1]);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    const targetScope = observer.getScopes().find((scope) => scope.id === 'aria-1-part-2')!;
+    observer.activateScope(targetScope);
+
+    expect((doc.getElementById('aria-0-part-0') as HTMLElement).hidden).toBe(false);
+    expect((doc.getElementById('aria-0-part-1') as HTMLElement).hidden).toBe(true);
+    expect((doc.getElementById('aria-1-part-1') as HTMLElement).hidden).toBe(true);
+    expect((doc.getElementById('aria-1-part-2') as HTMLElement).hidden).toBe(false);
+    expect(observer.getActiveScopes()).toEqual([
+      expect.objectContaining({ id: 'aria-0-part-0' }),
+      expect.objectContaining({ id: 'aria-1-part-2' }),
+    ]);
   });
 
   test('detects CSS radio tabsets and keeps independent active scopes', () => {
@@ -639,6 +671,32 @@ describe('SlideObserver', () => {
     expect(observer.getScopeForElement(g1Target)).toEqual(
       expect.objectContaining({ id: 'g1-panel-2' }),
     );
+  });
+
+  test('rendered-state activation in one group does not mutate other independent groups', () => {
+    const doc = makeMultiGroupRenderedStateDocument();
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    const beforeGroup0 = ['g0-panel-0', 'g0-panel-1', 'g0-panel-2'].map(
+      (id) => (doc.getElementById(id) as HTMLElement).style.display,
+    );
+
+    const g1TargetScope = observer.getScopes().find((scope) => scope.id === 'g1-panel-2')!;
+    observer.activateScope(g1TargetScope);
+
+    const afterGroup0 = ['g0-panel-0', 'g0-panel-1', 'g0-panel-2'].map(
+      (id) => (doc.getElementById(id) as HTMLElement).style.display,
+    );
+    expect(afterGroup0).toEqual(beforeGroup0);
+
+    expect((doc.getElementById('g1-panel-1') as HTMLElement).style.display).toBe('none');
+    expect((doc.getElementById('g1-panel-2') as HTMLElement).style.display).toBe('');
+    expect(observer.getActiveScopes()).toEqual([
+      expect.objectContaining({ id: 'g0-panel-0' }),
+      expect.objectContaining({ id: 'g1-panel-2' }),
+    ]);
   });
 
   test('goToSlide ignores out-of-range values', () => {
