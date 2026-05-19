@@ -171,6 +171,24 @@ describe('SlideObserver', () => {
     expect(observer.getActiveSlide()).toBe(3);
   });
 
+  test('keeps active scopes consistent when visible slides have no active marker', () => {
+    const doc = makeActiveSlideDocument(3, -1);
+    const iframe = makeFakeIframe(doc);
+
+    observer.init(iframe, bus);
+
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'slide',
+      index: 0,
+    }));
+    expect(observer.getActiveScopes()).toEqual([
+      expect.objectContaining({
+        kind: 'slide',
+        index: 0,
+      }),
+    ]);
+  });
+
   test('getSlideForElement returns correct index inside a tab panel', () => {
     const doc = makeAriaTabDocument(0, 'hidden');
     const iframe = makeFakeIframe(doc);
