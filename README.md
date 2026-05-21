@@ -14,9 +14,15 @@ Annotations are persisted locally in IndexedDB. Shared links use Cloudflare R2 t
 
 ## Authoring annotation-friendly artifacts
 
-Domnotate can annotate plain one-page documents without any special markup. For multi-view artifacts such as slides, tabs, carousels, wizards, and route-like panels, artifact generators should mark each logical view with stable Domnotate scope attributes. This lets annotations attach to the view the reviewer was actually looking at, so pins, note navigation, import, export, and shared sessions stay deterministic even when hidden views contain duplicate text or selectors.
+Domnotate can annotate plain one-page documents without any special markup. For multi-view artifacts such as slides, tabs, carousels, wizards, and route-like panels, Domnotate anchors each annotation to the logical view the reviewer was actually looking at, so pins, note navigation, import, export, and shared sessions stay deterministic even when hidden views contain duplicate text or selectors.
 
-Recommended markup:
+Detection happens in three tiers, from most reliable to most opportunistic:
+
+1. **Controlled artifacts (recommended).** Artifact generators add explicit `data-domnotate-scope*` attributes to each logical view. Scope ids, labels, and kinds are author-controlled, so detection and reactivation are deterministic across regenerations.
+2. **Semantic third-party artifacts.** Domnotate recognizes common patterns it can identify without author cooperation: `.deck > .slide[data-slide]` decks, ARIA tab panels (`[role="tabpanel"]` with `aria-controls` controllers), CSS-radio tabsets (`.tabset` containing `[role="tablist"]` or `.tabstrip` plus `.tabpanels > .panel`), hash-routed sections, carousel items, and wizard steps. Activation uses the discovered controller (click, hash change, or radio selection).
+3. **Best-effort inferred artifacts.** When neither tier matches, Domnotate falls back to rendered-state inference: same-parent panel groups where exactly one sibling is visible (`hidden`, `aria-hidden`, inline `display`/`visibility`), and `<details>` accordions. Pin filtering stays correct, but reactivation is best-effort: Domnotate toggles visibility on siblings inside the same inferred group and will not mutate unrelated regions. For JS-only state with no discoverable controller, note clicks may not be able to restore the original view.
+
+Recommended markup for tier 1:
 
 ```html
 <section
@@ -40,7 +46,7 @@ Use a stable `data-domnotate-scope-id` that will not change between generated ve
 </section>
 ```
 
-Supported scope kinds are `slide`, `tabpanel`, `hash-route`, `carousel`, `wizard-step`, `active-panel`, and `custom`. Explicit Domnotate attributes have the highest priority. Without those attributes, Domnotate also detects common semantic patterns such as `.deck > .slide[data-slide]`, ARIA tab panels, hash-routed sections with route-like navigation, carousel items, wizard steps, and strongly marked active panels.
+Supported scope kinds are `slide`, `tabpanel`, `hash-route`, `carousel`, `wizard-step`, `active-panel`, and `custom`. Explicit Domnotate attributes have the highest priority and override semantic detection, so use them whenever a generated artifact already knows what its logical views are.
 
 Activation works best when each view has a clear state change:
 
@@ -57,6 +63,9 @@ Known limits:
 - Cross-origin iframe content cannot be introspected unless browser security rules allow it.
 - Arbitrary app routers need semantic hints such as Domnotate attributes, hash routes, or clear active panels.
 - Complex animated transitions with no stable hidden or active state may not be inferred reliably.
+- JS-only view state with no clickable controller, URL state, or stable DOM marker is best-effort: pins filter correctly, but note clicks may not reactivate the original view.
+
+Domnotate also includes an optional diagnostics surface for ambiguous artifacts. Append `?dn-debug` to the app URL to see detected scopes, active scopes, the detection source and confidence, and a "Scope to current panel" override for any selected annotation that should have been scoped but was stored unscoped.
 
 ## Sharing limitations
 
