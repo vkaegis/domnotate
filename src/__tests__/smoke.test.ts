@@ -15,6 +15,13 @@ import { createContentLoader } from '@/loader/loader';
 import { fetchShare, publishShare, republishAnnotations } from '@/share/share-client';
 import { sessionFromSharedBlob } from '@/share/hydration';
 import { createSharedSessionBlob } from '@/share/shared-session';
+import {
+  describePinVisibility,
+  generateScopeDiagnostics,
+  isElementSuspiciouslyUnscoped,
+} from '@/diagnostics/scope-diagnostics';
+import { scopeAnnotationToCurrentPanel } from '@/diagnostics/scope-override';
+import { isDiagnosticsEnabled, mountDiagnosticsPanel } from '@/diagnostics/diagnostics-panel';
 
 describe('smoke: core module exports', () => {
   test('all core modules export expected functions', () => {
@@ -40,5 +47,11 @@ describe('smoke: core module exports', () => {
     expect(typeof republishAnnotations).toBe('function');
     expect(typeof sessionFromSharedBlob).toBe('function');
     expect(typeof createSharedSessionBlob).toBe('function');
+    expect(typeof generateScopeDiagnostics).toBe('function');
+    expect(typeof describePinVisibility).toBe('function');
+    expect(typeof isElementSuspiciouslyUnscoped).toBe('function');
+    expect(typeof scopeAnnotationToCurrentPanel).toBe('function');
+    expect(typeof isDiagnosticsEnabled).toBe('function');
+    expect(typeof mountDiagnosticsPanel).toBe('function');
   });
 });

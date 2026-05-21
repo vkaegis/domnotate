@@ -17,6 +17,11 @@ import { createSlideObserver } from '@/slides/slide-observer';
 import { activateScopeForAnnotation, createScopedAnnotationOptions } from '@/annotations/view-scope';
 import { publishShare } from '@/share/share-client';
 import { publishOrCopyShare } from '@/share/share-action';
+import {
+  isDiagnosticsEnabled,
+  mountDiagnosticsPanel,
+  type DiagnosticsPanel,
+} from '@/diagnostics/diagnostics-panel';
 
 // ============================================================
 // Domnotate — Main Integration
@@ -394,3 +399,22 @@ async function loadSharedRoute(): Promise<void> {
 }
 
 void loadSharedRoute();
+
+// ============================================================
+// Debug-only scope diagnostics panel
+// ============================================================
+
+let diagnosticsPanel: DiagnosticsPanel | null = null;
+if (isDiagnosticsEnabled()) {
+  diagnosticsPanel = mountDiagnosticsPanel(document.body, {
+    bus,
+    manager,
+    observer: slideObserver,
+    getIframeDocument: () => iframeEl.contentDocument,
+  });
+  console.log('[Domnotate] scope diagnostics enabled');
+}
+
+window.addEventListener('beforeunload', () => {
+  diagnosticsPanel?.destroy();
+});

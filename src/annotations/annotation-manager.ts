@@ -88,6 +88,25 @@ export function createAnnotationManager(): AnnotationManager {
       b.emit({ type: 'annotation:update', annotation });
     },
 
+    updateScope(annotationId: string, scope: ViewScope | null): void {
+      const b = requireBus();
+      const annotation = store.get(annotationId);
+      if (!annotation) {
+        throw new Error(`Annotation not found: ${annotationId}`);
+      }
+
+      if (scope) {
+        annotation.viewScope = scope;
+        annotation.slideIndex = scope.kind === 'slide' ? scope.index : undefined;
+      } else {
+        delete annotation.viewScope;
+        delete annotation.slideIndex;
+      }
+      annotation.updatedAt = now();
+
+      b.emit({ type: 'annotation:update', annotation });
+    },
+
     delete(id: string): void {
       const b = requireBus();
       if (!store.has(id)) {

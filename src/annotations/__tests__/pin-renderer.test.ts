@@ -19,6 +19,7 @@ function makeObserver(scopes: ViewScope[], activeScope: ViewScope, activeScopes 
     getScopeForElement: () => activeScope,
     isScopeActive: (candidate) => activeScopes.some((scope) => scope.id === candidate.id),
     activateScope: vi.fn(),
+    getDetectionInfo: () => ({ source: null, detectors: [] }),
     destroy: () => undefined,
     getActiveSlide: () => activeScope.index,
     getSlideCount: () => scopes.length,

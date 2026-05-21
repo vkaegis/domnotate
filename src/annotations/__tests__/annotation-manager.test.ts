@@ -128,6 +128,68 @@ describe('AnnotationManager', () => {
     expect(ann.viewScope).toBeUndefined();
   });
 
+  test('updateScope applies scope and writes legacy slideIndex for slide scopes', () => {
+    const handler = vi.fn();
+    bus.on('annotation:update', handler);
+
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'Scope me');
+    const slideScope: ViewScope = {
+      kind: 'slide',
+      id: 's2',
+      index: 2,
+      selector: '.deck > .slide[data-slide="2"]',
+    };
+
+    manager.updateScope(ann.id, slideScope);
+
+    expect(ann.viewScope).toBe(slideScope);
+    expect(ann.slideIndex).toBe(2);
+    expect(handler).toHaveBeenCalled();
+  });
+
+  test('updateScope to a non-slide scope clears legacy slideIndex', () => {
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'Scope me', 1);
+    expect(ann.slideIndex).toBe(1);
+
+    manager.updateScope(ann.id, {
+      kind: 'tabpanel',
+      id: 'details',
+      index: 1,
+      selector: '#details',
+    });
+
+    expect(ann.viewScope?.kind).toBe('tabpanel');
+    expect(ann.slideIndex).toBeUndefined();
+  });
+
+  test('updateScope with null clears stored scope and legacy slideIndex', () => {
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'Scope me', {
+      viewScope: {
+        kind: 'tabpanel',
+        id: 'details',
+        index: 1,
+        selector: '#details',
+      },
+      slideIndex: 1,
+    });
+
+    manager.updateScope(ann.id, null);
+
+    expect(ann.viewScope).toBeUndefined();
+    expect(ann.slideIndex).toBeUndefined();
+  });
+
+  test('updateScope on missing id throws', () => {
+    expect(() =>
+      manager.updateScope('nonexistent', {
+        kind: 'tabpanel',
+        id: 'x',
+        index: 0,
+        selector: '#x',
+      }),
+    ).toThrow('Annotation not found');
+  });
+
   test('clearAll removes all annotations', () => {
     manager.create(makeDescriptor(), { x: 0, y: 0 }, 'a');
     manager.create(makeDescriptor(), { x: 0, y: 0 }, 'b');

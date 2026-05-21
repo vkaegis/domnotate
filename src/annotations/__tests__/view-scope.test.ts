@@ -17,6 +17,7 @@ function makeObserver(scope: ViewScope): SlideObserver {
     getScopeForElement: () => scope,
     isScopeActive: (candidate) => candidate.id === scope.id,
     activateScope: () => undefined,
+    getDetectionInfo: () => ({ source: null, detectors: [] }),
     destroy: () => undefined,
     getActiveSlide: () => scope.index,
     getSlideCount: () => 1,

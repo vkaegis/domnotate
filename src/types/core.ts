@@ -165,6 +165,8 @@ export interface AnnotationManager {
     options?: number | { slideIndex?: number; viewScope?: ViewScope },
   ): Annotation;
   updateText(annotationId: string, text: string): void;
+  /** Replace or clear the stored view scope on an existing annotation. */
+  updateScope(annotationId: string, scope: ViewScope | null): void;
   delete(id: string): void;
   loadAnnotations(annotations: Annotation[]): void;
   clearAll(): void;
@@ -189,6 +191,22 @@ export interface OutputFormatter {
   toJSON(session: AnnotationSession): string;
 }
 
+export type ScopeDetectorStage = 'explicit' | 'semantic' | 'rendered-state';
+
+export interface ScopeDetectorMeta {
+  id: string;
+  stage: ScopeDetectorStage;
+  priority: number;
+  confidence: number;
+}
+
+export interface ScopeDetectionInfo {
+  /** Detector id (or 'semantic-composite') that produced the active scope records; null when no scopes were detected. */
+  source: string | null;
+  /** Ordered detector plan that ran during the last detection pass. */
+  detectors: readonly ScopeDetectorMeta[];
+}
+
 export interface ViewScopeObserver {
   init(iframeEl: HTMLIFrameElement, bus: EventBus): void;
   /** Active logical view scope, or null when the document is unscoped. */
@@ -203,6 +221,8 @@ export interface ViewScopeObserver {
   isScopeActive(scope: ViewScope): boolean;
   /** Activate a logical view scope inside the iframe. */
   activateScope(scope: ViewScope): void;
+  /** Diagnostic info about the last detection pass (detector plan + winning source). */
+  getDetectionInfo(): ScopeDetectionInfo;
   destroy(): void;
 }
 

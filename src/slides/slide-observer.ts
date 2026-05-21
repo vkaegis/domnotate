@@ -11,9 +11,9 @@ import {
   getPreviousScopeForSignatureChange,
   isRecordActive,
 } from '@/slides/active-scope-tracker';
-import { detectScopeRecords } from '@/slides/view-scope-detectors';
+import { runScopeDetection } from '@/slides/view-scope-detectors';
 import { elementDepth, type ScopeRecord } from '@/slides/view-scope-records';
-import type { EventBus, SlideObserver, ViewScope } from '@/types/core';
+import type { EventBus, ScopeDetectionInfo, SlideObserver, ViewScope } from '@/types/core';
 
 type ObserverWindow = Window & {
   CSS?: { escape?: (ident: string) => string };
@@ -30,6 +30,7 @@ export function createSlideObserver(): SlideObserver {
   let scopeRecords: ScopeRecord[] = [];
   let activeIndex: number | null = null;
   let activeSignature = '';
+  let detectionInfo: ScopeDetectionInfo = { source: null, detectors: [] };
   let mutationObserver: MutationObserver | null = null;
   let controllerCleanups: Array<() => void> = [];
   let hashChangeWindow: (Window & {
@@ -72,10 +73,13 @@ export function createSlideObserver(): SlideObserver {
       scopeRecords = [];
       activeIndex = null;
       activeSignature = '';
+      detectionInfo = { source: null, detectors: [] };
       return;
     }
 
-    scopeRecords = detectScopeRecords({ doc, win: getContentWindow() });
+    const run = runScopeDetection({ doc, win: getContentWindow() });
+    scopeRecords = run.records;
+    detectionInfo = { source: run.source, detectors: run.detectors };
 
     if (scopeRecords.length === 0) {
       activeIndex = null;
@@ -221,6 +225,10 @@ export function createSlideObserver(): SlideObserver {
       return index !== -1 && currentActiveIndexes().includes(index);
     },
 
+    getDetectionInfo(): ScopeDetectionInfo {
+      return detectionInfo;
+    },
+
     activateScope(scope: ViewScope): void {
       const record = scopeRecords.find(({ scope: candidate }) => candidate.id === scope.id);
       if (!record) return;
@@ -262,6 +270,7 @@ export function createSlideObserver(): SlideObserver {
       scopeRecords = [];
       activeIndex = null;
       activeSignature = '';
+      detectionInfo = { source: null, detectors: [] };
       iframeEl = null;
       bus = null;
     },
