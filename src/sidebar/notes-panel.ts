@@ -324,7 +324,9 @@ export function createNotesPanel(
     }
 
     if (annotation.slideIndex !== undefined) {
-      const legacyScope = scopes.find((scope) => scope.index === annotation.slideIndex);
+      const slideScopes = scopes.filter((scope) => scope.kind === 'slide');
+      const scopesToSearch = slideScopes.length > 0 ? slideScopes : scopes;
+      const legacyScope = scopesToSearch.find((scope) => scope.index === annotation.slideIndex);
       if (legacyScope) {
         return {
           key: `legacy:${legacyScope.id || legacyScope.selector}`,

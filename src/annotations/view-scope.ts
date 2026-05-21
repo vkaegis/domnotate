@@ -48,7 +48,9 @@ export function isAnnotationVisibleInScopes(
   }
 
   if (annotation.slideIndex !== undefined) {
-    return activeScopes.some((activeScope) => annotation.slideIndex === activeScope.index);
+    const activeSlideScopes = activeScopes.filter((activeScope) => activeScope.kind === 'slide');
+    const scopesToMatch = activeSlideScopes.length > 0 ? activeSlideScopes : activeScopes;
+    return scopesToMatch.some((activeScope) => annotation.slideIndex === activeScope.index);
   }
 
   return true;

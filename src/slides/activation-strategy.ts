@@ -147,7 +147,7 @@ const toggleActiveStrategy: ActivationStrategy = {
     return activation === undefined || activation === 'toggle-active';
   },
   activate: ({ record, records }) => {
-    setActiveActivation(records, record.scope);
+    setActiveActivation(recordsInSameActivationGroup(record, records), record.scope);
     return true;
   },
 };

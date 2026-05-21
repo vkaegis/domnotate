@@ -187,6 +187,32 @@ describe('activation strategy registry', () => {
     expect(b.classList.contains('active')).toBe(true);
   });
 
+  test('toggle-active leaves records in other activation groups unchanged', () => {
+    const doc = document.implementation.createHTMLDocument();
+    const groupA = doc.createElement('section');
+    const groupB = doc.createElement('section');
+    const a = doc.createElement('div');
+    const b0 = doc.createElement('div');
+    const b1 = doc.createElement('div');
+    a.classList.add('active');
+    b0.classList.add('active');
+    groupA.appendChild(a);
+    groupB.appendChild(b0);
+    groupB.appendChild(b1);
+    doc.body.appendChild(groupA);
+    doc.body.appendChild(groupB);
+
+    const recordA = makeRecord(a, {}, { activation: 'toggle-active', id: 'a' });
+    const recordB0 = makeRecord(b0, {}, { activation: 'toggle-active', id: 'b0' });
+    const recordB1 = makeRecord(b1, {}, { activation: 'toggle-active', id: 'b1' });
+
+    activateScopeRecord(recordB1, [recordA, recordB0, recordB1], doc, null);
+
+    expect(a.classList.contains('active')).toBe(true);
+    expect(b0.classList.contains('active')).toBe(false);
+    expect(b1.classList.contains('active')).toBe(true);
+  });
+
   test('set-hidden toggles hidden/aria-hidden across the records list', () => {
     const doc = document.implementation.createHTMLDocument();
     const a = doc.createElement('section') as HTMLElement;

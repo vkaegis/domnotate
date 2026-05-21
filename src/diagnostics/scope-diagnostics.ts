@@ -123,7 +123,9 @@ export function describePinVisibility(
   }
 
   if (annotation.slideIndex !== undefined) {
-    const matches = activeScopes.some((active) => active.index === annotation.slideIndex);
+    const activeSlideScopes = activeScopes.filter((active) => active.kind === 'slide');
+    const scopesToMatch = activeSlideScopes.length > 0 ? activeSlideScopes : activeScopes;
+    const matches = scopesToMatch.some((active) => active.index === annotation.slideIndex);
     return {
       ...base,
       visible: matches,

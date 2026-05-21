@@ -4,6 +4,7 @@ import {
   createScopedAnnotationOptions,
   fallbackScopeLabel,
   isAnnotationVisibleInScope,
+  isAnnotationVisibleInScopes,
 } from '@/annotations/view-scope';
 import { makeAnnotation, makeViewScope } from '@/__tests__/fixtures';
 import type { SlideObserver, ViewScope } from '@/types/core';
@@ -50,6 +51,30 @@ describe('view scope annotation helpers', () => {
     expect(isAnnotationVisibleInScope(makeAnnotation({ slideIndex: 1 }), active, true)).toBe(true);
     expect(isAnnotationVisibleInScope(makeAnnotation(), active, true)).toBe(true);
     expect(isAnnotationVisibleInScope(makeAnnotation({ viewScope: inactive }), null, false)).toBe(true);
+  });
+
+  test('prefers active slide scopes when filtering legacy slideIndex annotations', () => {
+    const activeSlide = makeViewScope({ kind: 'slide', id: 'slide-0', index: 0 });
+    const activeTabWithSameLegacyIndex = makeViewScope({
+      kind: 'tabpanel',
+      id: 'tab-1',
+      index: 1,
+    });
+
+    expect(
+      isAnnotationVisibleInScopes(
+        makeAnnotation({ slideIndex: 1 }),
+        [activeSlide, activeTabWithSameLegacyIndex],
+        true,
+      ),
+    ).toBe(false);
+    expect(
+      isAnnotationVisibleInScopes(
+        makeAnnotation({ slideIndex: 1 }),
+        [activeTabWithSameLegacyIndex],
+        true,
+      ),
+    ).toBe(true);
   });
 
   test('filters slide-scoped annotations with the same active-scope rule', () => {
