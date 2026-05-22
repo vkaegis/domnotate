@@ -12,14 +12,8 @@ export function isRecordActive(record: ScopeRecord): boolean {
   return hasActiveMarker(record.el) || !isHiddenBySelfOrAncestor(record.el);
 }
 
-export function activeRecordIndexes(scopeRecords: ScopeRecord[], getLocationHash: () => string): number[] {
+export function activeRecordIndexes(scopeRecords: ScopeRecord[], _getLocationHash: () => string): number[] {
   if (scopeRecords.length === 0) return [];
-
-  const currentHash = getLocationHash();
-  if (currentHash) {
-    const hashIndex = scopeRecords.findIndex(({ scope }) => scope.kind === 'hash-route' && scope.id === currentHash);
-    if (hashIndex !== -1) return [hashIndex];
-  }
 
   return activeIndexesByGroup(scopeRecords);
 }

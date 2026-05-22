@@ -296,6 +296,42 @@ describe('SlideObserver', () => {
     ]);
   });
 
+  test('keeps nested active scopes inside the active hash route', () => {
+    const doc = makeHashRouteDocument('details');
+    const details = doc.getElementById('details')!;
+    details.appendChild(doc.createElement('div')).setAttribute('role', 'tablist');
+    const tablist = details.querySelector('[role="tablist"]')!;
+
+    for (let i = 0; i < 2; i++) {
+      const tab = doc.createElement('button');
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-controls', `details-tab-${i}`);
+      tab.textContent = `Details tab ${i}`;
+      tablist.appendChild(tab);
+
+      const panel = doc.createElement('section');
+      panel.id = `details-tab-${i}`;
+      panel.setAttribute('role', 'tabpanel');
+      panel.hidden = i !== 1;
+      panel.innerHTML = `<p>Details tab ${i} content</p>`;
+      details.appendChild(panel);
+    }
+
+    const iframe = makeFakeIframe(doc, { location: { hash: '#details' } });
+
+    observer.init(iframe, bus);
+
+    expect(observer.getActiveScope()).toEqual(
+      expect.objectContaining({ kind: 'hash-route', id: 'details' }),
+    );
+    expect(observer.getActiveScopes()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'hash-route', id: 'details' }),
+        expect.objectContaining({ kind: 'tabpanel', id: 'details-tab-1' }),
+      ]),
+    );
+  });
+
   test('updates hash-route scope when in-frame navigation changes the hash', () => {
     const doc = makeHashRouteDocument('details');
     const hashWindow = new EventTarget() as Window & { location: { hash: string } };
