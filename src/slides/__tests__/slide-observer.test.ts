@@ -281,6 +281,21 @@ describe('SlideObserver', () => {
     expect(observer.getActiveScope()).toEqual(expect.objectContaining({ kind: 'hash-route', id: 'settings' }));
   });
 
+  test('uses active hash-route links when the URL hash is empty', () => {
+    const doc = makeHashRouteDocument('details');
+    const iframe = makeFakeIframe(doc, { location: { hash: '' } });
+
+    observer.init(iframe, bus);
+
+    expect(observer.getActiveScope()).toEqual(expect.objectContaining({
+      kind: 'hash-route',
+      id: 'details',
+    }));
+    expect(observer.getActiveScopes()).toEqual([
+      expect.objectContaining({ kind: 'hash-route', id: 'details' }),
+    ]);
+  });
+
   test('updates hash-route scope when in-frame navigation changes the hash', () => {
     const doc = makeHashRouteDocument('details');
     const hashWindow = new EventTarget() as Window & { location: { hash: string } };

@@ -66,6 +66,22 @@ describe('NotesPanel scope grouping', () => {
     panel.destroy();
   });
 
+  test('does not mark legacy slide groups active when a non-slide scope has the same index', () => {
+    const slide = makeViewScope({ kind: 'slide', id: 'slide-1', index: 1, label: 'Slide 2' });
+    const tab = makeViewScope({ kind: 'tabpanel', id: 'tab-1', index: 1, label: 'Tab 2' });
+    const observer = makeObserver([slide, tab], tab);
+
+    manager.create(makeDescriptor(), { x: 0, y: 0 }, 'legacy slide note', 1);
+
+    const panel = createNotesPanel(container, bus, manager, makePicker(), observer);
+    const header = container.querySelector('.dn-slide-group-header') as HTMLElement;
+
+    expect(header.textContent).toBe('Slide 2');
+    expect(header.classList.contains('dn-slide-group-header--active')).toBe(false);
+
+    panel.destroy();
+  });
+
   test('emits annotation:select on row click and does not double-activate the scope', () => {
     const first = makeViewScope({ kind: 'tabpanel', id: 'first', index: 0, label: 'Why now' });
     const second = makeViewScope({ kind: 'tabpanel', id: 'second', index: 1, label: 'Today' });

@@ -117,7 +117,23 @@ export function detectHashRoutes(context: ScopeDetectionContext): ScopeRecord[] 
   if (!hasActiveRouteEvidence) return [];
 
   return candidates.map((el, index) =>
-    createScopeRecord(doc, el, index, 'hash-route', 'Section', {}, context),
+    createScopeRecord(doc, el, index, 'hash-route', 'Section', {
+      isActive: () => {
+        const currentHash = getLocationHash(context);
+        if (currentHash) return el.id === currentHash;
+        return links.some((link) => {
+          const href = link.getAttribute('href');
+          return (
+            href === `#${el.id}` &&
+            (
+              link.classList.contains('active') ||
+              link.classList.contains('is-active') ||
+              link.getAttribute('aria-current') === 'page'
+            )
+          );
+        });
+      },
+    }, context),
   );
 }
 

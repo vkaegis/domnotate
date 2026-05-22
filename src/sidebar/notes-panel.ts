@@ -332,7 +332,7 @@ export function createNotesPanel(
           key: `legacy:${legacyScope.id || legacyScope.selector}`,
           label: fallbackScopeLabel(legacyScope),
           index: legacyScope.index,
-          active: activeScopes.some((activeScope) => legacyScope.index === activeScope.index),
+          active: activeScopes.some((activeScope) => scopesMatch(legacyScope, activeScope)),
         };
       }
 
