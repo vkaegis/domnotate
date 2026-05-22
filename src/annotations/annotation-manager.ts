@@ -7,7 +7,10 @@ import type {
   AnnotationManager,
   ElementDescriptor,
   EventBus,
+  ViewScope,
 } from '@/types/core';
+
+type CreateAnnotationOptions = number | { slideIndex?: number; viewScope?: ViewScope };
 
 export function createAnnotationManager(): AnnotationManager {
   const store = new Map<string, Annotation>();
@@ -20,6 +23,13 @@ export function createAnnotationManager(): AnnotationManager {
 
   function now(): string {
     return new Date().toISOString();
+  }
+
+  function normalizeCreateOptions(
+    options: CreateAnnotationOptions | undefined,
+  ): { slideIndex?: number; viewScope?: ViewScope } {
+    if (typeof options === 'number') return { slideIndex: options };
+    return options ?? {};
   }
 
   const manager: AnnotationManager = {
@@ -41,10 +51,11 @@ export function createAnnotationManager(): AnnotationManager {
       element: ElementDescriptor,
       anchorPoint: { x: number; y: number },
       text: string,
-      slideIndex?: number,
+      options?: CreateAnnotationOptions,
     ): Annotation {
       const b = requireBus();
       const timestamp = now();
+      const { slideIndex, viewScope } = normalizeCreateOptions(options);
 
       const annotation: Annotation = {
         id: crypto.randomUUID(),
@@ -52,6 +63,7 @@ export function createAnnotationManager(): AnnotationManager {
         anchorPoint,
         text,
         color: '#C4725A',
+        ...(viewScope !== undefined && { viewScope }),
         ...(slideIndex !== undefined && { slideIndex }),
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -71,6 +83,25 @@ export function createAnnotationManager(): AnnotationManager {
       }
 
       annotation.text = text;
+      annotation.updatedAt = now();
+
+      b.emit({ type: 'annotation:update', annotation });
+    },
+
+    updateScope(annotationId: string, scope: ViewScope | null): void {
+      const b = requireBus();
+      const annotation = store.get(annotationId);
+      if (!annotation) {
+        throw new Error(`Annotation not found: ${annotationId}`);
+      }
+
+      if (scope) {
+        annotation.viewScope = scope;
+        annotation.slideIndex = scope.kind === 'slide' ? scope.index : undefined;
+      } else {
+        delete annotation.viewScope;
+        delete annotation.slideIndex;
+      }
       annotation.updatedAt = now();
 
       b.emit({ type: 'annotation:update', annotation });

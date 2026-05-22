@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { AnnotationSession } from '@/types/core';
+import { isViewScope } from '@/types/validation';
 
 export function serializeSession(session: AnnotationSession): string {
   return JSON.stringify(session, null, 2);
@@ -41,6 +42,8 @@ export function validateSession(data: unknown): data is AnnotationSession {
     if (typeof a.updatedAt !== 'string') return false;
     if (typeof a.text !== 'string') return false;
     if (typeof a.color !== 'string') return false;
+    if (a.viewScope !== undefined && !isViewScope(a.viewScope)) return false;
+    if (a.slideIndex !== undefined && typeof a.slideIndex !== 'number') return false;
 
     // anchorPoint
     if (a.anchorPoint === null || typeof a.anchorPoint !== 'object') return false;

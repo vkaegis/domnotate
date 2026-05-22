@@ -27,6 +27,33 @@ export interface ElementDescriptor {
 
 // === Annotations ===
 
+export type ViewScopeKind =
+  | 'slide'
+  | 'tabpanel'
+  | 'hash-route'
+  | 'carousel'
+  | 'wizard-step'
+  | 'active-panel'
+  | 'custom';
+
+export interface ViewScope {
+  kind: ViewScopeKind;
+  id: string;
+  index: number;
+  label?: string;
+  selector: string;
+  activeSelector?: string;
+  controllerSelector?: string;
+  activation?:
+    | 'click-controller'
+    | 'radio-input'
+    | 'set-hash'
+    | 'call-goTo'
+    | 'toggle-active'
+    | 'set-hidden'
+    | 'noop';
+}
+
 export interface Annotation {
   id: string;
   /** Identified element */
@@ -37,6 +64,8 @@ export interface Annotation {
   text: string;
   /** Visual color tag */
   color: string;
+  /** Logical view scope active when the annotation was created */
+  viewScope?: ViewScope;
   /** Slide index (0-based) if the content is a slide deck, undefined otherwise */
   slideIndex?: number;
   createdAt: string;
@@ -84,6 +113,7 @@ export type DomnotateEvent =
   | { type: 'share:copied'; id: string; url: string }
   | { type: 'share:notice'; message: string }
   | { type: 'share:error'; message: string }
+  | { type: 'scope:changed'; scope: ViewScope; previousScope: ViewScope | null }
   | { type: 'slide:changed'; slideIndex: number };
 
 export type DomnotateEventType = DomnotateEvent['type'];
@@ -128,8 +158,15 @@ export interface AnnotationManager {
   init(bus: EventBus): void;
   getAll(): Annotation[];
   getById(id: string): Annotation | undefined;
-  create(element: ElementDescriptor, anchorPoint: { x: number; y: number }, text: string, slideIndex?: number): Annotation;
+  create(
+    element: ElementDescriptor,
+    anchorPoint: { x: number; y: number },
+    text: string,
+    options?: number | { slideIndex?: number; viewScope?: ViewScope },
+  ): Annotation;
   updateText(annotationId: string, text: string): void;
+  /** Replace or clear the stored view scope on an existing annotation. */
+  updateScope(annotationId: string, scope: ViewScope | null): void;
   delete(id: string): void;
   loadAnnotations(annotations: Annotation[]): void;
   clearAll(): void;
@@ -154,8 +191,42 @@ export interface OutputFormatter {
   toJSON(session: AnnotationSession): string;
 }
 
-export interface SlideObserver {
+export type ScopeDetectorStage = 'explicit' | 'semantic' | 'rendered-state';
+
+export interface ScopeDetectorMeta {
+  id: string;
+  stage: ScopeDetectorStage;
+  priority: number;
+  confidence: number;
+}
+
+export interface ScopeDetectionInfo {
+  /** Detector id (or 'semantic-composite') that produced the active scope records; null when no scopes were detected. */
+  source: string | null;
+  /** Ordered detector plan that ran during the last detection pass. */
+  detectors: readonly ScopeDetectorMeta[];
+}
+
+export interface ViewScopeObserver {
   init(iframeEl: HTMLIFrameElement, bus: EventBus): void;
+  /** Active logical view scope, or null when the document is unscoped. */
+  getActiveScope(): ViewScope | null;
+  /** All currently active logical view scopes, for documents with independent scope groups. */
+  getActiveScopes(): ViewScope[];
+  /** All detected logical view scopes in document order. */
+  getScopes(): ViewScope[];
+  /** Given a DOM element, return the nearest matching scope. */
+  getScopeForElement(el: Element): ViewScope | undefined;
+  /** Return whether a logical view scope is currently active. */
+  isScopeActive(scope: ViewScope): boolean;
+  /** Activate a logical view scope inside the iframe. */
+  activateScope(scope: ViewScope): void;
+  /** Diagnostic info about the last detection pass (detector plan + winning source). */
+  getDetectionInfo(): ScopeDetectionInfo;
+  destroy(): void;
+}
+
+export interface SlideObserver extends ViewScopeObserver {
   /** null = not a slide deck. Otherwise 0-based index of active slide. */
   getActiveSlide(): number | null;
   /** Total slide count, or null if not a slide deck */
@@ -164,7 +235,6 @@ export interface SlideObserver {
   goToSlide(n: number): void;
   /** Given a DOM element, return its slide index or undefined */
   getSlideForElement(el: Element): number | undefined;
-  destroy(): void;
 }
 
 export interface SessionStore {

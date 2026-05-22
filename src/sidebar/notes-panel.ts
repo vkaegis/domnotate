@@ -2,7 +2,8 @@
 // Domnotate — Notes Panel (sidebar content)
 // ============================================================
 
-import type { EventBus, AnnotationManager, Annotation, SlideObserver } from '@/types/core';
+import type { EventBus, AnnotationManager, Annotation, SlideObserver, ViewScope } from '@/types/core';
+import { fallbackScopeLabel, scopesMatch } from '@/annotations/view-scope';
 
 // --- SVG Icons (14px viewBox 24) ---
 const ICONS = {
@@ -300,6 +301,57 @@ export function createNotesPanel(
     return all.findIndex((a) => a.id === id);
   }
 
+  type NoteGroup = {
+    key: string;
+    label: string;
+    index: number;
+    active: boolean;
+    annotations: Annotation[];
+  };
+
+  function getScopeGroupForAnnotation(
+    annotation: Annotation,
+    scopes: ViewScope[],
+    activeScopes: ViewScope[],
+  ): Omit<NoteGroup, 'annotations'> {
+    if (annotation.viewScope) {
+      return {
+        key: `scope:${annotation.viewScope.id || annotation.viewScope.selector}`,
+        label: fallbackScopeLabel(annotation.viewScope),
+        index: annotation.viewScope.index,
+        active: activeScopes.some((activeScope) => scopesMatch(annotation.viewScope!, activeScope)),
+      };
+    }
+
+    if (annotation.slideIndex !== undefined) {
+      const slideScopes = scopes.filter((scope) => scope.kind === 'slide');
+      const scopesToSearch = slideScopes.length > 0 ? slideScopes : scopes;
+      const legacyScope = scopesToSearch.find((scope) => scope.index === annotation.slideIndex);
+      if (legacyScope) {
+        return {
+          key: `legacy:${legacyScope.id || legacyScope.selector}`,
+          label: fallbackScopeLabel(legacyScope),
+          index: legacyScope.index,
+          active: activeScopes.some((activeScope) => scopesMatch(legacyScope, activeScope)),
+        };
+      }
+
+      return {
+        key: `legacy-slide:${annotation.slideIndex}`,
+        label: `Slide ${annotation.slideIndex + 1}`,
+        index: annotation.slideIndex,
+        active: false,
+      };
+    }
+
+    return {
+      key: 'general',
+      label: 'General',
+      index: -1,
+      active: false,
+    };
+  }
+
   function renderNotesList(): void {
     const annotations = getAnnotations();
     notesListEl.innerHTML = '';
@@ -312,38 +364,36 @@ export function createNotesPanel(
 
     updateActionBarState(false);
 
-    const isSlideContent = slideObserver?.getSlideCount() !== null && slideObserver?.getSlideCount() !== undefined;
-    const activeSlide = slideObserver?.getActiveSlide() ?? null;
+    const scopes = slideObserver?.getScopes() ?? [];
+    const activeScopes = slideObserver?.getActiveScopes() ?? [];
+    const isScopedContent = scopes.length > 0;
 
-    if (isSlideContent) {
-      // Group annotations by slideIndex
-      const groups = new Map<number | undefined, Annotation[]>();
+    if (isScopedContent) {
+      const groups = new Map<string, NoteGroup>();
       for (const ann of annotations) {
-        const key = ann.slideIndex;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(ann);
+        const groupInfo = getScopeGroupForAnnotation(ann, scopes, activeScopes);
+        if (!groups.has(groupInfo.key)) {
+          groups.set(groupInfo.key, { ...groupInfo, annotations: [] });
+        }
+        groups.get(groupInfo.key)!.annotations.push(ann);
       }
 
-      // Sort groups: ungrouped first, then by slide number
-      const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
-        if (a === undefined) return -1;
-        if (b === undefined) return 1;
-        return a - b;
+      const sortedGroups = Array.from(groups.values()).sort((a, b) => {
+        if (a.key === 'general') return -1;
+        if (b.key === 'general') return 1;
+        return a.index - b.index;
       });
 
-      for (const key of sortedKeys) {
-        const groupAnns = groups.get(key)!;
-
-        // Slide group header
+      for (const group of sortedGroups) {
         const header = document.createElement('div');
         header.className = 'dn-slide-group-header';
-        if (key !== undefined && key === activeSlide) {
+        if (group.active) {
           header.classList.add('dn-slide-group-header--active');
         }
-        header.textContent = key !== undefined ? `Slide ${key + 1}` : 'General';
+        header.textContent = group.label;
         notesListEl.appendChild(header);
 
-        for (const annotation of groupAnns) {
+        for (const annotation of group.annotations) {
           const index = getAnnotationIndex(annotation.id);
           notesListEl.appendChild(createNoteRow(annotation, index));
         }
@@ -419,15 +469,9 @@ export function createNotesPanel(
       }
     });
 
-    // Row click → navigate to slide if needed, then select annotation
+    // Row click → main.ts annotation:select handler owns scope activation +
+    // animation-frame timing before reanchoring, so this only emits the event.
     row.addEventListener('click', () => {
-      if (
-        slideObserver &&
-        annotation.slideIndex !== undefined &&
-        slideObserver.getActiveSlide() !== annotation.slideIndex
-      ) {
-        slideObserver.goToSlide(annotation.slideIndex);
-      }
       selectedId = annotation.id;
       bus.emit({ type: 'annotation:select', id: annotation.id });
       renderNotesList();
@@ -543,6 +587,10 @@ export function createNotesPanel(
   }));
 
   unsubs.push(bus.on('slide:changed', () => {
+    renderNotesList();
+  }));
+
+  unsubs.push(bus.on('scope:changed', () => {
     renderNotesList();
   }));
 

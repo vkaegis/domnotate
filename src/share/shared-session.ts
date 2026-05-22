@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { Annotation } from '@/types/core';
+import { isViewScope } from '@/types/validation';
 
 export const SHARED_SESSION_SCHEMA_VERSION = 1;
 export const MAX_SHARE_BYTES = 5 * 1024 * 1024;
@@ -54,6 +55,7 @@ function validateAnnotation(value: unknown): value is Annotation {
   if (typeof value.color !== 'string') return false;
   if (typeof value.createdAt !== 'string') return false;
   if (typeof value.updatedAt !== 'string') return false;
+  if (value.viewScope !== undefined && !isViewScope(value.viewScope)) return false;
   if (value.slideIndex !== undefined && !isFiniteNumber(value.slideIndex)) return false;
 
   if (!isRecord(value.anchorPoint)) return false;

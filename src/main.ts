@@ -6,6 +6,7 @@ import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
 import { createNotePopover } from '@/popover/popover';
 import { createOutputFormatter } from '@/output/formatter';
+import { reanchorAnnotation } from '@/output/reanchor';
 import { createSessionStore } from '@/output/store';
 import { copyToClipboard, downloadFile } from '@/output/exporter';
 import { initTheme } from '@/theme/theme-toggle';
@@ -13,8 +14,14 @@ import { createSidebar } from '@/sidebar/sidebar';
 import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
+import { activateScopeForAnnotation, createScopedAnnotationOptions } from '@/annotations/view-scope';
 import { publishShare } from '@/share/share-client';
 import { publishOrCopyShare } from '@/share/share-action';
+import {
+  isDiagnosticsEnabled,
+  mountDiagnosticsPanel,
+  type DiagnosticsPanel,
+} from '@/diagnostics/diagnostics-panel';
 
 // ============================================================
 // Domnotate — Main Integration
@@ -158,13 +165,18 @@ bus.on('picker:select', (e) => {
     y: e.mouseY - iframeRect.top + scrollY,
   };
 
-  // Resolve slide index for the selected element
-  let slideIndex: number | undefined;
+  // Resolve the logical view scope for the selected element.
+  let scopeOptions: ReturnType<typeof createScopedAnnotationOptions>;
   if (iframeDoc) {
     try {
-      const el = iframeDoc.querySelector(e.element.cssSelector);
+      const overlayRect = overlayEl.getBoundingClientRect();
+      const iframeClientX = e.mouseX + overlayRect.left - iframeRect.left;
+      const iframeClientY = e.mouseY + overlayRect.top - iframeRect.top;
+      const el =
+        iframeDoc.elementFromPoint(iframeClientX, iframeClientY) ??
+        iframeDoc.querySelector(e.element.cssSelector);
       if (el) {
-        slideIndex = slideObserver.getSlideForElement(el);
+        scopeOptions = createScopedAnnotationOptions(slideObserver, el);
       }
     } catch {
       // Selector may be invalid — ignore
@@ -172,7 +184,7 @@ bus.on('picker:select', (e) => {
   }
 
   // Create annotation with empty text — sidebar will focus the input
-  manager.create(e.element, anchorPoint, '', slideIndex);
+  manager.create(e.element, anchorPoint, '', scopeOptions);
 
   // Single-shot: deactivate picker after one selection
   picker.deactivate();
@@ -189,36 +201,42 @@ bus.on('annotation:select', (e) => {
   const iframeDoc = iframeEl.contentDocument;
   if (!iframeDoc) return;
 
-  // Navigate to the annotation's slide if needed
-  const needsSlideNav =
-    annotation.slideIndex !== undefined &&
-    slideObserver.getActiveSlide() !== null &&
-    slideObserver.getActiveSlide() !== annotation.slideIndex;
-
-  if (needsSlideNav) {
-    slideObserver.goToSlide(annotation.slideIndex!);
-  }
+  const navigated = activateScopeForAnnotation(slideObserver, annotation);
 
   // Wait a tick for slide transition before scrolling to element
   const scrollToElement = () => {
-    try {
-      const el = iframeDoc.querySelector(annotation.element.cssSelector);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const activeScopeAfterNavigation = slideObserver.getActiveScope();
+    const selectionScope =
+      annotation.viewScope ??
+      (
+        annotation.slideIndex !== undefined &&
+        activeScopeAfterNavigation?.index === annotation.slideIndex
+          ? activeScopeAfterNavigation
+          : undefined
+      );
 
-        // Add a temporary dashed highlight border
-        const prev = (el as HTMLElement).style.outline;
-        (el as HTMLElement).style.outline = '2px dashed var(--dn-accent)';
-        setTimeout(() => {
-          (el as HTMLElement).style.outline = prev;
-        }, 2000);
-      }
-    } catch {
-      // Selector may be invalid — ignore
+    const match = reanchorAnnotation(
+      annotation.element,
+      iframeDoc,
+      selectionScope ? { viewScope: selectionScope } : undefined,
+    );
+    const el = match?.element;
+    if (!el) return;
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Add a temporary dashed highlight border
+    const htmlEl = el as HTMLElement;
+    if (htmlEl.style) {
+      const prev = htmlEl.style.outline;
+      htmlEl.style.outline = '2px dashed var(--dn-accent)';
+      setTimeout(() => {
+        htmlEl.style.outline = prev;
+      }, 2000);
     }
   };
 
-  if (needsSlideNav) {
+  if (navigated) {
     requestAnimationFrame(scrollToElement);
   } else {
     scrollToElement();
@@ -381,3 +399,22 @@ async function loadSharedRoute(): Promise<void> {
 }
 
 void loadSharedRoute();
+
+// ============================================================
+// Debug-only scope diagnostics panel
+// ============================================================
+
+let diagnosticsPanel: DiagnosticsPanel | null = null;
+if (isDiagnosticsEnabled()) {
+  diagnosticsPanel = mountDiagnosticsPanel(document.body, {
+    bus,
+    manager,
+    observer: slideObserver,
+    getIframeDocument: () => iframeEl.contentDocument,
+  });
+  console.log('[Domnotate] scope diagnostics enabled');
+}
+
+window.addEventListener('beforeunload', () => {
+  diagnosticsPanel?.destroy();
+});

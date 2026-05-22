@@ -1,196 +1,263 @@
 // ============================================================
-// Domnotate — Slide Observer
+// Domnotate — View Scope Observer
 // ============================================================
 
-import type { EventBus, SlideObserver } from '@/types/core';
+import { activateScopeRecord } from '@/slides/activation-strategy';
+import {
+  activeRecordIndexes,
+  findActiveIndex,
+  getActiveSignature,
+  getChangedActiveIndex,
+  getPreviousScopeForSignatureChange,
+  isRecordActive,
+} from '@/slides/active-scope-tracker';
+import { runScopeDetection } from '@/slides/view-scope-detectors';
+import { elementDepth, type ScopeRecord } from '@/slides/view-scope-records';
+import type { EventBus, ScopeDetectionInfo, SlideObserver, ViewScope } from '@/types/core';
 
-type ScopeKind = 'slide' | 'tabpanel';
+type ObserverWindow = Window & {
+  CSS?: { escape?: (ident: string) => string };
+  goTo?: (index: number) => void;
+  location?: { hash?: string };
+  addEventListener?: (type: 'hashchange', listener: () => void) => void;
+  removeEventListener?: (type: 'hashchange', listener: () => void) => void;
+  requestAnimationFrame?: (callback: () => void) => number;
+};
 
 export function createSlideObserver(): SlideObserver {
   let iframeEl: HTMLIFrameElement | null = null;
   let bus: EventBus | null = null;
-  let slides: Element[] = [];
-  let scopeKind: ScopeKind | null = null;
+  let scopeRecords: ScopeRecord[] = [];
   let activeIndex: number | null = null;
+  let activeSignature = '';
+  let detectionInfo: ScopeDetectionInfo = { source: null, detectors: [] };
   let mutationObserver: MutationObserver | null = null;
+  let controllerCleanups: Array<() => void> = [];
+  let hashChangeWindow: (Window & {
+    removeEventListener(type: 'hashchange', listener: () => void): void;
+  }) | null = null;
 
-  function escapeAttrValue(value: string): string {
-    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  function getContentWindow(): ObserverWindow | null {
+    return (iframeEl?.contentWindow as ObserverWindow | null) ?? null;
   }
 
-  function isHiddenScope(el: Element): boolean {
-    if (el instanceof HTMLElement) {
-      if (el.hidden) return true;
-      if (el.style.display === 'none') return true;
-      if (el.style.visibility === 'hidden') return true;
-    }
-    return el.getAttribute('aria-hidden') === 'true';
+  function getLocationHash(): string {
+    const hash = getContentWindow()?.location?.hash;
+    return hash?.startsWith('#') ? hash.slice(1) : '';
   }
 
-  function detectSlides(): void {
+  function currentActiveIndexes(): number[] {
+    return activeRecordIndexes(scopeRecords, getLocationHash);
+  }
+
+  function currentActiveSignature(): string {
+    return getActiveSignature(scopeRecords, getLocationHash);
+  }
+
+  function currentActiveIndex(): number {
+    return findActiveIndex(scopeRecords, getLocationHash);
+  }
+
+  function activationPathForRecord(record: ScopeRecord): ScopeRecord[] {
+    const ancestors = scopeRecords
+      .filter((candidate) => candidate !== record && candidate.el.contains(record.el))
+      .filter((candidate) => !isRecordActive(candidate))
+      .sort((a, b) => elementDepth(a.el) - elementDepth(b.el));
+
+    return [...ancestors, record];
+  }
+
+  function detectScopes(): void {
     const doc = iframeEl?.contentDocument;
     if (!doc) {
-      slides = [];
-      scopeKind = null;
+      scopeRecords = [];
       activeIndex = null;
+      activeSignature = '';
+      detectionInfo = { source: null, detectors: [] };
       return;
     }
 
-    // Primary heuristic: .deck > .slide[data-slide]
-    let found = Array.from(doc.querySelectorAll('.deck > .slide[data-slide]'));
-    scopeKind = found.length > 0 ? 'slide' : null;
+    const run = runScopeDetection({ doc, win: getContentWindow() });
+    scopeRecords = run.records;
+    detectionInfo = { source: run.source, detectors: run.detectors };
 
-    // Fallback: multiple siblings with .slide class where exactly one has .active
-    if (found.length === 0) {
-      const allSlides = Array.from(doc.querySelectorAll('.slide'));
-      if (allSlides.length > 1) {
-        found = allSlides;
-        scopeKind = 'slide';
-      }
-    }
-
-    // Fallback: ARIA tab panels. Many HTML artifacts use tabbed panels instead
-    // of slide decks, but annotations still need the same active-scope behavior.
-    if (found.length === 0) {
-      const tabPanels = Array.from(doc.querySelectorAll('[role="tabpanel"]'));
-      if (tabPanels.length > 1) {
-        found = tabPanels;
-        scopeKind = 'tabpanel';
-      }
-    }
-
-    slides = found;
-
-    if (slides.length === 0) {
-      scopeKind = null;
+    if (scopeRecords.length === 0) {
       activeIndex = null;
+      activeSignature = '';
       return;
     }
 
-    // Determine initial active slide
-    activeIndex = findActiveIndex();
+    activeIndex = currentActiveIndex();
+    activeSignature = currentActiveSignature();
   }
 
-  function findActiveIndex(): number {
-    if (scopeKind === 'tabpanel') {
-      for (let i = 0; i < slides.length; i++) {
-        const panel = slides[i];
-        if (!isHiddenScope(panel)) {
-          return i;
-        }
-      }
-    }
+  function emitScopeChange(previousScope: ViewScope | null, nextIndex: number): void {
+    const nextScope = scopeRecords[nextIndex]?.scope;
+    if (!nextScope) return;
 
-    for (let i = 0; i < slides.length; i++) {
-      if (slides[i].classList.contains('active')) {
-        return i;
-      }
-    }
-    return 0;
+    bus?.emit({ type: 'scope:changed', scope: nextScope, previousScope });
+    bus?.emit({ type: 'slide:changed', slideIndex: nextScope.index });
   }
 
   function onMutation(): void {
-    const newIndex = findActiveIndex();
-    if (newIndex !== activeIndex) {
+    const newIndex = currentActiveIndex();
+    const newSignature = currentActiveSignature();
+    if (newIndex !== activeIndex || newSignature !== activeSignature) {
+      const changedIndex = getChangedActiveIndex(activeSignature, newSignature, newIndex);
+      const previousScope =
+        getPreviousScopeForSignatureChange(activeSignature, newSignature, scopeRecords) ??
+        (activeIndex === null ? null : scopeRecords[activeIndex]?.scope ?? null);
       activeIndex = newIndex;
-      bus?.emit({ type: 'slide:changed', slideIndex: newIndex });
+      activeSignature = newSignature;
+      emitScopeChange(previousScope, changedIndex);
     }
   }
 
   function attachObserver(): void {
-    if (slides.length === 0) return;
+    if (scopeRecords.length === 0) return;
 
     mutationObserver = new MutationObserver(onMutation);
 
-    // Watch attributes that usually mark active slides or active tab panels.
-    for (const slide of slides) {
-      mutationObserver.observe(slide, {
+    for (const { el } of scopeRecords) {
+      mutationObserver.observe(el, {
         attributes: true,
         attributeFilter: ['class', 'hidden', 'aria-hidden', 'style'],
       });
     }
   }
 
+  function detachControllerObservers(): void {
+    for (const cleanup of controllerCleanups) cleanup();
+    controllerCleanups = [];
+  }
+
+  function scheduleMutationCheck(): void {
+    const scheduler = getContentWindow()?.requestAnimationFrame ?? globalThis.requestAnimationFrame;
+    if (typeof scheduler === 'function') {
+      scheduler(onMutation);
+    } else {
+      setTimeout(onMutation, 0);
+    }
+  }
+
+  function attachControllerObservers(): void {
+    const doc = iframeEl?.contentDocument;
+    if (!doc) return;
+
+    for (const record of scopeRecords) {
+      if (!record.scope.controllerSelector) continue;
+      const controller = doc.querySelector(record.scope.controllerSelector);
+      if (!controller) continue;
+
+      const handler = () => {
+        scheduleMutationCheck();
+      };
+      controller.addEventListener('click', handler);
+      controller.addEventListener('change', handler);
+      controllerCleanups.push(() => {
+        controller.removeEventListener('click', handler);
+        controller.removeEventListener('change', handler);
+      });
+    }
+  }
+
+  function detachHashObserver(): void {
+    hashChangeWindow?.removeEventListener('hashchange', onMutation);
+    hashChangeWindow = null;
+  }
+
+  function attachHashObserver(): void {
+    if (!scopeRecords.some(({ scope }) => scope.kind === 'hash-route')) return;
+
+    const win = getContentWindow();
+    if (!win || typeof win.addEventListener !== 'function' || typeof win.removeEventListener !== 'function') {
+      return;
+    }
+
+    win.addEventListener('hashchange', onMutation);
+    hashChangeWindow = win as Window & {
+      removeEventListener(type: 'hashchange', listener: () => void): void;
+    };
+  }
+
   const observer: SlideObserver = {
     init(_iframeEl: HTMLIFrameElement, _bus: EventBus): void {
+      mutationObserver?.disconnect();
+      detachControllerObservers();
+      detachHashObserver();
       iframeEl = _iframeEl;
       bus = _bus;
 
-      detectSlides();
+      detectScopes();
       attachObserver();
+      attachControllerObservers();
+      attachHashObserver();
     },
 
-    getActiveSlide(): number | null {
-      if (slides.length === 0) return null;
-      return activeIndex;
+    getActiveScope(): ViewScope | null {
+      if (scopeRecords.length === 0 || activeIndex === null) return null;
+      return scopeRecords[activeIndex]?.scope ?? null;
     },
 
-    getSlideCount(): number | null {
-      if (slides.length === 0) return null;
-      return slides.length;
+    getActiveScopes(): ViewScope[] {
+      return currentActiveIndexes()
+        .map((index) => scopeRecords[index]?.scope)
+        .filter((scope): scope is ViewScope => scope !== undefined);
     },
 
-    goToSlide(n: number): void {
-      if (slides.length === 0 || n < 0 || n >= slides.length) return;
-
-      if (scopeKind === 'tabpanel') {
-        const doc = iframeEl?.contentDocument;
-        const panel = slides[n];
-        const panelId = panel.id;
-        const controller = panelId && doc
-          ? doc.querySelector(`[aria-controls="${escapeAttrValue(panelId)}"]`)
-          : null;
-
-        if (controller instanceof HTMLElement) {
-          controller.click();
-          return;
-        }
-
-        for (let i = 0; i < slides.length; i++) {
-          const isActive = i === n;
-          const slide = slides[i];
-          if (slide instanceof HTMLElement) {
-            slide.hidden = !isActive;
-          }
-          slide.setAttribute('aria-hidden', isActive ? 'false' : 'true');
-        }
-        onMutation();
-        return;
-      }
-
-      const win = iframeEl?.contentWindow as any;
-
-      // Try the iframe's goTo function first
-      if (win && typeof win.goTo === 'function') {
-        win.goTo(n);
-        return;
-      }
-
-      // Fallback: toggle .active class directly
-      for (let i = 0; i < slides.length; i++) {
-        slides[i].classList.toggle('active', i === n);
-      }
+    getScopes(): ViewScope[] {
+      return scopeRecords.map(({ scope }) => scope);
     },
 
-    getSlideForElement(el: Element): number | undefined {
-      if (slides.length === 0) return undefined;
-
-      // Walk up to find nearest .slide ancestor
+    getScopeForElement(el: Element): ViewScope | undefined {
       let current: Element | null = el;
       while (current) {
-        const idx = slides.indexOf(current);
-        if (idx !== -1) return idx;
-
-        // Check data-slide attribute as well
-        if (current.classList.contains('slide') && current.hasAttribute('data-slide')) {
-          const slideIdx = slides.indexOf(current);
-          if (slideIdx !== -1) return slideIdx;
-        }
-
+        const record = scopeRecords.find(({ el: scopeEl }) => scopeEl === current);
+        if (record) return record.scope;
         current = current.parentElement;
       }
 
       return undefined;
+    },
+
+    isScopeActive(scope: ViewScope): boolean {
+      const index = scopeRecords.findIndex(({ scope: candidate }) => candidate.id === scope.id);
+      return index !== -1 && currentActiveIndexes().includes(index);
+    },
+
+    getDetectionInfo(): ScopeDetectionInfo {
+      return detectionInfo;
+    },
+
+    activateScope(scope: ViewScope): void {
+      const record = scopeRecords.find(({ scope: candidate }) => candidate.id === scope.id);
+      if (!record) return;
+
+      const doc = iframeEl?.contentDocument;
+      if (!doc) return;
+
+      for (const scopeRecord of activationPathForRecord(record)) {
+        activateScopeRecord(scopeRecord, scopeRecords, doc, getContentWindow());
+      }
+      onMutation();
+    },
+
+    getActiveSlide(): number | null {
+      return observer.getActiveScope()?.index ?? null;
+    },
+
+    getSlideCount(): number | null {
+      return scopeRecords.length === 0 ? null : scopeRecords.length;
+    },
+
+    goToSlide(n: number): void {
+      const scope = scopeRecords[n]?.scope;
+      if (!scope) return;
+      observer.activateScope(scope);
+    },
+
+    getSlideForElement(el: Element): number | undefined {
+      return observer.getScopeForElement(el)?.index;
     },
 
     destroy(): void {
@@ -198,9 +265,12 @@ export function createSlideObserver(): SlideObserver {
         mutationObserver.disconnect();
         mutationObserver = null;
       }
-      slides = [];
-      scopeKind = null;
+      detachHashObserver();
+      detachControllerObservers();
+      scopeRecords = [];
       activeIndex = null;
+      activeSignature = '';
+      detectionInfo = { source: null, detectors: [] };
       iframeEl = null;
       bus = null;
     },

@@ -3,12 +3,19 @@
 // ============================================================
 
 import type { AnnotationSession, Annotation, OutputFormatter } from '@/types/core';
+import { fallbackScopeLabel } from '@/annotations/view-scope';
 
 function elementHeading(a: Annotation): string {
   const tag = a.element.tagName;
   const id = a.element.id ? `#${a.element.id}` : '';
   const cls = a.element.classes.length > 0 ? `.${a.element.classes[0]}` : '';
   return `${tag}${id}${cls}`;
+}
+
+function annotationScopeLabel(a: Annotation): string | null {
+  if (a.viewScope) return fallbackScopeLabel(a.viewScope);
+  if (a.slideIndex !== undefined) return `Slide ${a.slideIndex + 1}`;
+  return null;
 }
 
 export function createOutputFormatter(): OutputFormatter {
@@ -31,6 +38,10 @@ export function createOutputFormatter(): OutputFormatter {
         md += `**XPath:** \`${a.element.xpath}\`\n`;
         md += `**DOM Path:** ${a.element.domPath}\n`;
         md += `**Dimensions:** ${a.element.rect.width} x ${a.element.rect.height}\n`;
+        const scopeLabel = annotationScopeLabel(a);
+        if (scopeLabel) {
+          md += `**Scope:** ${scopeLabel}\n`;
+        }
         md += `**Text Preview:** "${a.element.textPreview}"\n`;
         md += `\n`;
 
@@ -52,8 +63,11 @@ export function createOutputFormatter(): OutputFormatter {
         const selector = a.element.cssSelector;
         const w = Math.round(a.element.rect.width);
         const h = Math.round(a.element.rect.height);
+        const scopeLabel = annotationScopeLabel(a);
 
-        out += `${i + 1}. ${heading} \`${selector}\` ${w}x${h}\n`;
+        out += `${i + 1}. ${heading} \`${selector}\` ${w}x${h}`;
+        if (scopeLabel) out += ` [${scopeLabel}]`;
+        out += '\n';
 
         if (a.element.textPreview) {
           out += `   "${a.element.textPreview}"\n`;

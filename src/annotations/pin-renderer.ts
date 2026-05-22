@@ -9,6 +9,7 @@ import type {
   SlideObserver,
   Annotation,
 } from '@/types/core';
+import { isAnnotationVisibleInScopes } from '@/annotations/view-scope';
 
 export function createPinRenderer(): PinRenderer {
   let overlayEl: HTMLElement;
@@ -196,6 +197,7 @@ export function createPinRenderer(): PinRenderer {
       unsubs.push(
         bus.on('pins:visibility', (e) => renderer.setVisible(e.visible)),
       );
+      unsubs.push(bus.on('scope:changed', () => renderer.render()));
       unsubs.push(bus.on('slide:changed', () => renderer.render()));
 
       // Scroll sync
@@ -227,15 +229,12 @@ export function createPinRenderer(): PinRenderer {
       updatePinLayerSize();
 
       const allAnnotations = manager.getAll();
-      const activeSlide = slideObserver?.getActiveSlide() ?? null;
       const annotationIndices = new Map(allAnnotations.map((ann, index) => [ann.id, index]));
-
-      // Filter: show only annotations for the active slide (or all if not a slide deck)
-      const annotations = activeSlide === null
-        ? allAnnotations
-        : allAnnotations.filter(
-            (ann) => ann.slideIndex === undefined || ann.slideIndex === activeSlide,
-          );
+      const activeScopes = slideObserver?.getActiveScopes() ?? [];
+      const hasScopes = (slideObserver?.getScopes().length ?? 0) > 0;
+      const annotations = allAnnotations.filter((ann) =>
+        isAnnotationVisibleInScopes(ann, activeScopes, hasScopes),
+      );
 
       const fragment = document.createDocumentFragment();
 
