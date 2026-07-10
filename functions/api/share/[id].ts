@@ -146,7 +146,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
   const nextBlob = {
     ...validation.value,
     annotations: updateValidation.value.annotations,
-    edits: updateValidation.value.edits,
+    edits: updateValidation.value.edits ?? validation.value.edits,
     updatedAt: new Date().toISOString(),
   };
   const serialized = serializeSharedSessionBlob(nextBlob);

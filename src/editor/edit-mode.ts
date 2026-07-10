@@ -235,7 +235,11 @@ export function createTextEditor(): TextEditor {
       const target = e.target as Element | null;
 
       // Clicks inside the open field move the caret — leave them alone.
-      if (field && target && field.el.contains(target)) return;
+      if (field && target && field.el.contains(target)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
 
       const editable = resolveEditable(target);
       if (!editable) {

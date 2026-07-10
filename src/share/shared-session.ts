@@ -18,7 +18,7 @@ export interface PublishShareRequest {
 
 export interface UpdateShareRequest {
   annotations: Annotation[];
-  edits: TextEdit[];
+  edits?: TextEdit[];
 }
 
 export interface SharedSessionBlob extends PublishShareRequest {
@@ -163,16 +163,20 @@ export function validateUpdateShareRequest(data: unknown): ValidationResult<Upda
     return { ok: false, error: 'annotations must be valid Annotation objects' };
   }
 
-  const edits = data.edits ?? [];
-  if (!Array.isArray(edits) || !edits.every(validateTextEdit)) {
-    return { ok: false, error: 'edits must be valid TextEdit objects' };
+  const hasEdits = Object.hasOwn(data, 'edits');
+  let edits: TextEdit[] | undefined;
+  if (hasEdits) {
+    if (!Array.isArray(data.edits) || !data.edits.every(validateTextEdit)) {
+      return { ok: false, error: 'edits must be valid TextEdit objects' };
+    }
+    edits = data.edits;
   }
 
   return {
     ok: true,
     value: {
       annotations: data.annotations,
-      edits,
+      ...(hasEdits && { edits }),
     },
   };
 }

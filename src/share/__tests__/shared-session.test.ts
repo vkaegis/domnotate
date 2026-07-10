@@ -136,7 +136,7 @@ describe('shared-session', () => {
     });
   });
 
-  test('defaults legacy share payloads without edits to an empty edit list', () => {
+  test('defaults legacy publish payloads without edits to an empty edit list', () => {
     expect(
       validatePublishShareRequest({
         sourceType: 'file',
@@ -157,7 +157,16 @@ describe('shared-session', () => {
 
     expect(validateUpdateShareRequest({ annotations: [] })).toEqual({
       ok: true,
-      value: { annotations: [], edits: [] },
+      value: { annotations: [] },
+    });
+  });
+
+  test('omits edits from legacy update payloads so existing edit records are preserved', () => {
+    const annotation = makeAnnotation();
+
+    expect(validateUpdateShareRequest({ annotations: [annotation] })).toEqual({
+      ok: true,
+      value: { annotations: [annotation] },
     });
   });
 
@@ -217,7 +226,7 @@ describe('shared-session', () => {
     });
     expect(validateUpdateShareRequest({ annotations: [annotation] })).toEqual({
       ok: true,
-      value: { annotations: [annotation], edits: [] },
+      value: { annotations: [annotation] },
     });
   });
 

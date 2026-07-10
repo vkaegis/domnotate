@@ -111,7 +111,7 @@ export async function republishAnnotations(
   id: string,
   annotations: Annotation[],
 ): Promise<RepublishShareResult> {
-  return republishPayload(id, { annotations, edits: [] });
+  return republishPayload(id, { annotations });
 }
 
 export async function republishSession(
@@ -126,7 +126,7 @@ export async function republishSession(
 
 async function republishPayload(
   id: string,
-  payload: { annotations: Annotation[]; edits: NonNullable<AnnotationSession['edits']> },
+  payload: { annotations: Annotation[]; edits?: NonNullable<AnnotationSession['edits']> },
 ): Promise<RepublishShareResult> {
   let response: Response;
   try {

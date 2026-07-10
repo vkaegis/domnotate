@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { makeAnnotation, makeSession, makeTextEdit } from '@/__tests__/fixtures';
-import { fetchShare, publishShare, republishSession } from '@/share/share-client';
+import { fetchShare, publishShare, republishAnnotations, republishSession } from '@/share/share-client';
 
 describe('share-client', () => {
   afterEach(() => {
@@ -135,6 +135,24 @@ describe('share-client', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ annotations: session.annotations, edits: session.edits }),
+    });
+  });
+
+  test('legacy annotation republish omits edits so the server preserves existing edits', async () => {
+    const annotation = makeAnnotation();
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(republishAnnotations('share-123', [annotation])).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith('/api/share/share-123', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ annotations: [annotation] }),
     });
   });
 

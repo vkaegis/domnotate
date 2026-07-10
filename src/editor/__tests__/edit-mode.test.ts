@@ -21,6 +21,12 @@ function clickEl(el: Element): void {
   el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 }
 
+function dispatchClick(el: Element): MouseEvent {
+  const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+  el.dispatchEvent(event);
+  return event;
+}
+
 describe('TextEditor', () => {
   let bus: EventBus;
   let editor: TextEditor;
@@ -45,6 +51,23 @@ describe('TextEditor', () => {
     clickEl(p);
 
     expect(p.getAttribute('contenteditable')).toBe('true');
+    expect(editor.isEditing()).toBe(true);
+  });
+
+  test('clicks inside an open field are suppressed so page handlers do not run', () => {
+    ({ doc, editor } = setup('<p class="intro">Go to <a href="/next">next</a></p>'));
+    editor.activate();
+
+    const p = doc.querySelector('p')!;
+    const link = doc.querySelector('a')!;
+    const pageHandler = vi.fn();
+    link.addEventListener('click', pageHandler);
+
+    clickEl(p);
+    const event = dispatchClick(link);
+
+    expect(pageHandler).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
     expect(editor.isEditing()).toBe(true);
   });
 

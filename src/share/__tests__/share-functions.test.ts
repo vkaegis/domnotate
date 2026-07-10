@@ -130,6 +130,34 @@ describe('share Pages Functions', () => {
     });
   });
 
+  test('PUT preserves existing edits when a legacy annotation-only update omits edits', async () => {
+    const annotation = makeAnnotation();
+    const existingEdit = makeTextEdit();
+    const put = vi.fn();
+    const response = await onRequestPut({
+      request: new Request('https://example.com/api/share/share-123', {
+        method: 'PUT',
+        body: JSON.stringify({ annotations: [annotation] }),
+      }),
+      env: {
+        SHARES: {
+          get: vi.fn().mockResolvedValue(
+            makeR2Object(JSON.stringify(makeBlob({ edits: [existingEdit] }))),
+          ),
+          put,
+        },
+      },
+      params: { id: 'share-123' },
+    } as never);
+
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    const serialized = put.mock.calls[0][1];
+    expect(JSON.parse(serialized)).toMatchObject({
+      annotations: [annotation],
+      edits: [existingEdit],
+    });
+  });
+
   test('PUT rejects oversized bodies even when content-length is absent', async () => {
     const get = vi.fn();
     const put = vi.fn();
