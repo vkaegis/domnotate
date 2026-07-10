@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import Dexie from 'dexie';
 
-import { makeAnnotation, makeSession } from '@/__tests__/fixtures';
+import { makeAnnotation, makeSession, makeTextEdit } from '@/__tests__/fixtures';
 import { createSessionStore } from '@/output/store';
 import type { SharedSessionBlob } from '@/share/shared-session';
 
@@ -23,6 +23,7 @@ function makeSharedBlob(overrides: Partial<SharedSessionBlob> = {}): SharedSessi
     sourceName: 'shared.html',
     html: '<html><body>Cloud</body></html>',
     annotations: [makeAnnotation({ text: 'Cloud annotation' })],
+    edits: [makeTextEdit({ newText: 'Cloud edit' })],
     createdAt: '2026-05-09T00:00:00.000Z',
     updatedAt: '2026-05-09T00:00:00.000Z',
     ...overrides,
@@ -49,8 +50,7 @@ describe('createSessionStore', () => {
     expect(republishAnnotations).not.toHaveBeenCalled();
   });
 
-  test('shared save PUTs annotations and then updates the IndexedDB cache', async () => {
-    const annotation = makeAnnotation();
+  test('shared save PUTs annotations and edits, then updates the IndexedDB cache', async () => {
     const republishAnnotations = vi.fn().mockResolvedValue({ ok: true });
     const store = createSessionStore({
       dbName: getDbName(),
@@ -59,12 +59,13 @@ describe('createSessionStore', () => {
     const session = makeSession({
       shareId: 'share-123',
       html: '<html></html>',
-      annotations: [annotation],
+      annotations: [makeAnnotation()],
+      edits: [makeTextEdit()],
     });
 
     await store.save(session);
 
-    expect(republishAnnotations).toHaveBeenCalledWith('share-123', [annotation]);
+    expect(republishAnnotations).toHaveBeenCalledWith('share-123', session);
     await expect(store.load(session.id)).resolves.toEqual(session);
     await expect(store.load('share-123')).resolves.toEqual(session);
   });
@@ -128,6 +129,7 @@ describe('createSessionStore', () => {
       shareId: 'share-123',
       html: cloudBlob.html,
       annotations: cloudBlob.annotations,
+      edits: cloudBlob.edits,
       loadedUrl: stale.loadedUrl,
     });
     await expect(store.load('share-123')).resolves.toEqual(loaded);

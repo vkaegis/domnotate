@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { serializeSession, deserializeSession, validateSession } from '@/output/json-io';
-import { makeSession, makeAnnotation, makeViewScope } from '@/__tests__/fixtures';
+import { makeSession, makeAnnotation, makeTextEdit, makeViewScope } from '@/__tests__/fixtures';
 
 describe('json-io', () => {
   describe('validateSession', () => {
@@ -125,6 +125,28 @@ describe('json-io', () => {
       expect(validateSession(session)).toBe(false);
     });
 
+    test('accepts valid text edits', () => {
+      const edit = makeTextEdit();
+      const session = makeSession({ edits: [edit] });
+
+      expect(validateSession(session)).toBe(true);
+      expect(deserializeSession(JSON.stringify(session)).edits).toEqual([edit]);
+    });
+
+    test('rejects malformed text edits', () => {
+      const edit = makeTextEdit();
+      const badElement = makeSession({
+        edits: [{ ...edit, element: { ...edit.element, cssSelector: 123 } } as any],
+      });
+      const badScope = makeSession({
+        edits: [{ ...edit, viewScope: { kind: 'tabpanel', id: 'bad' } } as any],
+      });
+
+      expect(validateSession({ ...makeSession(), edits: 'bad' })).toBe(false);
+      expect(validateSession(badElement)).toBe(false);
+      expect(validateSession(badScope)).toBe(false);
+    });
+
     test('extra fields do not break validation', () => {
       const session = makeSession({ annotations: [makeAnnotation()] });
       expect(validateSession({ ...session, extraField: 'hello' })).toBe(true);
@@ -133,7 +155,10 @@ describe('json-io', () => {
 
   describe('serializeSession / deserializeSession', () => {
     test('valid session round-trips', () => {
-      const session = makeSession({ annotations: [makeAnnotation(), makeAnnotation()] });
+      const session = makeSession({
+        annotations: [makeAnnotation(), makeAnnotation()],
+        edits: [makeTextEdit()],
+      });
       const json = serializeSession(session);
       const restored = deserializeSession(json);
       expect(restored).toEqual(session);

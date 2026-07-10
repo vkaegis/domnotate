@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { makeAnnotation } from '@/__tests__/fixtures';
+import { makeAnnotation, makeTextEdit } from '@/__tests__/fixtures';
 import { MAX_SHARE_BYTES, type SharedSessionBlob } from '@/share/shared-session';
 import { onRequestPost } from '../../../functions/api/share';
 import {
@@ -16,6 +16,7 @@ function makeBlob(overrides: Partial<SharedSessionBlob> = {}): SharedSessionBlob
     sourceName: 'page.html',
     html: '<html><body>Shared</body></html>',
     annotations: [],
+    edits: [],
     createdAt: '2026-05-09T00:00:00.000Z',
     updatedAt: '2026-05-09T00:00:00.000Z',
     ...overrides,
@@ -85,7 +86,7 @@ describe('share Pages Functions', () => {
     expect(response.status).toBe(413);
   });
 
-  test('PUT accepts only annotation update fields', async () => {
+  test('PUT accepts only annotation and edit update fields', async () => {
     const response = await onRequestPut({
       request: new Request('https://example.com/api/share/share-123', {
         method: 'PUT',
@@ -100,6 +101,33 @@ describe('share Pages Functions', () => {
 
     await expect(response.text()).resolves.toBe('Request body has unexpected fields');
     expect(response.status).toBe(400);
+  });
+
+  test('PUT stores updated annotations and edits', async () => {
+    const annotation = makeAnnotation();
+    const edit = makeTextEdit();
+    const put = vi.fn();
+    const response = await onRequestPut({
+      request: new Request('https://example.com/api/share/share-123', {
+        method: 'PUT',
+        body: JSON.stringify({ annotations: [annotation], edits: [edit] }),
+      }),
+      env: {
+        SHARES: {
+          get: vi.fn().mockResolvedValue(makeR2Object(JSON.stringify(makeBlob()))),
+          put,
+        },
+      },
+      params: { id: 'share-123' },
+    } as never);
+
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(put).toHaveBeenCalledOnce();
+    const serialized = put.mock.calls[0][1];
+    expect(JSON.parse(serialized)).toMatchObject({
+      annotations: [annotation],
+      edits: [edit],
+    });
   });
 
   test('PUT rejects oversized bodies even when content-length is absent', async () => {

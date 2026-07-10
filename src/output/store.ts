@@ -5,15 +5,14 @@
 import Dexie from 'dexie';
 import type { AnnotationSession, SessionStore } from '@/types/core';
 import { serializeSession, deserializeSession } from '@/output/json-io';
-import { fetchShare as defaultFetchShare, republishAnnotations as defaultRepublishAnnotations } from '@/share/share-client';
+import { fetchShare as defaultFetchShare, republishSession as defaultRepublishSession } from '@/share/share-client';
 import { sessionFromSharedBlob } from '@/share/hydration';
-import type { Annotation } from '@/types/core';
 import type { SharedSessionBlob } from '@/share/shared-session';
 
 interface SessionStoreOptions {
   dbName?: string;
   fetchShare?: (id: string) => Promise<SharedSessionBlob>;
-  republishAnnotations?: (id: string, annotations: Annotation[]) => Promise<{ ok: true }>;
+  republishAnnotations?: (id: string, session: AnnotationSession) => Promise<{ ok: true }>;
 }
 
 class DomnotateDB extends Dexie {
@@ -33,7 +32,7 @@ class DomnotateDB extends Dexie {
 export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
   const db = new DomnotateDB(options.dbName ?? 'DomnotateDB');
   const fetchShare = options.fetchShare ?? defaultFetchShare;
-  const republishAnnotations = options.republishAnnotations ?? defaultRepublishAnnotations;
+  const republishAnnotations = options.republishAnnotations ?? defaultRepublishSession;
 
   async function findCachedSession(idOrShareId: string): Promise<AnnotationSession | null> {
     const direct = await db.sessions.get(idOrShareId);
@@ -55,7 +54,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       }
 
       try {
-        await republishAnnotations(session.shareId, session.annotations);
+        await republishAnnotations(session.shareId, session);
         await cacheSession(session);
       } catch (error) {
         await cacheSession(session);

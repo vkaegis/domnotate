@@ -2,7 +2,7 @@
 // Domnotate — JSON Serialization / Deserialization
 // ============================================================
 
-import type { AnnotationSession } from '@/types/core';
+import type { AnnotationSession, ElementDescriptor } from '@/types/core';
 import { isViewScope } from '@/types/validation';
 
 export function serializeSession(session: AnnotationSession): string {
@@ -17,10 +17,40 @@ export function deserializeSession(json: string): AnnotationSession {
   return data;
 }
 
-export function validateSession(data: unknown): data is AnnotationSession {
-  if (data === null || typeof data !== 'object') return false;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
 
-  const obj = data as Record<string, unknown>;
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isElementDescriptor(value: unknown): value is ElementDescriptor {
+  if (!isRecord(value)) return false;
+  if (typeof value.cssSelector !== 'string') return false;
+  if (typeof value.xpath !== 'string') return false;
+  if (typeof value.tagName !== 'string') return false;
+  if (!Array.isArray(value.classes) || !value.classes.every((item) => typeof item === 'string')) {
+    return false;
+  }
+  if (value.id !== null && typeof value.id !== 'string') return false;
+  if (typeof value.textPreview !== 'string') return false;
+  if (!isFiniteNumber(value.depth)) return false;
+  if (typeof value.domPath !== 'string') return false;
+
+  if (!isRecord(value.rect)) return false;
+  return (
+    isFiniteNumber(value.rect.x) &&
+    isFiniteNumber(value.rect.y) &&
+    isFiniteNumber(value.rect.width) &&
+    isFiniteNumber(value.rect.height)
+  );
+}
+
+export function validateSession(data: unknown): data is AnnotationSession {
+  if (!isRecord(data)) return false;
+
+  const obj = data;
 
   if (typeof obj.id !== 'string') return false;
   if (obj.sourceType !== 'file' && obj.sourceType !== 'url') return false;
@@ -46,26 +76,28 @@ export function validateSession(data: unknown): data is AnnotationSession {
     if (a.slideIndex !== undefined && typeof a.slideIndex !== 'number') return false;
 
     // anchorPoint
-    if (a.anchorPoint === null || typeof a.anchorPoint !== 'object') return false;
-    const ap = a.anchorPoint as Record<string, unknown>;
-    if (typeof ap.x !== 'number' || typeof ap.y !== 'number') return false;
+    if (!isRecord(a.anchorPoint)) return false;
+    if (!isFiniteNumber(a.anchorPoint.x) || !isFiniteNumber(a.anchorPoint.y)) return false;
 
     // element descriptor
-    if (a.element === null || typeof a.element !== 'object') return false;
-    const el = a.element as Record<string, unknown>;
-    if (typeof el.cssSelector !== 'string') return false;
-    if (typeof el.xpath !== 'string') return false;
-    if (typeof el.tagName !== 'string') return false;
-    if (!Array.isArray(el.classes)) return false;
-    if (typeof el.textPreview !== 'string') return false;
-    if (typeof el.depth !== 'number') return false;
-    if (typeof el.domPath !== 'string') return false;
+    if (!isElementDescriptor(a.element)) return false;
+  }
 
-    // rect
-    if (el.rect === null || typeof el.rect !== 'object') return false;
-    const rect = el.rect as Record<string, unknown>;
-    if (typeof rect.x !== 'number' || typeof rect.y !== 'number') return false;
-    if (typeof rect.width !== 'number' || typeof rect.height !== 'number') return false;
+  if (obj.edits !== undefined) {
+    if (!Array.isArray(obj.edits)) return false;
+
+    for (const edit of obj.edits) {
+      if (!isRecord(edit)) return false;
+      if (typeof edit.id !== 'string') return false;
+      if (typeof edit.oldHtml !== 'string') return false;
+      if (typeof edit.newHtml !== 'string') return false;
+      if (typeof edit.oldText !== 'string') return false;
+      if (typeof edit.newText !== 'string') return false;
+      if (typeof edit.createdAt !== 'string') return false;
+      if (typeof edit.updatedAt !== 'string') return false;
+      if (edit.viewScope !== undefined && !isViewScope(edit.viewScope)) return false;
+      if (!isElementDescriptor(edit.element)) return false;
+    }
   }
 
   return true;
