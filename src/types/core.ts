@@ -214,6 +214,8 @@ export interface TextEditor {
   applyEdits(edits: TextEdit[]): void;
   /** Restore a committed edit's original HTML preview in the live document. */
   revertEdit(edit: TextEdit): boolean;
+  /** Remove the edited preview marker when an edit collapses back to no-op. */
+  clearEditedMarker(element: ElementDescriptor, viewScope?: ViewScope): boolean;
 }
 
 export interface EditManager {

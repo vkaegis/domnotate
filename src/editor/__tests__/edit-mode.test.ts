@@ -221,6 +221,40 @@ describe('TextEditor', () => {
     expect(p.classList.contains('dn-edited')).toBe(false);
   });
 
+  test('re-editing back to the original removes the live edited marker', () => {
+    ({ doc, editor, bus } = setup('<p class="intro">Original</p>'));
+    const editManager = createEditManager();
+    editManager.init(bus);
+    bus.on('edit:commit', (event) => {
+      const edit = editManager.commit({
+        element: event.element,
+        oldHtml: event.oldHtml,
+        newHtml: event.newHtml,
+        oldText: event.oldText,
+        newText: event.newText,
+      });
+      if (!edit) {
+        editor.clearEditedMarker(event.element);
+      }
+    });
+
+    const p = doc.querySelector('p.intro') as HTMLElement;
+    editor.activate();
+
+    clickEl(p);
+    p.innerHTML = 'Edited';
+    editor.commitPending();
+    expect(editManager.getAll()).toHaveLength(1);
+    expect(p.classList.contains('dn-edited')).toBe(true);
+
+    clickEl(p);
+    p.innerHTML = 'Original';
+    editor.commitPending();
+
+    expect(editManager.getAll()).toHaveLength(0);
+    expect(p.classList.contains('dn-edited')).toBe(false);
+  });
+
   test('clearing reverts every live edit preview before the records are dropped', () => {
     // Mirrors main.ts session:cleared: revert each edit's DOM, then clearAll.
     ({ doc, editor, bus } = setup('<p class="a">A original</p><p class="b">B original</p>'));

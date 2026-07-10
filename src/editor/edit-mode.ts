@@ -39,6 +39,18 @@ interface ActiveField {
   originalText: string;
 }
 
+function generateStableDescriptor(el: HTMLElement): ElementDescriptor {
+  const hadEditingClass = el.classList.contains('dn-editing');
+  const hadEditedClass = el.classList.contains('dn-edited');
+  el.classList.remove('dn-editing', 'dn-edited');
+  try {
+    return generateDescriptor(el);
+  } finally {
+    if (hadEditingClass) el.classList.add('dn-editing');
+    if (hadEditedClass) el.classList.add('dn-edited');
+  }
+}
+
 export function createTextEditor(): TextEditor {
   let iframeEl: HTMLIFrameElement;
   let overlayEl: HTMLElement;
@@ -148,7 +160,7 @@ export function createTextEditor(): TextEditor {
     // "before" state reflect the source, not the in-progress text.
     field = {
       el,
-      descriptor: generateDescriptor(el),
+      descriptor: generateStableDescriptor(el),
       originalHtml: el.innerHTML,
       originalText: (el.textContent ?? '').trim(),
     };
@@ -340,5 +352,30 @@ export function createTextEditor(): TextEditor {
     return true;
   }
 
-  return { init, activate, deactivate, isActive, isEditing, commitPending, applyEdits, revertEdit };
+  function clearEditedMarker(element: ElementDescriptor, viewScope?: TextEdit['viewScope']): boolean {
+    const doc = getIframeDoc();
+    if (!doc) return false;
+
+    const match = reanchorAnnotation(
+      element,
+      doc,
+      viewScope ? { viewScope } : undefined,
+    );
+    if (!match?.element) return false;
+
+    (match.element as HTMLElement).classList?.remove('dn-edited');
+    return true;
+  }
+
+  return {
+    init,
+    activate,
+    deactivate,
+    isActive,
+    isEditing,
+    commitPending,
+    applyEdits,
+    revertEdit,
+    clearEditedMarker,
+  };
 }

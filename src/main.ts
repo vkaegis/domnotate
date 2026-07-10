@@ -235,7 +235,7 @@ bus.on('edit:commit', (e) => {
     }
   }
 
-  commitTextEditWithSyncedPreviews(editManager, manager.getAll(), {
+  const committedEdit = commitTextEditWithSyncedPreviews(editManager, manager.getAll(), {
     element: e.element,
     oldHtml: e.oldHtml,
     newHtml: e.newHtml,
@@ -243,6 +243,9 @@ bus.on('edit:commit', (e) => {
     newText: e.newText,
     ...(scopeOptions?.viewScope && { viewScope: scopeOptions.viewScope }),
   });
+  if (!committedEdit) {
+    editor.clearEditedMarker(e.element, scopeOptions?.viewScope);
+  }
 });
 
 // ============================================================
