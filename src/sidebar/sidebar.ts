@@ -2,7 +2,7 @@
 // Domnotate — Sidebar Container
 // ============================================================
 
-import type { EventBus, AnnotationManager, SlideObserver } from '@/types/core';
+import type { EventBus, AnnotationManager, EditManager, SlideObserver } from '@/types/core';
 import { createNotesPanel } from '@/sidebar/notes-panel';
 import './sidebar.css';
 
@@ -14,6 +14,8 @@ export function createSidebar(
   bus: EventBus,
   manager: AnnotationManager,
   picker: { activate(): void; deactivate(): void; isActive(): boolean },
+  editor: { activate(): void; deactivate(): void; isActive(): boolean },
+  editManager: EditManager,
   slideObserver?: SlideObserver,
 ): { show(): void; hide(): void; destroy(): void } {
   const unsubs: (() => void)[] = [];
@@ -28,7 +30,7 @@ export function createSidebar(
   el.appendChild(resizeHandle);
 
   // Notes panel (action bar + list + empty state)
-  const notesPanel = createNotesPanel(el, bus, manager, picker, slideObserver);
+  const notesPanel = createNotesPanel(el, bus, manager, picker, editor, editManager, slideObserver);
 
   container.appendChild(el);
 

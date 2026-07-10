@@ -2,6 +2,9 @@ import { createEventBus } from '@/events';
 import type { AnnotationSession } from '@/types/core';
 import { createContentLoader } from '@/loader/loader';
 import { createElementPicker } from '@/picker/picker';
+import { createTextEditor } from '@/editor/edit-mode';
+import { createEditManager } from '@/editor/edit-manager';
+import { syncAnnotationTextPreviews } from '@/editor/text-preview-sync';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
 import { createNotePopover } from '@/popover/popover';
@@ -40,6 +43,8 @@ const sidebarEl = document.getElementById('sidebar')!;
 // Create modules
 const loader = createContentLoader();
 const picker = createElementPicker();
+const editor = createTextEditor();
+const editManager = createEditManager();
 const manager = createAnnotationManager();
 const pinRenderer = createPinRenderer();
 const notePopover = createNotePopover();
@@ -49,10 +54,11 @@ const slideObserver = createSlideObserver();
 // Clear annotations before sidebar listeners re-render (event ordering matters)
 bus.on('session:cleared', () => {
   manager.clearAll();
+  editManager.clearAll();
   pinRenderer.render();
 });
 
-const sidebar = createSidebar(sidebarEl, bus, manager, picker, slideObserver);
+const sidebar = createSidebar(sidebarEl, bus, manager, picker, editor, editManager, slideObserver);
 const contentAreaEl = document.getElementById('content-area')!;
 const toast = createToast(contentAreaEl, bus);
 
@@ -74,6 +80,7 @@ bus.on('pins:visibility', (e) => { pinsVisible = e.visible; });
 const shortcuts = createKeyboardShortcuts({
   bus,
   picker,
+  editor,
   isContentLoaded: () => currentSession !== null,
   getSelectedAnnotationId: () => selectedAnnotationId,
   getPinsVisible: () => pinsVisible,
@@ -94,6 +101,7 @@ function debounce(fn: () => void, ms: number): () => void {
 
 loader.init(iframeEl, dropZoneEl, bus);
 manager.init(bus);
+editManager.init(bus);
 
 // ============================================================
 // Content loaded → init picker, pins, show sidebar
@@ -121,6 +129,7 @@ bus.on('content:loaded', (e) => {
       };
 
   picker.init(iframeEl, overlayEl, bus);
+  editor.init(iframeEl, overlayEl, bus);
   slideObserver.init(iframeEl, bus);
   pinRenderer.init(overlayEl, iframeEl, bus, manager, slideObserver);
   notePopover.init(overlayEl, iframeEl, bus, manager);
@@ -130,6 +139,9 @@ bus.on('content:loaded', (e) => {
   if (sharedSession) {
     manager.clearAll();
     manager.loadAnnotations(currentSession.annotations);
+    editManager.clearAll();
+    editManager.loadEdits(currentSession.edits ?? []);
+    editor.applyEdits(editManager.getAll());
     bus.emit({ type: 'session:loaded', session: currentSession });
   }
 });
@@ -140,6 +152,7 @@ bus.on('content:loaded', (e) => {
 
 bus.on('content:unloaded', () => {
   picker.deactivate();
+  editor.deactivate();
   notePopover.destroy();
   pinRenderer.destroy();
   slideObserver.destroy();
@@ -147,6 +160,7 @@ bus.on('content:unloaded', () => {
   sidebar.hide();
   loader.unload();
   manager.clearAll();
+  editManager.clearAll();
   currentSession = null;
 });
 
@@ -188,6 +202,38 @@ bus.on('picker:select', (e) => {
 
   // Single-shot: deactivate picker after one selection
   picker.deactivate();
+});
+
+// ============================================================
+// Text edit committed → resolve scope, record edit instruction
+// ============================================================
+
+bus.on('edit:commit', (e) => {
+  const iframeDoc = iframeEl.contentDocument;
+
+  // Resolve the logical view scope for the edited element (mirrors picker:select).
+  let scopeOptions: ReturnType<typeof createScopedAnnotationOptions>;
+  if (iframeDoc) {
+    try {
+      const el = iframeDoc.querySelector(e.element.cssSelector);
+      if (el) scopeOptions = createScopedAnnotationOptions(slideObserver, el);
+    } catch {
+      // Selector may be invalid — ignore
+    }
+  }
+
+  editManager.commit({
+    element: e.element,
+    oldHtml: e.oldHtml,
+    newHtml: e.newHtml,
+    oldText: e.oldText,
+    newText: e.newText,
+    ...(scopeOptions?.viewScope && { viewScope: scopeOptions.viewScope }),
+  });
+
+  // Editing an element's text invalidates the textPreview-based reanchor
+  // fallback (reanchor.ts strategy 3) for any annotation on the same element.
+  syncAnnotationTextPreviews(manager.getAll(), e.element.cssSelector, e.newText);
 });
 
 // ============================================================
@@ -250,6 +296,7 @@ bus.on('annotation:select', (e) => {
 bus.on('output:copy', (e) => {
   if (!currentSession) return;
   currentSession.annotations = manager.getAll();
+  currentSession.edits = editManager.getAll();
   let text: string;
   if (e.format === 'compact') {
     text = formatter.toCompact(currentSession);
@@ -264,6 +311,7 @@ bus.on('output:copy', (e) => {
 bus.on('output:download', (e) => {
   if (!currentSession) return;
   currentSession.annotations = manager.getAll();
+  currentSession.edits = editManager.getAll();
   if (e.format === 'json') {
     const json = formatter.toJSON(currentSession);
     const name = currentSession.sourceName.replace(/\.[^.]+$/, '') || 'annotations';
@@ -284,6 +332,7 @@ bus.on('share:publish', async () => {
 
   bus.emit({ type: 'share:publishing' });
   currentSession.annotations = manager.getAll();
+  currentSession.edits = editManager.getAll();
   currentSession.updatedAt = new Date().toISOString();
 
   try {
@@ -307,6 +356,7 @@ bus.on('share:publish', async () => {
 async function persistCurrentSession(): Promise<void> {
   if (!currentSession) return;
   currentSession.annotations = manager.getAll();
+  currentSession.edits = editManager.getAll();
   currentSession.updatedAt = new Date().toISOString();
 
   try {
@@ -344,6 +394,9 @@ function persistAnnotationChange(mode: 'immediate' | 'text'): void {
 bus.on('annotation:create', () => persistAnnotationChange('immediate'));
 bus.on('annotation:update', () => persistAnnotationChange('text'));
 bus.on('annotation:delete', () => persistAnnotationChange('immediate'));
+bus.on('edit:create', () => persistAnnotationChange('immediate'));
+bus.on('edit:update', () => persistAnnotationChange('text'));
+bus.on('edit:delete', () => persistAnnotationChange('immediate'));
 
 // ============================================================
 // Session cleared — auto-save cleared session
@@ -352,6 +405,7 @@ bus.on('annotation:delete', () => persistAnnotationChange('immediate'));
 bus.on('session:cleared', () => {
   if (currentSession) {
     currentSession.annotations = [];
+    currentSession.edits = [];
     currentSession.updatedAt = new Date().toISOString();
     void persistCurrentSession();
   }

@@ -1,4 +1,4 @@
-import type { Annotation, ElementDescriptor, AnnotationSession, ViewScope } from '@/types/core';
+import type { Annotation, ElementDescriptor, AnnotationSession, TextEdit, ViewScope } from '@/types/core';
 
 let counter = 0;
 
@@ -29,6 +29,22 @@ export function makeAnnotation(overrides: Partial<Annotation> = {}): Annotation 
     anchorPoint: { x: 50, y: 25 },
     text: `Annotation ${counter}`,
     color: '#C4725A',
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+export function makeTextEdit(overrides: Partial<TextEdit> = {}): TextEdit {
+  counter++;
+  const now = new Date().toISOString();
+  return {
+    id: `edit-${counter}`,
+    element: makeDescriptor(),
+    oldHtml: `Old ${counter}`,
+    newHtml: `New ${counter}`,
+    oldText: `Old ${counter}`,
+    newText: `New ${counter}`,
     createdAt: now,
     updatedAt: now,
     ...overrides,

@@ -6,5 +6,6 @@ coverage/
 .env
 .env.*
 .context/
+.playwright-cli/
 *.log
 .DS_Store

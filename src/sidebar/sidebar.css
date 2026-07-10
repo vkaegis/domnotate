@@ -298,6 +298,31 @@
   font-style: italic;
 }
 
+/* Text edit rows reuse the note-row layout with a distinct treatment. */
+.dn-edit-row {
+  cursor: default;
+}
+
+.dn-edit-row .dn-note-pin {
+  background: transparent;
+  color: var(--dn-pin-color);
+  border: 1px solid var(--dn-pin-color);
+}
+
+.dn-edit-old {
+  color: var(--dn-text-muted);
+  text-decoration: line-through;
+}
+
+.dn-edit-arrow {
+  color: var(--dn-text-muted);
+}
+
+.dn-edit-new {
+  color: var(--dn-text-primary);
+  font-weight: 600;
+}
+
 .dn-note-delete {
   display: flex;
   align-items: center;

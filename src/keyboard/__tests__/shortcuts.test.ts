@@ -5,12 +5,20 @@ import { createEventBus } from '@/events';
 function makeDeps(overrides: Record<string, unknown> = {}) {
   const bus = createEventBus();
   let pickerActive = false;
+  let editorActive = false;
+  let editorEditing = false;
   return {
     bus,
     picker: {
       activate() { pickerActive = true; },
       deactivate() { pickerActive = false; },
       isActive() { return pickerActive; },
+    },
+    editor: {
+      activate() { editorActive = true; },
+      deactivate() { editorActive = false; editorEditing = false; },
+      isActive() { return editorActive; },
+      isEditing() { return editorEditing; },
     },
     isContentLoaded: () => true,
     getSelectedAnnotationId: () => null,
@@ -41,6 +49,51 @@ describe('keyboard shortcuts', () => {
 
     fireKey(document, 'a');
     expect(deps.picker.isActive()).toBe(false);
+  });
+
+  test('shortcut "t" toggles text edit mode', () => {
+    const deps = makeDeps();
+    shortcuts = createKeyboardShortcuts(deps);
+
+    fireKey(document, 't');
+    expect(deps.editor.isActive()).toBe(true);
+
+    fireKey(document, 't');
+    expect(deps.editor.isActive()).toBe(false);
+  });
+
+  test('Escape exits edit mode first, before touching picker/selection', () => {
+    const deselectHandler = vi.fn();
+    const deps = makeDeps({
+      getSelectedAnnotationId: () => 'ann-1',
+    });
+    deps.bus.on('annotation:deselect', deselectHandler);
+    shortcuts = createKeyboardShortcuts(deps);
+
+    // Both edit mode and picker armed, plus a selected annotation.
+    deps.editor.activate();
+    deps.picker.activate();
+    expect(deps.editor.isActive()).toBe(true);
+
+    fireKey(document, 'Escape');
+
+    // Edit mode wins and short-circuits — picker + selection untouched.
+    expect(deps.editor.isActive()).toBe(false);
+    expect(deps.picker.isActive()).toBe(true);
+    expect(deselectHandler).not.toHaveBeenCalled();
+  });
+
+  test('Escape falls through to picker + deselect when edit mode is off', () => {
+    const deselectHandler = vi.fn();
+    const deps = makeDeps({ getSelectedAnnotationId: () => 'ann-1' });
+    deps.bus.on('annotation:deselect', deselectHandler);
+    shortcuts = createKeyboardShortcuts(deps);
+
+    deps.picker.activate();
+    fireKey(document, 'Escape');
+
+    expect(deps.picker.isActive()).toBe(false);
+    expect(deselectHandler).toHaveBeenCalledOnce();
   });
 
   test('shortcuts work from iframe document after attachIframe', () => {

@@ -2,6 +2,9 @@ import { describe, test, expect } from 'vitest';
 
 import { createEventBus } from '@/events';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
+import { createTextEditor } from '@/editor/edit-mode';
+import { createEditManager } from '@/editor/edit-manager';
+import { syncAnnotationTextPreviews } from '@/editor/text-preview-sync';
 import { createOutputFormatter } from '@/output/formatter';
 import { serializeSession, deserializeSession, validateSession } from '@/output/json-io';
 import { reanchorAnnotation } from '@/output/reanchor';
@@ -27,6 +30,9 @@ describe('smoke: core module exports', () => {
   test('all core modules export expected functions', () => {
     expect(typeof createEventBus).toBe('function');
     expect(typeof createAnnotationManager).toBe('function');
+    expect(typeof createTextEditor).toBe('function');
+    expect(typeof createEditManager).toBe('function');
+    expect(typeof syncAnnotationTextPreviews).toBe('function');
     expect(typeof createOutputFormatter).toBe('function');
     expect(typeof serializeSession).toBe('function');
     expect(typeof deserializeSession).toBe('function');

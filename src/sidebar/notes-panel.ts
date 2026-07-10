@@ -2,12 +2,21 @@
 // Domnotate — Notes Panel (sidebar content)
 // ============================================================
 
-import type { EventBus, AnnotationManager, Annotation, SlideObserver, ViewScope } from '@/types/core';
+import type {
+  EventBus,
+  AnnotationManager,
+  Annotation,
+  EditManager,
+  SlideObserver,
+  TextEdit,
+  ViewScope,
+} from '@/types/core';
 import { fallbackScopeLabel, scopesMatch } from '@/annotations/view-scope';
 
 // --- SVG Icons (14px viewBox 24) ---
 const ICONS = {
   pencil: `<svg viewBox="0 0 24 24"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`,
+  type: `<svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>`,
   eye: `<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
   eyeOff: `<svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`,
   clipboard: `<svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`,
@@ -39,6 +48,8 @@ export function createNotesPanel(
   bus: EventBus,
   manager: AnnotationManager,
   picker: { activate(): void; deactivate(): void; isActive(): boolean },
+  editor: { activate(): void; deactivate(): void; isActive(): boolean },
+  editManager: EditManager,
   slideObserver?: SlideObserver,
 ): { destroy(): void } {
   const unsubs: (() => void)[] = [];
@@ -88,7 +99,45 @@ export function createNotesPanel(
     }
   };
 
-  // Divider after annotate
+  // Edit text button (T)
+  const editBtn = makeActionBtn(ICONS.type, 'Edit Text', 'T', 'Edit text in place (T)', () => {
+    if (editor.isActive()) {
+      editor.deactivate();
+    } else {
+      editor.activate();
+    }
+  });
+
+  // --- Sync edit button + enforce picker/editor mutual exclusion ---
+  const originalEditorActivate = editor.activate.bind(editor);
+  const originalEditorDeactivate = editor.deactivate.bind(editor);
+
+  editor.activate = () => {
+    const wasActive = editor.isActive();
+    // Only one mode at a time.
+    picker.deactivate();
+    originalEditorActivate();
+    if (!wasActive && editor.isActive()) {
+      editBtn.classList.add('dn-action-btn--active');
+    }
+  };
+
+  editor.deactivate = () => {
+    const wasActive = editor.isActive();
+    originalEditorDeactivate();
+    if (wasActive) {
+      editBtn.classList.remove('dn-action-btn--active');
+    }
+  };
+
+  // Activating the picker turns off edit mode (and vice-versa above).
+  const pickerActivateWithSync = picker.activate;
+  picker.activate = () => {
+    editor.deactivate();
+    pickerActivateWithSync();
+  };
+
+  // Divider after annotate/edit
   const divider = document.createElement('div');
   divider.className = 'dn-tab-bar__divider';
 
@@ -274,6 +323,7 @@ export function createNotesPanel(
   });
 
   tabBar.appendChild(annotateBtn);
+  tabBar.appendChild(editBtn);
   tabBar.appendChild(divider);
   tabBar.appendChild(pinsBtn);
   tabBar.appendChild(copyBtn);
@@ -354,9 +404,10 @@ export function createNotesPanel(
 
   function renderNotesList(): void {
     const annotations = getAnnotations();
+    const edits = editManager.getAll();
     notesListEl.innerHTML = '';
 
-    if (annotations.length === 0) {
+    if (annotations.length === 0 && edits.length === 0) {
       renderEmptyState();
       updateActionBarState(true);
       return;
@@ -364,6 +415,14 @@ export function createNotesPanel(
 
     updateActionBarState(false);
 
+    if (annotations.length > 0) {
+      renderAnnotationRows(annotations);
+    }
+
+    renderEditRows(edits);
+  }
+
+  function renderAnnotationRows(annotations: Annotation[]): void {
     const scopes = slideObserver?.getScopes() ?? [];
     const activeScopes = slideObserver?.getActiveScopes() ?? [];
     const isScopedContent = scopes.length > 0;
@@ -483,6 +542,57 @@ export function createNotesPanel(
     return row;
   }
 
+  function renderEditRows(edits: TextEdit[]): void {
+    if (edits.length === 0) return;
+
+    const header = document.createElement('div');
+    header.className = 'dn-slide-group-header';
+    header.textContent = 'Text Edits';
+    notesListEl.appendChild(header);
+
+    edits.forEach((edit) => {
+      notesListEl.appendChild(createEditRow(edit));
+    });
+  }
+
+  function createEditRow(edit: TextEdit): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'dn-note-row dn-edit-row';
+    row.dataset.editId = edit.id;
+
+    const pin = document.createElement('div');
+    pin.className = 'dn-note-pin';
+    pin.textContent = '✎';
+
+    const textEl = document.createElement('div');
+    textEl.className = 'dn-note-text';
+    // Show the before → after change; the DOM preview shows the full formatting.
+    const oldEl = document.createElement('span');
+    oldEl.className = 'dn-edit-old';
+    oldEl.textContent = edit.oldText;
+    const arrow = document.createElement('span');
+    arrow.className = 'dn-edit-arrow';
+    arrow.textContent = ' → ';
+    const newEl = document.createElement('span');
+    newEl.className = 'dn-edit-new';
+    newEl.textContent = edit.newText;
+    textEl.append(oldEl, arrow, newEl);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'dn-note-delete';
+    deleteBtn.title = 'Discard edit';
+    deleteBtn.innerHTML = ICONS.trash;
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      editManager.delete(edit.id);
+    });
+
+    row.appendChild(pin);
+    row.appendChild(textEl);
+    row.appendChild(deleteBtn);
+    return row;
+  }
+
   // --- Helper ---
 
   function makeActionBtn(
@@ -542,6 +652,18 @@ export function createNotesPanel(
   }));
 
   unsubs.push(bus.on('annotation:delete', () => {
+    renderNotesList();
+  }));
+
+  unsubs.push(bus.on('edit:create', () => {
+    renderNotesList();
+  }));
+
+  unsubs.push(bus.on('edit:update', () => {
+    renderNotesList();
+  }));
+
+  unsubs.push(bus.on('edit:delete', () => {
     renderNotesList();
   }));
 
@@ -613,9 +735,11 @@ export function createNotesPanel(
       if (shareTimer) clearTimeout(shareTimer);
       if (exportTimer) clearTimeout(exportTimer);
       if (clearTimer) clearTimeout(clearTimer);
-      // Restore original picker methods
+      // Restore original picker + editor methods
       picker.activate = originalActivate;
       picker.deactivate = originalDeactivate;
+      editor.activate = originalEditorActivate;
+      editor.deactivate = originalEditorDeactivate;
       actionBar.remove();
       notesListEl.remove();
     },
