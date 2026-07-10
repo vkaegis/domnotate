@@ -34,7 +34,7 @@ describe('EditManager', () => {
     const handler = vi.fn();
     bus.on('edit:create', handler);
 
-    const edit = manager.commit(commitInput());
+    const edit = manager.commit(commitInput())!;
 
     expect(edit.id).toBeDefined();
     expect(edit.oldText).toBe('Hello world');
@@ -51,8 +51,8 @@ describe('EditManager', () => {
     bus.on('edit:create', createHandler);
     bus.on('edit:update', updateHandler);
 
-    const first = manager.commit(commitInput({ newText: 'First change', newHtml: 'First change' }));
-    const second = manager.commit(commitInput({ newText: 'Second change', newHtml: 'Second change' }));
+    const first = manager.commit(commitInput({ newText: 'First change', newHtml: 'First change' }))!;
+    const second = manager.commit(commitInput({ newText: 'Second change', newHtml: 'Second change' }))!;
 
     expect(manager.getAll()).toHaveLength(1);
     expect(second.id).toBe(first.id);
@@ -61,6 +61,28 @@ describe('EditManager', () => {
     expect(second.newText).toBe('Second change');
     expect(createHandler).toHaveBeenCalledOnce();
     expect(updateHandler).toHaveBeenCalledOnce();
+  });
+
+  test('re-editing an element back to its original removes the record (no no-op edit)', () => {
+    const deleteHandler = vi.fn();
+    const updateHandler = vi.fn();
+    bus.on('edit:delete', deleteHandler);
+    bus.on('edit:update', updateHandler);
+
+    const first = manager.commit(commitInput({ newText: 'Changed', newHtml: 'Changed' }));
+    expect(first).not.toBeNull();
+
+    // Editing back to the original oldHtml/oldText should drop the record.
+    const result = manager.commit(
+      commitInput({ newText: 'Hello world', newHtml: 'Hello <em>world</em>' }),
+    );
+
+    expect(result).toBeNull();
+    expect(manager.getAll()).toHaveLength(0);
+    expect(manager.getById(first!.id)).toBeUndefined();
+    expect(deleteHandler).toHaveBeenCalledWith({ type: 'edit:delete', id: first!.id });
+    // Reverting to original must not emit a spurious update.
+    expect(updateHandler).not.toHaveBeenCalled();
   });
 
   test('edits to distinct selectors are kept separate', () => {
@@ -72,14 +94,14 @@ describe('EditManager', () => {
   test('commit stores viewScope when provided', () => {
     const edit = manager.commit(
       commitInput({ viewScope: { kind: 'tabpanel', id: 't1', index: 0, selector: '#t1' } }),
-    );
+    )!;
     expect(edit.viewScope?.id).toBe('t1');
   });
 
   test('delete removes the edit and emits edit:delete', () => {
     const handler = vi.fn();
     bus.on('edit:delete', handler);
-    const edit = manager.commit(commitInput());
+    const edit = manager.commit(commitInput())!;
 
     manager.delete(edit.id);
 
@@ -96,7 +118,7 @@ describe('EditManager', () => {
     const createHandler = vi.fn();
     bus.on('edit:create', createHandler);
 
-    const seed = manager.commit(commitInput());
+    const seed = manager.commit(commitInput())!;
     const snapshot = manager.getAll();
     manager.clearAll();
     expect(manager.getAll()).toHaveLength(0);

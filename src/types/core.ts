@@ -229,7 +229,7 @@ export interface EditManager {
     oldText: string;
     newText: string;
     viewScope?: ViewScope;
-  }): TextEdit;
+  }): TextEdit | null;
   delete(id: string): void;
   loadEdits(edits: TextEdit[]): void;
   clearAll(): void;

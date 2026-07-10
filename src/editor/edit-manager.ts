@@ -52,7 +52,7 @@ export function createEditManager(): EditManager {
       return store.get(id);
     },
 
-    commit(input: CommitInput): TextEdit {
+    commit(input: CommitInput): TextEdit | null {
       const b = requireBus();
       const timestamp = now();
 
@@ -60,6 +60,13 @@ export function createEditManager(): EditManager {
       // original (oldHtml/oldText) is preserved as the true "before" state.
       const existing = findBySelector(input.element.cssSelector);
       if (existing) {
+        // Editing back to the original leaves no real change — drop the record
+        // entirely rather than persisting a no-op "Original -> Original" edit.
+        if (input.newHtml === existing.oldHtml && input.newText === existing.oldText) {
+          store.delete(existing.id);
+          b.emit({ type: 'edit:delete', id: existing.id });
+          return null;
+        }
         existing.element = input.element;
         existing.newHtml = input.newHtml;
         existing.newText = input.newText;

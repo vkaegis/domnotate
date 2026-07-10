@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { createTextEditor } from '@/editor/edit-mode';
+import { createEditManager } from '@/editor/edit-manager';
 import { createEventBus } from '@/events';
 import { makeFakeIframe, makeDescriptor } from '@/__tests__/fixtures';
 import type { EventBus, TextEditor, TextEdit } from '@/types/core';
@@ -174,5 +175,45 @@ describe('TextEditor', () => {
     expect(reverted).toBe(true);
     expect(p.innerHTML).toBe('Original');
     expect(p.classList.contains('dn-edited')).toBe(false);
+  });
+
+  test('clearing reverts every live edit preview before the records are dropped', () => {
+    // Mirrors main.ts session:cleared: revert each edit's DOM, then clearAll.
+    ({ doc, editor, bus } = setup('<p class="a">A original</p><p class="b">B original</p>'));
+    const editManager = createEditManager();
+    editManager.init(bus);
+
+    const a = doc.querySelector('p.a') as HTMLElement;
+    const b = doc.querySelector('p.b') as HTMLElement;
+
+    editManager.commit({
+      element: makeDescriptor({ cssSelector: 'p.a', tagName: 'p' }),
+      oldHtml: 'A original',
+      newHtml: 'A edited',
+      oldText: 'A original',
+      newText: 'A edited',
+    });
+    editManager.commit({
+      element: makeDescriptor({ cssSelector: 'p.b', tagName: 'p' }),
+      oldHtml: 'B original',
+      newHtml: 'B edited',
+      oldText: 'B original',
+      newText: 'B edited',
+    });
+
+    // Apply the edits as live previews (marks dn-edited + rewrites innerHTML).
+    editor.applyEdits(editManager.getAll());
+    expect(a.innerHTML).toBe('A edited');
+    expect(b.classList.contains('dn-edited')).toBe(true);
+
+    // Clear: revert live previews, then drop the records.
+    for (const edit of editManager.getAll()) editor.revertEdit(edit);
+    editManager.clearAll();
+
+    expect(a.innerHTML).toBe('A original');
+    expect(b.innerHTML).toBe('B original');
+    expect(a.classList.contains('dn-edited')).toBe(false);
+    expect(b.classList.contains('dn-edited')).toBe(false);
+    expect(editManager.getAll()).toHaveLength(0);
   });
 });

@@ -123,7 +123,7 @@ describe('NotesPanel scope grouping', () => {
       newHtml: 'Edited',
       oldText: 'Original',
       newText: 'Edited',
-    });
+    })!;
 
     const panel = createNotesPanel(container, bus, manager, makePicker(), editor, editManager);
     const deleteBtn = container.querySelector(`[data-edit-id="${edit.id}"] .dn-note-delete`) as HTMLButtonElement;
@@ -131,6 +131,39 @@ describe('NotesPanel scope grouping', () => {
     deleteBtn.click();
 
     expect(editor.revertEdit).toHaveBeenCalledWith(edit);
+    expect(editManager.getById(edit.id)).toBeUndefined();
+
+    panel.destroy();
+  });
+
+  test('discarding a text edit restores the pre-edit preview on annotations of the same element', () => {
+    const editor = makeEditor();
+    const selector = 'p.intro';
+    // An annotation on the edited element whose preview was synced to the
+    // post-edit text at edit:commit time.
+    const annotation = manager.create(
+      makeDescriptor({ cssSelector: selector, textPreview: 'Edited' }),
+      { x: 0, y: 0 },
+      'note on edited element',
+    );
+    const edit = editManager.commit({
+      element: makeDescriptor({ cssSelector: selector }),
+      oldHtml: 'Original',
+      newHtml: 'Edited',
+      oldText: 'Original',
+      newText: 'Edited',
+    })!;
+
+    const panel = createNotesPanel(container, bus, manager, makePicker(), editor, editManager);
+    const deleteBtn = container.querySelector(
+      `[data-edit-id="${edit.id}"] .dn-note-delete`,
+    ) as HTMLButtonElement;
+
+    deleteBtn.click();
+
+    // Preview is reverted to the original text so the reanchor fallback still
+    // matches the DOM that revertEdit just restored.
+    expect(manager.getById(annotation.id)!.element.textPreview).toBe('Original');
     expect(editManager.getById(edit.id)).toBeUndefined();
 
     panel.destroy();

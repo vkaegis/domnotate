@@ -54,6 +54,12 @@ const slideObserver = createSlideObserver();
 // Clear annotations before sidebar listeners re-render (event ordering matters)
 bus.on('session:cleared', () => {
   manager.clearAll();
+  // Revert live edit previews (restores original DOM text + drops dn-edited
+  // markers) before dropping the records, so Clear can't leave modified page
+  // content behind while export/share reports no edits.
+  for (const edit of editManager.getAll()) {
+    editor.revertEdit(edit);
+  }
   editManager.clearAll();
   pinRenderer.render();
 });
