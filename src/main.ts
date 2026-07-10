@@ -5,6 +5,7 @@ import { createElementPicker } from '@/picker/picker';
 import { createTextEditor } from '@/editor/edit-mode';
 import { createEditManager } from '@/editor/edit-manager';
 import { commitTextEditWithSyncedPreviews } from '@/editor/text-preview-sync';
+import { hydrateSessionEdits } from '@/editor/session-edit-hydration';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
 import { createNotePopover } from '@/popover/popover';
@@ -149,13 +150,11 @@ bus.on('content:loaded', (e) => {
   notePopover.init(overlayEl, iframeEl, bus, manager);
   shortcuts.attachIframe(iframeEl);
   sidebar.show();
+  hydrateSessionEdits(editManager, editor, currentSession.edits);
 
   if (sharedSession) {
     manager.clearAll();
     manager.loadAnnotations(currentSession.annotations);
-    editManager.clearAll();
-    editManager.loadEdits(currentSession.edits ?? []);
-    editor.applyEdits(editManager.getAll());
     bus.emit({ type: 'session:loaded', session: currentSession });
   }
 });
