@@ -2,7 +2,7 @@
 // Domnotate — Sidebar Container
 // ============================================================
 
-import type { EventBus, AnnotationManager, EditManager, SlideObserver } from '@/types/core';
+import type { EventBus, AnnotationManager, EditManager, SlideObserver, TextEdit } from '@/types/core';
 import { createNotesPanel } from '@/sidebar/notes-panel';
 import './sidebar.css';
 
@@ -14,7 +14,7 @@ export function createSidebar(
   bus: EventBus,
   manager: AnnotationManager,
   picker: { activate(): void; deactivate(): void; isActive(): boolean },
-  editor: { activate(): void; deactivate(): void; isActive(): boolean },
+  editor: { activate(): void; deactivate(): void; isActive(): boolean; revertEdit(edit: TextEdit): boolean },
   editManager: EditManager,
   slideObserver?: SlideObserver,
 ): { show(): void; hide(): void; destroy(): void } {

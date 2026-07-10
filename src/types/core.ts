@@ -210,6 +210,8 @@ export interface TextEditor {
   isEditing(): boolean;
   /** Re-apply committed edits to freshly (re)loaded content as a preview. */
   applyEdits(edits: TextEdit[]): void;
+  /** Restore a committed edit's original HTML preview in the live document. */
+  revertEdit(edit: TextEdit): boolean;
 }
 
 export interface EditManager {

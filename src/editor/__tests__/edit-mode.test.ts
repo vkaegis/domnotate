@@ -151,4 +151,28 @@ describe('TextEditor', () => {
 
     expect(doc.querySelector('p.intro')!.innerHTML).toBe('Restored preview');
   });
+
+  test('revertEdit restores oldHtml and removes edited preview marker', () => {
+    ({ doc, editor } = setup('<p class="intro">Original</p>'));
+    const p = doc.querySelector('p.intro') as HTMLElement;
+    p.innerHTML = 'Edited preview';
+    p.classList.add('dn-edited');
+
+    const edit: TextEdit = {
+      id: 'e1',
+      element: makeDescriptor({ cssSelector: 'p.intro', tagName: 'p' }),
+      oldHtml: 'Original',
+      newHtml: 'Edited preview',
+      oldText: 'Original',
+      newText: 'Edited preview',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const reverted = editor.revertEdit(edit);
+
+    expect(reverted).toBe(true);
+    expect(p.innerHTML).toBe('Original');
+    expect(p.classList.contains('dn-edited')).toBe(false);
+  });
 });

@@ -19,6 +19,7 @@ function makeEditor() {
     activate: vi.fn(),
     deactivate: vi.fn(),
     isActive: vi.fn(() => false),
+    revertEdit: vi.fn(() => true),
   };
 }
 
@@ -110,6 +111,27 @@ describe('NotesPanel scope grouping', () => {
 
     expect(handler).toHaveBeenCalledWith({ type: 'annotation:select', id: annotation.id });
     expect(observer.activateScope).not.toHaveBeenCalled();
+
+    panel.destroy();
+  });
+
+  test('discarding a text edit reverts the preview before deleting the edit record', () => {
+    const editor = makeEditor();
+    const edit = editManager.commit({
+      element: makeDescriptor({ cssSelector: 'p.intro' }),
+      oldHtml: 'Original',
+      newHtml: 'Edited',
+      oldText: 'Original',
+      newText: 'Edited',
+    });
+
+    const panel = createNotesPanel(container, bus, manager, makePicker(), editor, editManager);
+    const deleteBtn = container.querySelector(`[data-edit-id="${edit.id}"] .dn-note-delete`) as HTMLButtonElement;
+
+    deleteBtn.click();
+
+    expect(editor.revertEdit).toHaveBeenCalledWith(edit);
+    expect(editManager.getById(edit.id)).toBeUndefined();
 
     panel.destroy();
   });

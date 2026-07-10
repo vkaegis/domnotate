@@ -48,7 +48,7 @@ export function createNotesPanel(
   bus: EventBus,
   manager: AnnotationManager,
   picker: { activate(): void; deactivate(): void; isActive(): boolean },
-  editor: { activate(): void; deactivate(): void; isActive(): boolean },
+  editor: { activate(): void; deactivate(): void; isActive(): boolean; revertEdit(edit: TextEdit): boolean },
   editManager: EditManager,
   slideObserver?: SlideObserver,
 ): { destroy(): void } {
@@ -584,6 +584,7 @@ export function createNotesPanel(
     deleteBtn.innerHTML = ICONS.trash;
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      editor.revertEdit(edit);
       editManager.delete(edit.id);
     });
 

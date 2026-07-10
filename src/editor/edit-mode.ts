@@ -316,5 +316,21 @@ export function createTextEditor(): TextEditor {
     }
   }
 
-  return { init, activate, deactivate, isActive, isEditing, applyEdits };
+  function revertEdit(edit: TextEdit): boolean {
+    const doc = getIframeDoc();
+    if (!doc) return false;
+
+    const match = reanchorAnnotation(
+      edit.element,
+      doc,
+      edit.viewScope ? { viewScope: edit.viewScope } : undefined,
+    );
+    if (!match?.element) return false;
+
+    match.element.innerHTML = edit.oldHtml;
+    (match.element as HTMLElement).classList?.remove('dn-edited');
+    return true;
+  }
+
+  return { init, activate, deactivate, isActive, isEditing, applyEdits, revertEdit };
 }
