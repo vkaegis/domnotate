@@ -1,5 +1,10 @@
-import { describe, test, expect } from 'vitest';
-import { syncAnnotationTextPreviews } from '@/editor/text-preview-sync';
+import { describe, test, expect, vi } from 'vitest';
+import {
+  commitTextEditWithSyncedPreviews,
+  syncAnnotationTextPreviews,
+} from '@/editor/text-preview-sync';
+import { createEditManager } from '@/editor/edit-manager';
+import { createEventBus } from '@/events';
 import { makeAnnotation, makeDescriptor } from '@/__tests__/fixtures';
 
 describe('syncAnnotationTextPreviews', () => {
@@ -28,5 +33,36 @@ describe('syncAnnotationTextPreviews', () => {
   test('returns 0 when no annotation matches', () => {
     const ann = makeAnnotation({ element: makeDescriptor({ cssSelector: 'p.a' }) });
     expect(syncAnnotationTextPreviews([ann], 'p.z', 'nope')).toBe(0);
+  });
+
+  test('updates previews before edit events trigger autosave listeners', () => {
+    const bus = createEventBus();
+    const editManager = createEditManager();
+    editManager.init(bus);
+
+    const descriptor = makeDescriptor({
+      cssSelector: 'p.intro',
+      textPreview: 'Old text',
+    });
+    const annotations = [
+      makeAnnotation({
+        element: makeDescriptor({
+          cssSelector: 'p.intro',
+          textPreview: 'Old text',
+        }),
+      }),
+    ];
+    const autosave = vi.fn(() => annotations[0].element.textPreview);
+    bus.on('edit:create', autosave);
+
+    commitTextEditWithSyncedPreviews(editManager, annotations, {
+      element: descriptor,
+      oldHtml: 'Old text',
+      newHtml: 'New text',
+      oldText: 'Old text',
+      newText: 'New text',
+    });
+
+    expect(autosave).toHaveReturnedWith('New text');
   });
 });

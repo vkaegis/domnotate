@@ -4,7 +4,7 @@ import { createContentLoader } from '@/loader/loader';
 import { createElementPicker } from '@/picker/picker';
 import { createTextEditor } from '@/editor/edit-mode';
 import { createEditManager } from '@/editor/edit-manager';
-import { syncAnnotationTextPreviews } from '@/editor/text-preview-sync';
+import { commitTextEditWithSyncedPreviews } from '@/editor/text-preview-sync';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
 import { createNotePopover } from '@/popover/popover';
@@ -228,7 +228,7 @@ bus.on('edit:commit', (e) => {
     }
   }
 
-  editManager.commit({
+  commitTextEditWithSyncedPreviews(editManager, manager.getAll(), {
     element: e.element,
     oldHtml: e.oldHtml,
     newHtml: e.newHtml,
@@ -236,10 +236,6 @@ bus.on('edit:commit', (e) => {
     newText: e.newText,
     ...(scopeOptions?.viewScope && { viewScope: scopeOptions.viewScope }),
   });
-
-  // Editing an element's text invalidates the textPreview-based reanchor
-  // fallback (reanchor.ts strategy 3) for any annotation on the same element.
-  syncAnnotationTextPreviews(manager.getAll(), e.element.cssSelector, e.newText);
 });
 
 // ============================================================

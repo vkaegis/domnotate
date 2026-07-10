@@ -8,7 +8,13 @@
 // stale can break re-anchoring when the CSS selector and XPath both miss.
 // After an edit commits we refresh matching annotations' previews in place.
 
-import type { Annotation } from '@/types/core';
+import type {
+  Annotation,
+  EditManager,
+  ElementDescriptor,
+  TextEdit,
+  ViewScope,
+} from '@/types/core';
 
 const PREVIEW_LENGTH = 80;
 
@@ -31,4 +37,22 @@ export function syncAnnotationTextPreviews(
     }
   }
   return updated;
+}
+
+interface CommitTextEditInput {
+  element: ElementDescriptor;
+  oldHtml: string;
+  newHtml: string;
+  oldText: string;
+  newText: string;
+  viewScope?: ViewScope;
+}
+
+export function commitTextEditWithSyncedPreviews(
+  editManager: EditManager,
+  annotations: Annotation[],
+  input: CommitTextEditInput,
+): TextEdit | null {
+  syncAnnotationTextPreviews(annotations, input.element.cssSelector, input.newText);
+  return editManager.commit(input);
 }
