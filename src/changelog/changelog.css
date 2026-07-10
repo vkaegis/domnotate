@@ -1,0 +1,153 @@
+/* ============================================================
+   Domnotate — Changelog
+   ============================================================ */
+
+/* --- Trigger --- */
+
+.dn-changelog-trigger {
+  align-self: flex-start;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dn-text-warm-strong);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--dn-border-warm);
+  cursor: pointer;
+  transition: color var(--dn-transition-fast), border-color var(--dn-transition-fast);
+}
+
+.dn-changelog-trigger:hover {
+  color: var(--dn-accent);
+  border-color: var(--dn-accent);
+}
+
+/* --- Backdrop --- */
+
+.dn-changelog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--dn-z-popover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 1;
+  transition: opacity var(--dn-transition-normal);
+}
+
+.dn-changelog-backdrop--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- Panel --- */
+
+.dn-changelog-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  background: var(--dn-bg-elevated);
+  border: 1px solid var(--dn-border);
+  border-radius: var(--dn-radius-lg);
+  box-shadow: var(--dn-shadow-md);
+  overflow: hidden;
+}
+
+.dn-changelog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--dn-border);
+}
+
+.dn-changelog-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--dn-text-primary);
+}
+
+.dn-changelog-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--dn-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--dn-radius-sm);
+  cursor: pointer;
+  transition: color var(--dn-transition-fast), background var(--dn-transition-fast);
+}
+
+.dn-changelog-close:hover {
+  color: var(--dn-text-primary);
+  background: var(--dn-bg-hover);
+}
+
+/* --- Body --- */
+
+.dn-changelog-body {
+  padding: 8px 24px 24px;
+  overflow-y: auto;
+}
+
+.dn-changelog-entry {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--dn-border);
+}
+
+.dn-changelog-entry:last-child {
+  border-bottom: none;
+}
+
+.dn-changelog-entry__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.dn-changelog-entry__date {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dn-text-muted);
+}
+
+.dn-changelog-entry__pr {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dn-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dn-transition-fast);
+}
+
+.dn-changelog-entry__pr:hover {
+  border-color: var(--dn-accent);
+}
+
+.dn-changelog-entry__title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--dn-text-primary);
+}
+
+.dn-changelog-entry__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--dn-text-secondary);
+}

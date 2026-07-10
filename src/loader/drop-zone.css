@@ -80,6 +80,10 @@
   color: var(--dn-text-muted);
 }
 
+.dn-landing__footer {
+  margin-top: 48px;
+}
+
 /* --- Right: Drop zone panel --- */
 
 .dn-landing__drop {

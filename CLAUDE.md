@@ -24,6 +24,18 @@ Vanilla TypeScript annotation tool deployed on Cloudflare Pages.
 - Run `npm run test:ci` before committing — all tests must pass
 - Do not mock internal modules; test real implementations. Only mock at system boundaries (e.g., IndexedDB, DOM APIs not available in happy-dom)
 
+## Changelog
+
+The changelog is shown to users via the "What's new" link on the landing page. Entries live in `src/changelog/changelog-data.ts` (`CHANGELOG`, newest first) and are rendered by `src/changelog/changelog.ts`.
+
+### Rules
+
+- When you raise a PR that changes something a user can see or do, add a `CHANGELOG` entry in the same PR. Insert it at the top of the array (newest first).
+- One entry per PR. Set `pr` to the PR number so the entry links back to it, and `date` to the merge date (e.g. `"22 May 2026"`).
+- Skip entries for bug-fix, chore, and infrastructure PRs. Every entry must be a capability a user gets.
+- Write for the user, not the codebase. The `title` names the capability ("Load a page by its URL"), and the `body` describes what you can now do in plain, declarative prose. No internal module names, refactors, or implementation detail.
+- No em dashes — a test in `src/changelog/__tests__/changelog.test.ts` enforces this. Use periods or commas.
+
 ## Architecture
 
 - `src/types/core.ts` — all shared types and interfaces
