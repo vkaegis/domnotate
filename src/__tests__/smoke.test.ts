@@ -22,6 +22,8 @@ import {
 } from '@/diagnostics/scope-diagnostics';
 import { scopeAnnotationToCurrentPanel } from '@/diagnostics/scope-override';
 import { isDiagnosticsEnabled, mountDiagnosticsPanel } from '@/diagnostics/diagnostics-panel';
+import { createChangelog } from '@/changelog/changelog';
+import { CHANGELOG } from '@/changelog/changelog-data';
 
 describe('smoke: core module exports', () => {
   test('all core modules export expected functions', () => {
@@ -53,5 +55,7 @@ describe('smoke: core module exports', () => {
     expect(typeof scopeAnnotationToCurrentPanel).toBe('function');
     expect(typeof isDiagnosticsEnabled).toBe('function');
     expect(typeof mountDiagnosticsPanel).toBe('function');
+    expect(typeof createChangelog).toBe('function');
+    expect(Array.isArray(CHANGELOG)).toBe(true);
   });
 });
