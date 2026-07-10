@@ -299,6 +299,10 @@ export function createTextEditor(): TextEditor {
     return field !== null;
   }
 
+  function commitPending(): void {
+    commitField();
+  }
+
   function applyEdits(edits: TextEdit[]): void {
     const doc = getIframeDoc();
     if (!doc) return;
@@ -332,5 +336,5 @@ export function createTextEditor(): TextEditor {
     return true;
   }
 
-  return { init, activate, deactivate, isActive, isEditing, applyEdits, revertEdit };
+  return { init, activate, deactivate, isActive, isEditing, commitPending, applyEdits, revertEdit };
 }

@@ -51,8 +51,16 @@ const notePopover = createNotePopover();
 const formatter = createOutputFormatter();
 const store = createSessionStore();
 const slideObserver = createSlideObserver();
+
+function commitPendingTextEdit(): void {
+  if (editor.isEditing()) {
+    editor.commitPending();
+  }
+}
+
 // Clear annotations before sidebar listeners re-render (event ordering matters)
 bus.on('session:cleared', () => {
+  commitPendingTextEdit();
   manager.clearAll();
   // Revert live edit previews (restores original DOM text + drops dn-edited
   // markers) before dropping the records, so Clear can't leave modified page
@@ -297,6 +305,7 @@ bus.on('annotation:select', (e) => {
 
 bus.on('output:copy', (e) => {
   if (!currentSession) return;
+  commitPendingTextEdit();
   currentSession.annotations = manager.getAll();
   currentSession.edits = editManager.getAll();
   let text: string;
@@ -312,6 +321,7 @@ bus.on('output:copy', (e) => {
 
 bus.on('output:download', (e) => {
   if (!currentSession) return;
+  commitPendingTextEdit();
   currentSession.annotations = manager.getAll();
   currentSession.edits = editManager.getAll();
   if (e.format === 'json') {
@@ -332,6 +342,7 @@ bus.on('output:download', (e) => {
 bus.on('share:publish', async () => {
   if (!currentSession) return;
 
+  commitPendingTextEdit();
   bus.emit({ type: 'share:publishing' });
   currentSession.annotations = manager.getAll();
   currentSession.edits = editManager.getAll();

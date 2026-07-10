@@ -208,6 +208,8 @@ export interface TextEditor {
   isActive(): boolean;
   /** Whether an element is currently open for editing. */
   isEditing(): boolean;
+  /** Commit the open field without disarming edit mode. */
+  commitPending(): void;
   /** Re-apply committed edits to freshly (re)loaded content as a preview. */
   applyEdits(edits: TextEdit[]): void;
   /** Restore a committed edit's original HTML preview in the live document. */

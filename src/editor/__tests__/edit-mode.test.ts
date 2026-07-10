@@ -125,6 +125,27 @@ describe('TextEditor', () => {
     expect(editor.isEditing()).toBe(false);
   });
 
+  test('commitPending commits the open field without disarming edit mode', () => {
+    ({ doc, editor, bus } = setup('<p class="intro">Hello world</p>'));
+    const committed = vi.fn();
+    const deactivated = vi.fn();
+    bus.on('edit:commit', committed);
+    bus.on('edit:deactivate', deactivated);
+    editor.activate();
+
+    const p = doc.querySelector('p')!;
+    clickEl(p);
+    p.innerHTML = 'Edited before export';
+    editor.commitPending();
+
+    expect(committed).toHaveBeenCalledOnce();
+    expect(committed.mock.calls[0][0].newText).toBe('Edited before export');
+    expect(deactivated).not.toHaveBeenCalled();
+    expect(editor.isActive()).toBe(true);
+    expect(editor.isEditing()).toBe(false);
+    expect(p.hasAttribute('contenteditable')).toBe(false);
+  });
+
   test('clicking a non-text region does not open a field', () => {
     ({ doc, editor } = setup('<hr class="rule"><p class="intro">Hello world</p>'));
     editor.activate();
