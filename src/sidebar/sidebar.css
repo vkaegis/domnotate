@@ -114,7 +114,13 @@
 
 .dn-action-btn--dimmed {
   opacity: 0.35;
-  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* Dimmed buttons stay hoverable so their tooltip (the "why") shows, but they
+   should not look interactive. */
+.dn-action-btn--dimmed:hover {
+  background: transparent;
 }
 
 .dn-action-btn--copied {
@@ -207,6 +213,57 @@
 
 .dn-action-btn__icon svg.dn-icon-enter {
   animation: dn-icon-pop 250ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* --- Overflow menu --- */
+
+.dn-overflow {
+  position: relative;
+  display: flex;
+  flex: 1 1 0%;
+}
+
+.dn-overflow__trigger--open {
+  background: var(--dn-bg-hover);
+}
+
+.dn-overflow__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: var(--dn-z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 168px;
+  padding: 6px;
+  border-radius: var(--dn-radius-md);
+  background: var(--dn-bg-elevated);
+  border: 1px solid var(--dn-border);
+  box-shadow: var(--dn-shadow-md);
+}
+
+.dn-overflow__menu[hidden] {
+  display: none;
+}
+
+.dn-overflow__menu .dn-action-btn {
+  flex: 0 0 auto;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.dn-overflow__menu .dn-action-btn__label {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.dn-overflow__menu .dn-action-btn__shortcut {
+  position: static;
+  margin-left: auto;
 }
 
 /* --- Notes list --- */
