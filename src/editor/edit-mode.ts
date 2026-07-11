@@ -11,7 +11,7 @@
 //
 // Mode is sticky: it stays armed across edits until toggled off or Escape.
 
-import type { ElementDescriptor, EventBus, TextEdit, TextEditor } from '@/types/core';
+import type { ElementDescriptor, EventBus, TextEdit, TextEditor, ViewScope } from '@/types/core';
 import { generateDescriptor } from '@/picker/selector-engine';
 import { createHighlighter, type Highlighter } from '@/picker/highlight';
 import { reanchorAnnotation } from '@/output/reanchor';
@@ -58,6 +58,10 @@ export function createTextEditor(): TextEditor {
   let highlighter: Highlighter;
   let active = false;
   let field: ActiveField | null = null;
+  // Resolves the logical view scope from the *actual* edited node, so scoped
+  // content with a repeated selector stamps the correct scope on the edit
+  // rather than main.ts re-querying the selector and taking the first match.
+  let resolveScope: ((el: Element) => ViewScope | undefined) | undefined;
 
   let onMouseMove: ((e: MouseEvent) => void) | null = null;
   let onClick: ((e: MouseEvent) => void) | null = null;
@@ -145,6 +149,7 @@ export function createTextEditor(): TextEditor {
     if (!changed) return;
 
     el.classList.add('dn-edited');
+    const viewScope = resolveScope?.(el);
     bus.emit({
       type: 'edit:commit',
       element: descriptor,
@@ -152,6 +157,7 @@ export function createTextEditor(): TextEditor {
       newHtml,
       oldText: originalText,
       newText,
+      ...(viewScope && { viewScope }),
     });
   }
 
@@ -199,10 +205,16 @@ export function createTextEditor(): TextEditor {
     (doc.head ?? doc.documentElement).appendChild(style);
   }
 
-  function init(iframe: HTMLIFrameElement, overlay: HTMLElement, eventBus: EventBus): void {
+  function init(
+    iframe: HTMLIFrameElement,
+    overlay: HTMLElement,
+    eventBus: EventBus,
+    scopeResolver?: (el: Element) => ViewScope | undefined,
+  ): void {
     iframeEl = iframe;
     overlayEl = overlay;
     bus = eventBus;
+    resolveScope = scopeResolver;
     highlighter = createHighlighter(overlayEl, iframeEl);
     const doc = getIframeDoc();
     if (doc) injectStyles(doc);

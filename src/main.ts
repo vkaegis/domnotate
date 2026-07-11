@@ -144,7 +144,9 @@ bus.on('content:loaded', (e) => {
       };
 
   picker.init(iframeEl, overlayEl, bus);
-  editor.init(iframeEl, overlayEl, bus);
+  editor.init(iframeEl, overlayEl, bus, (el) =>
+    createScopedAnnotationOptions(slideObserver, el)?.viewScope,
+  );
   slideObserver.init(iframeEl, bus);
   pinRenderer.init(overlayEl, iframeEl, bus, manager, slideObserver);
   notePopover.init(overlayEl, iframeEl, bus, manager);
@@ -222,29 +224,18 @@ bus.on('picker:select', (e) => {
 // ============================================================
 
 bus.on('edit:commit', (e) => {
-  const iframeDoc = iframeEl.contentDocument;
-
-  // Resolve the logical view scope for the edited element (mirrors picker:select).
-  let scopeOptions: ReturnType<typeof createScopedAnnotationOptions>;
-  if (iframeDoc) {
-    try {
-      const el = iframeDoc.querySelector(e.element.cssSelector);
-      if (el) scopeOptions = createScopedAnnotationOptions(slideObserver, el);
-    } catch {
-      // Selector may be invalid — ignore
-    }
-  }
-
+  // The scope is resolved from the actual edited node in edit-mode and arrives
+  // on the event — no need to re-query the (possibly ambiguous) selector here.
   const committedEdit = commitTextEditWithSyncedPreviews(editManager, manager.getAll(), {
     element: e.element,
     oldHtml: e.oldHtml,
     newHtml: e.newHtml,
     oldText: e.oldText,
     newText: e.newText,
-    ...(scopeOptions?.viewScope && { viewScope: scopeOptions.viewScope }),
+    ...(e.viewScope && { viewScope: e.viewScope }),
   });
   if (!committedEdit) {
-    editor.clearEditedMarker(e.element, scopeOptions?.viewScope);
+    editor.clearEditedMarker(e.element, e.viewScope);
   }
 });
 

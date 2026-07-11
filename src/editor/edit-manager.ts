@@ -3,12 +3,14 @@
 // ============================================================
 //
 // CRUD for in-place text edits (agent instructions). Mirrors the annotation
-// manager: an in-memory Map keyed by id, mutations emit typed bus events that
-// drive the sidebar re-render and auto-save. Edits are upserted by element
-// selector so re-editing the same element updates one record rather than
-// piling up duplicates.
+// manager: mutations emit typed bus events that drive the sidebar re-render and
+// auto-save. Edits are upserted by *target identity* — the (viewScope,
+// cssSelector) pair (see edit-identity.ts) — so re-editing the same element
+// updates one record rather than piling up duplicates, while the same selector
+// in a different scope (tab/slide) is a distinct target.
 
 import type { EditManager, ElementDescriptor, EventBus, TextEdit, ViewScope } from '@/types/core';
+import { editTargetKey } from '@/editor/edit-identity';
 
 interface CommitInput {
   element: ElementDescriptor;
@@ -20,6 +22,7 @@ interface CommitInput {
 }
 
 export function createEditManager(): EditManager {
+  // Keyed by target identity (viewScope + cssSelector), not by edit id.
   const store = new Map<string, TextEdit>();
   let bus: EventBus | null = null;
 
@@ -32,9 +35,10 @@ export function createEditManager(): EditManager {
     return new Date().toISOString();
   }
 
-  function findBySelector(selector: string): TextEdit | undefined {
-    for (const edit of store.values()) {
-      if (edit.element.cssSelector === selector) return edit;
+  /** Find the target key of a stored edit by its id (for id-based CRUD). */
+  function keyOfId(id: string): string | undefined {
+    for (const [key, edit] of store) {
+      if (edit.id === id) return key;
     }
     return undefined;
   }
@@ -49,21 +53,23 @@ export function createEditManager(): EditManager {
     },
 
     getById(id: string): TextEdit | undefined {
-      return store.get(id);
+      const key = keyOfId(id);
+      return key ? store.get(key) : undefined;
     },
 
     commit(input: CommitInput): TextEdit | null {
       const b = requireBus();
       const timestamp = now();
+      const key = editTargetKey(input.element, input.viewScope);
 
-      // Upsert: re-editing the same element updates the existing record so the
+      // Upsert: re-editing the same target updates the existing record so the
       // original (oldHtml/oldText) is preserved as the true "before" state.
-      const existing = findBySelector(input.element.cssSelector);
+      const existing = store.get(key);
       if (existing) {
         // Editing back to the original leaves no real change — drop the record
         // entirely rather than persisting a no-op "Original -> Original" edit.
         if (input.newHtml === existing.oldHtml && input.newText === existing.oldText) {
-          store.delete(existing.id);
+          store.delete(key);
           b.emit({ type: 'edit:delete', id: existing.id });
           return null;
         }
@@ -88,23 +94,24 @@ export function createEditManager(): EditManager {
         updatedAt: timestamp,
       };
 
-      store.set(edit.id, edit);
+      store.set(key, edit);
       b.emit({ type: 'edit:create', edit });
       return edit;
     },
 
     delete(id: string): void {
       const b = requireBus();
-      if (!store.has(id)) {
+      const key = keyOfId(id);
+      if (!key) {
         throw new Error(`Edit not found: ${id}`);
       }
-      store.delete(id);
+      store.delete(key);
       b.emit({ type: 'edit:delete', id });
     },
 
     loadEdits(edits: TextEdit[]): void {
       for (const edit of edits) {
-        store.set(edit.id, edit);
+        store.set(editTargetKey(edit.element, edit.viewScope), edit);
       }
     },
 

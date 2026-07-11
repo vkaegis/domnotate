@@ -199,7 +199,13 @@ export interface ElementPicker {
 }
 
 export interface TextEditor {
-  init(iframeEl: HTMLIFrameElement, overlayEl: HTMLElement, bus: EventBus): void;
+  init(
+    iframeEl: HTMLIFrameElement,
+    overlayEl: HTMLElement,
+    bus: EventBus,
+    /** Resolves the view scope from the actual edited node at commit time. */
+    resolveScope?: (el: Element) => ViewScope | undefined,
+  ): void;
   /** Arm edit mode: hovering highlights text, clicking makes an element editable. */
   activate(): void;
   /** Commit the open field (if any) and disarm edit mode. */

@@ -4,6 +4,7 @@ import { createEventBus } from '@/events';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createTextEditor } from '@/editor/edit-mode';
 import { createEditManager } from '@/editor/edit-manager';
+import { editTargetKey } from '@/editor/edit-identity';
 import { syncAnnotationTextPreviews } from '@/editor/text-preview-sync';
 import { createOutputFormatter } from '@/output/formatter';
 import { serializeSession, deserializeSession, validateSession } from '@/output/json-io';
@@ -32,6 +33,7 @@ describe('smoke: core module exports', () => {
     expect(typeof createAnnotationManager).toBe('function');
     expect(typeof createTextEditor).toBe('function');
     expect(typeof createEditManager).toBe('function');
+    expect(typeof editTargetKey).toBe('function');
     expect(typeof syncAnnotationTextPreviews).toBe('function');
     expect(typeof createOutputFormatter).toBe('function');
     expect(typeof serializeSession).toBe('function');

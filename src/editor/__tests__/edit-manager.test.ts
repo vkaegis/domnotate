@@ -98,6 +98,44 @@ describe('EditManager', () => {
     expect(edit.viewScope?.id).toBe('t1');
   });
 
+  test('same selector in different scopes are kept as distinct edits', () => {
+    // Regression: scoped content (tabs/slides) can carry the same selector in
+    // each scope; both edits must survive rather than overwrite one another.
+    const tab1 = manager.commit(
+      commitInput({
+        newText: 'Tab 1 change',
+        newHtml: 'Tab 1 change',
+        viewScope: { kind: 'tabpanel', id: 'tab-1', index: 0, selector: '#tab-1' },
+      }),
+    )!;
+    const tab2 = manager.commit(
+      commitInput({
+        newText: 'Tab 2 change',
+        newHtml: 'Tab 2 change',
+        viewScope: { kind: 'tabpanel', id: 'tab-2', index: 1, selector: '#tab-2' },
+      }),
+    )!;
+
+    expect(tab1.id).not.toBe(tab2.id);
+    const all = manager.getAll();
+    expect(all).toHaveLength(2);
+    expect(all.map((e) => e.newText).sort()).toEqual(['Tab 1 change', 'Tab 2 change']);
+    expect(all.map((e) => e.viewScope?.id).sort()).toEqual(['tab-1', 'tab-2']);
+  });
+
+  test('re-editing the same scoped target upserts in place', () => {
+    const scope = { kind: 'slide' as const, id: 's1', index: 0, selector: '#s1' };
+    const first = manager.commit(
+      commitInput({ newText: 'First', newHtml: 'First', viewScope: scope }),
+    )!;
+    const second = manager.commit(
+      commitInput({ newText: 'Second', newHtml: 'Second', viewScope: scope }),
+    )!;
+    expect(second.id).toBe(first.id);
+    expect(manager.getAll()).toHaveLength(1);
+    expect(second.oldText).toBe('Hello world');
+  });
+
   test('delete removes the edit and emits edit:delete', () => {
     const handler = vi.fn();
     bus.on('edit:delete', handler);

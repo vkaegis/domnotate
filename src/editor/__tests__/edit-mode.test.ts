@@ -3,7 +3,7 @@ import { createTextEditor } from '@/editor/edit-mode';
 import { createEditManager } from '@/editor/edit-manager';
 import { createEventBus } from '@/events';
 import { makeFakeIframe, makeDescriptor } from '@/__tests__/fixtures';
-import type { EventBus, TextEditor, TextEdit } from '@/types/core';
+import type { EventBus, TextEditor, TextEdit, ViewScope } from '@/types/core';
 
 function setup(bodyHtml: string) {
   const doc = document.implementation.createHTMLDocument('edit-test');
@@ -93,6 +93,39 @@ describe('TextEditor', () => {
     expect(payload.newHtml).toBe('Goodbye <em>world</em>');
     // contentEditable is removed after commit.
     expect(p.hasAttribute('contenteditable')).toBe(false);
+  });
+
+  test('edit:commit carries the view scope resolved from the edited node', () => {
+    // Two panels share the selector `p.t`; the scope must come from the actual
+    // clicked node, not a document-wide first-match of the selector.
+    const scopedDoc = document.implementation.createHTMLDocument('scoped');
+    scopedDoc.body.innerHTML =
+      '<div data-tab="tab-1"><p class="t">One</p></div>' +
+      '<div data-tab="tab-2"><p class="t">Two</p></div>';
+    const iframe = makeFakeIframe(scopedDoc);
+    const overlay = document.createElement('div');
+    document.body.appendChild(overlay);
+    const scopedBus = createEventBus();
+    const scopedEditor = createTextEditor();
+    const resolveScope = (el: Element): ViewScope | undefined => {
+      const host = el.closest('[data-tab]');
+      if (!host) return undefined;
+      const id = host.getAttribute('data-tab')!;
+      return { kind: 'tabpanel', id, index: 0, selector: `[data-tab="${id}"]` };
+    };
+    scopedEditor.init(iframe, overlay, scopedBus, resolveScope);
+
+    const committed = vi.fn();
+    scopedBus.on('edit:commit', committed);
+    scopedEditor.activate();
+
+    const secondPanelP = scopedDoc.querySelectorAll('p.t')[1] as HTMLElement;
+    clickEl(secondPanelP);
+    secondPanelP.innerHTML = 'Two edited';
+    scopedEditor.commitPending();
+
+    expect(committed).toHaveBeenCalledOnce();
+    expect(committed.mock.calls[0][0].viewScope?.id).toBe('tab-2');
   });
 
   test('no change → no edit:commit', () => {
