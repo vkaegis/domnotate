@@ -20,6 +20,7 @@ Domnotate has a browser application and Cloudflare Pages Functions under `functi
 - Local sessions and annotations are stored in browser IndexedDB.
 - Creating a shared link uploads the captured HTML, annotations, and text edits to the configured object-storage backend.
 - Anyone with a share link can view and edit its contents. Share identifiers are the authorization boundary; there are no user accounts or per-user permissions.
+- New anonymous shares require server-validated abuse verification. This adds friction to automated creation but is not a hard spending cap; operators should also configure rate limits, lifecycle rules, and usage alerts.
 - The outbound URL endpoint fetches public web pages on behalf of users so the browser can load cross-origin HTML.
 
 Captured pages may contain sensitive source-document content. Treat a share link as a bearer credential, do not publish content that should not be uploaded, and remove shared objects from the configured storage backend if a link is disclosed unintentionally.

@@ -39,6 +39,15 @@ npm run dev  # opens on http://localhost:8000
 
 `npm run build` produces a static `dist/` directory. Local-file annotation works on any static host. Loading URLs and creating shared links require compatible server endpoints; this repo includes implementations under `functions/`.
 
+Anonymous share creation uses Cloudflare Turnstile. Configure:
+
+- `VITE_TURNSTILE_SITE_KEY` as public build configuration for the browser.
+- `TURNSTILE_SECRET_KEY` as an encrypted Pages secret; never expose it to the browser or commit it.
+- `TURNSTILE_EXPECTED_HOSTNAME` as the exact production hostname accepted during verification.
+- `SHARING_ENABLED=false` when share creation and updates need to be stopped immediately. Reading existing links remains available.
+
+See `.env.example` and `.dev.vars.example` for placeholder-only local configuration. Turnstile verification is required only when creating a new share; copying an existing share link does not run another challenge.
+
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md).

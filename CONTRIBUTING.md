@@ -21,6 +21,7 @@ Thanks for considering a contribution. This is a personal project, so a few grou
 - Use narrowly scoped API tokens for deployment and store them in the deployment platform's secret store or an ignored local environment file.
 - Keep real values out of example environment files. Examples must contain placeholders only.
 - Put local Pages Functions secrets in `.dev.vars`; the file and its variants are ignored. A tracked `.dev.vars.example`, if added, must contain variable names and placeholders only.
+- Turnstile's `VITE_TURNSTILE_SITE_KEY` is public browser configuration. Its `TURNSTILE_SECRET_KEY` is a credential and must exist only in `.dev.vars` or the deployment platform's encrypted secret store.
 
 ## Response times
 

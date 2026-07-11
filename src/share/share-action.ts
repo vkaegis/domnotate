@@ -3,7 +3,8 @@ import type { PublishShareResult } from '@/share/share-client';
 
 interface PublishOrCopyShareOptions {
   origin: string;
-  publishShare: (session: AnnotationSession) => Promise<PublishShareResult>;
+  getVerificationToken: () => Promise<string>;
+  publishShare: (session: AnnotationSession, verificationToken: string) => Promise<PublishShareResult>;
   copyToClipboard: (text: string) => Promise<boolean>;
   cacheSession?: (session: AnnotationSession) => Promise<void>;
 }
@@ -31,7 +32,8 @@ export async function publishOrCopyShare(
     return { id: session.shareId, url, published: false };
   }
 
-  const { id } = await options.publishShare(session);
+  const verificationToken = await options.getVerificationToken();
+  const { id } = await options.publishShare(session, verificationToken);
   session.shareId = id;
   const url = getShareUrl(options.origin, id);
   await options.cacheSession?.(session);
