@@ -136,11 +136,11 @@ describe('NotesPanel scope grouping', () => {
     panel.destroy();
   });
 
-  test('discarding a text edit restores the pre-edit preview on annotations of the same element', () => {
+  test('discarding a text edit reverts the DOM and drops the record without touching annotation previews', () => {
     const editor = makeEditor();
     const selector = 'p.intro';
-    // An annotation on the edited element whose preview was synced to the
-    // post-edit text at edit:commit time.
+    // An annotation on the edited element. Its preview is derived from the live
+    // DOM at serialize time, so discard must not eagerly mutate it here.
     const annotation = manager.create(
       makeDescriptor({ cssSelector: selector, textPreview: 'Edited' }),
       { x: 0, y: 0 },
@@ -161,10 +161,11 @@ describe('NotesPanel scope grouping', () => {
 
     deleteBtn.click();
 
-    // Preview is reverted to the original text so the reanchor fallback still
-    // matches the DOM that revertEdit just restored.
-    expect(manager.getById(annotation.id)!.element.textPreview).toBe('Original');
+    // The live DOM is reverted and the record dropped; the annotation preview is
+    // left as-is (refreshed from the DOM only at export/share time).
+    expect(editor.revertEdit).toHaveBeenCalledWith(edit);
     expect(editManager.getById(edit.id)).toBeUndefined();
+    expect(manager.getById(annotation.id)!.element.textPreview).toBe('Edited');
 
     panel.destroy();
   });

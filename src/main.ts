@@ -4,7 +4,7 @@ import { createContentLoader } from '@/loader/loader';
 import { createElementPicker } from '@/picker/picker';
 import { createTextEditor } from '@/editor/edit-mode';
 import { createEditManager } from '@/editor/edit-manager';
-import { commitTextEditWithSyncedPreviews } from '@/editor/text-preview-sync';
+import { snapshotAnnotationPreviews } from '@/output/annotation-preview';
 import { hydrateSessionEdits } from '@/editor/session-edit-hydration';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
@@ -226,7 +226,7 @@ bus.on('picker:select', (e) => {
 bus.on('edit:commit', (e) => {
   // The scope is resolved from the actual edited node in edit-mode and arrives
   // on the event — no need to re-query the (possibly ambiguous) selector here.
-  const committedEdit = commitTextEditWithSyncedPreviews(editManager, manager.getAll(), {
+  const committedEdit = editManager.commit({
     element: e.element,
     oldHtml: e.oldHtml,
     newHtml: e.newHtml,
@@ -299,6 +299,7 @@ bus.on('annotation:select', (e) => {
 bus.on('output:copy', (e) => {
   if (!currentSession) return;
   commitPendingTextEdit();
+  snapshotAnnotationPreviews(manager.getAll(), iframeEl.contentDocument);
   currentSession.annotations = manager.getAll();
   currentSession.edits = editManager.getAll();
   let text: string;
@@ -315,6 +316,7 @@ bus.on('output:copy', (e) => {
 bus.on('output:download', (e) => {
   if (!currentSession) return;
   commitPendingTextEdit();
+  snapshotAnnotationPreviews(manager.getAll(), iframeEl.contentDocument);
   currentSession.annotations = manager.getAll();
   currentSession.edits = editManager.getAll();
   if (e.format === 'json') {
@@ -336,6 +338,7 @@ bus.on('share:publish', async () => {
   if (!currentSession) return;
 
   commitPendingTextEdit();
+  snapshotAnnotationPreviews(manager.getAll(), iframeEl.contentDocument);
   bus.emit({ type: 'share:publishing' });
   currentSession.annotations = manager.getAll();
   currentSession.edits = editManager.getAll();

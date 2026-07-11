@@ -12,7 +12,6 @@ import type {
   ViewScope,
 } from '@/types/core';
 import { fallbackScopeLabel, scopesMatch } from '@/annotations/view-scope';
-import { syncAnnotationTextPreviews } from '@/editor/text-preview-sync';
 
 // --- SVG Icons (14px viewBox 24) ---
 const ICONS = {
@@ -585,11 +584,10 @@ export function createNotesPanel(
     deleteBtn.innerHTML = ICONS.trash;
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      // Revert the live DOM to the pre-edit text and drop the record. Annotation
+      // previews are derived from the live DOM at serialize time, so no explicit
+      // preview restore is needed here.
       editor.revertEdit(edit);
-      // Restore the pre-edit preview on any annotation anchored to this element,
-      // undoing the sync done at edit:commit so the text-preview reanchor
-      // fallback still matches the now-reverted DOM.
-      syncAnnotationTextPreviews(manager.getAll(), edit.element.cssSelector, edit.oldText);
       editManager.delete(edit.id);
     });
 
