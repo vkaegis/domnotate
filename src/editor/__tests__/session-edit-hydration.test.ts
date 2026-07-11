@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { createEditManager } from '@/editor/edit-manager';
-import { hydrateSessionEdits } from '@/editor/session-edit-hydration';
+import { hydrateSessionEdits, revertSessionEdits } from '@/editor/session-edit-hydration';
 import { createEventBus } from '@/events';
 import { makeDescriptor, makeTextEdit } from '@/__tests__/fixtures';
 
@@ -34,5 +34,27 @@ describe('hydrateSessionEdits', () => {
 
     expect(editManager.getAll()).toEqual([edit]);
     expect(editor.applyEdits).toHaveBeenCalledWith([edit]);
+  });
+});
+
+describe('revertSessionEdits', () => {
+  test('reverts every live preview before emptying the store', () => {
+    const editManager = createEditManager();
+    editManager.init(createEventBus());
+    const first = editManager.commit({
+      element: makeDescriptor({ cssSelector: 'p.a' }),
+      oldHtml: 'A', newHtml: 'A edited', oldText: 'A', newText: 'A edited',
+    })!;
+    const second = editManager.commit({
+      element: makeDescriptor({ cssSelector: 'p.b' }),
+      oldHtml: 'B', newHtml: 'B edited', oldText: 'B', newText: 'B edited',
+    })!;
+    const editor = { revertEdit: vi.fn() };
+
+    revertSessionEdits(editManager, editor);
+
+    expect(editor.revertEdit).toHaveBeenCalledWith(first);
+    expect(editor.revertEdit).toHaveBeenCalledWith(second);
+    expect(editManager.getAll()).toEqual([]);
   });
 });

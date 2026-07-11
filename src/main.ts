@@ -5,7 +5,7 @@ import { createElementPicker } from '@/picker/picker';
 import { createTextEditor } from '@/editor/edit-mode';
 import { createEditManager } from '@/editor/edit-manager';
 import { snapshotAnnotationPreviews } from '@/output/annotation-preview';
-import { hydrateSessionEdits } from '@/editor/session-edit-hydration';
+import { hydrateSessionEdits, revertSessionEdits } from '@/editor/session-edit-hydration';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
 import { createNotePopover } from '@/popover/popover';
@@ -63,13 +63,7 @@ function commitPendingTextEdit(): void {
 bus.on('session:cleared', () => {
   commitPendingTextEdit();
   manager.clearAll();
-  // Revert live edit previews (restores original DOM text + drops dn-edited
-  // markers) before dropping the records, so Clear can't leave modified page
-  // content behind while export/share reports no edits.
-  for (const edit of editManager.getAll()) {
-    editor.revertEdit(edit);
-  }
-  editManager.clearAll();
+  revertSessionEdits(editManager, editor);
   pinRenderer.render();
 });
 

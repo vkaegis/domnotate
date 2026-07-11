@@ -331,52 +331,43 @@ export function createTextEditor(): TextEditor {
     commitField();
   }
 
-  function applyEdits(edits: TextEdit[]): void {
+  /**
+   * Paint the edit store's state onto the live DOM: reanchor the target within
+   * its view scope, optionally set its innerHTML (null = leave text alone), and
+   * toggle the `.dn-edited` marker. The single point where edit state is
+   * projected to the DOM, so the two can't drift. Returns false if the target
+   * can't be reanchored.
+   */
+  function project(
+    element: ElementDescriptor,
+    viewScope: ViewScope | undefined,
+    html: string | null,
+    edited: boolean,
+  ): boolean {
     const doc = getIframeDoc();
-    if (!doc) return;
+    if (!doc) return false;
 
+    const match = reanchorAnnotation(element, doc, viewScope ? { viewScope } : undefined);
+    const el = match?.element as HTMLElement | undefined;
+    if (!el) return false;
+
+    if (html !== null) el.innerHTML = html;
+    el.classList?.[edited ? 'add' : 'remove']('dn-edited');
+    return true;
+  }
+
+  function applyEdits(edits: TextEdit[]): void {
     for (const edit of edits) {
-      const match = reanchorAnnotation(
-        edit.element,
-        doc,
-        edit.viewScope ? { viewScope: edit.viewScope } : undefined,
-      );
-      if (match?.element) {
-        match.element.innerHTML = edit.newHtml;
-        (match.element as HTMLElement).classList?.add('dn-edited');
-      }
+      project(edit.element, edit.viewScope, edit.newHtml, true);
     }
   }
 
   function revertEdit(edit: TextEdit): boolean {
-    const doc = getIframeDoc();
-    if (!doc) return false;
-
-    const match = reanchorAnnotation(
-      edit.element,
-      doc,
-      edit.viewScope ? { viewScope: edit.viewScope } : undefined,
-    );
-    if (!match?.element) return false;
-
-    match.element.innerHTML = edit.oldHtml;
-    (match.element as HTMLElement).classList?.remove('dn-edited');
-    return true;
+    return project(edit.element, edit.viewScope, edit.oldHtml, false);
   }
 
-  function clearEditedMarker(element: ElementDescriptor, viewScope?: TextEdit['viewScope']): boolean {
-    const doc = getIframeDoc();
-    if (!doc) return false;
-
-    const match = reanchorAnnotation(
-      element,
-      doc,
-      viewScope ? { viewScope } : undefined,
-    );
-    if (!match?.element) return false;
-
-    (match.element as HTMLElement).classList?.remove('dn-edited');
-    return true;
+  function clearEditedMarker(element: ElementDescriptor, viewScope?: ViewScope): boolean {
+    return project(element, viewScope, null, false);
   }
 
   return {
