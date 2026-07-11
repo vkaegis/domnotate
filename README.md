@@ -15,7 +15,7 @@ Load an HTML page from a file or URL, then:
 - Copy or export the feedback as Markdown, JSON, or a compact format for coding agents.
 - Share the annotated page with a link.
 
-Exports include the element context coding agents need to act on the feedback. Annotations are stored locally in the browser; shared links upload the captured HTML and annotations to the configured share backend.
+Exports include the element context coding agents need to act on the feedback. Annotations are stored locally in the browser. Creating a shared link uploads the captured HTML, annotations, and text edits to the configured share backend. A capture can contain sensitive or private content from the source document, so review it before publishing and share the link only with people who should be able to access it.
 
 ## Sharing limitations
 

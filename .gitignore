@@ -5,6 +5,9 @@ coverage/
 .wrangler/
 .env
 .env.*
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 .context/
 .playwright-cli/
 *.log
