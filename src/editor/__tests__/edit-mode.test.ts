@@ -71,6 +71,25 @@ describe('TextEditor', () => {
     expect(editor.isEditing()).toBe(true);
   });
 
+  test('plain-text clicks inside the open field are not preventDefaulted so the caret can move', () => {
+    ({ doc, editor } = setup('<p class="intro">Hello <span class="w">world</span></p>'));
+    editor.activate();
+
+    const p = doc.querySelector('p')!;
+    const span = doc.querySelector('span.w')!;
+    const pageHandler = vi.fn();
+    span.addEventListener('click', pageHandler);
+
+    clickEl(p);
+    const event = dispatchClick(span);
+
+    // Page-level handlers are still suppressed (stopPropagation)...
+    expect(pageHandler).not.toHaveBeenCalled();
+    // ...but the default is left intact so the browser can reposition the caret.
+    expect(event.defaultPrevented).toBe(false);
+    expect(editor.isEditing()).toBe(true);
+  });
+
   test('committing a changed field emits edit:commit with rich old/new content', () => {
     ({ doc, editor, bus } = setup('<p class="intro">Hello <em>world</em></p>'));
     const committed = vi.fn();

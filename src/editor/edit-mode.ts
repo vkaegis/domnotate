@@ -258,10 +258,15 @@ export function createTextEditor(): TextEditor {
     onClick = (e: MouseEvent) => {
       const target = e.target as Element | null;
 
-      // Clicks inside the open field move the caret — leave them alone.
+      // Clicks inside the open field position the caret — let the browser do
+      // that. Always stop page-level handlers, but only prevent the default for
+      // interactive descendants (links, buttons, form controls) whose
+      // activation would disrupt editing; a plain-text click must be left alone.
       if (field && target && field.el.contains(target)) {
-        e.preventDefault();
         e.stopPropagation();
+        if (target.closest('a[href], button, input, textarea, select')) {
+          e.preventDefault();
+        }
         return;
       }
 
