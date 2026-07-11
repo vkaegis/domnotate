@@ -2,6 +2,10 @@ import { createEventBus } from '@/events';
 import type { AnnotationSession } from '@/types/core';
 import { createContentLoader } from '@/loader/loader';
 import { createElementPicker } from '@/picker/picker';
+import { createTextEditor } from '@/editor/edit-mode';
+import { createEditManager } from '@/editor/edit-manager';
+import { snapshotAnnotationPreviews } from '@/output/annotation-preview';
+import { hydrateSessionEdits, revertSessionEdits } from '@/editor/session-edit-hydration';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createPinRenderer } from '@/annotations/pin-renderer';
 import { createNotePopover } from '@/popover/popover';
@@ -40,19 +44,41 @@ const sidebarEl = document.getElementById('sidebar')!;
 // Create modules
 const loader = createContentLoader();
 const picker = createElementPicker();
+const editor = createTextEditor();
+const editManager = createEditManager();
 const manager = createAnnotationManager();
 const pinRenderer = createPinRenderer();
 const notePopover = createNotePopover();
 const formatter = createOutputFormatter();
 const store = createSessionStore();
 const slideObserver = createSlideObserver();
+
+function commitPendingTextEdit(): void {
+  if (editor.isEditing()) {
+    editor.commitPending();
+  }
+}
+
+// Sync the session's annotations/edits from the live managers, refreshing each
+// annotation preview from the DOM first. The single capture path for every
+// persisted copy — autosave, download, copy, share — so they can't drift on
+// preview freshness (the text-preview reanchor fallback needs post-edit text).
+function captureSessionState(): void {
+  if (!currentSession) return;
+  snapshotAnnotationPreviews(manager.getAll(), iframeEl.contentDocument);
+  currentSession.annotations = manager.getAll();
+  currentSession.edits = editManager.getAll();
+}
+
 // Clear annotations before sidebar listeners re-render (event ordering matters)
 bus.on('session:cleared', () => {
+  commitPendingTextEdit();
   manager.clearAll();
+  revertSessionEdits(editManager, editor);
   pinRenderer.render();
 });
 
-const sidebar = createSidebar(sidebarEl, bus, manager, picker, slideObserver);
+const sidebar = createSidebar(sidebarEl, bus, manager, picker, editor, editManager, slideObserver);
 const contentAreaEl = document.getElementById('content-area')!;
 const toast = createToast(contentAreaEl, bus);
 
@@ -74,6 +100,7 @@ bus.on('pins:visibility', (e) => { pinsVisible = e.visible; });
 const shortcuts = createKeyboardShortcuts({
   bus,
   picker,
+  editor,
   isContentLoaded: () => currentSession !== null,
   getSelectedAnnotationId: () => selectedAnnotationId,
   getPinsVisible: () => pinsVisible,
@@ -94,6 +121,7 @@ function debounce(fn: () => void, ms: number): () => void {
 
 loader.init(iframeEl, dropZoneEl, bus);
 manager.init(bus);
+editManager.init(bus);
 
 // ============================================================
 // Content loaded → init picker, pins, show sidebar
@@ -121,11 +149,15 @@ bus.on('content:loaded', (e) => {
       };
 
   picker.init(iframeEl, overlayEl, bus);
+  editor.init(iframeEl, overlayEl, bus, (el) =>
+    createScopedAnnotationOptions(slideObserver, el)?.viewScope,
+  );
   slideObserver.init(iframeEl, bus);
   pinRenderer.init(overlayEl, iframeEl, bus, manager, slideObserver);
   notePopover.init(overlayEl, iframeEl, bus, manager);
   shortcuts.attachIframe(iframeEl);
   sidebar.show();
+  hydrateSessionEdits(editManager, editor, currentSession.edits);
 
   if (sharedSession) {
     manager.clearAll();
@@ -140,6 +172,7 @@ bus.on('content:loaded', (e) => {
 
 bus.on('content:unloaded', () => {
   picker.deactivate();
+  editor.deactivate();
   notePopover.destroy();
   pinRenderer.destroy();
   slideObserver.destroy();
@@ -147,6 +180,7 @@ bus.on('content:unloaded', () => {
   sidebar.hide();
   loader.unload();
   manager.clearAll();
+  editManager.clearAll();
   currentSession = null;
 });
 
@@ -188,6 +222,26 @@ bus.on('picker:select', (e) => {
 
   // Single-shot: deactivate picker after one selection
   picker.deactivate();
+});
+
+// ============================================================
+// Text edit committed → resolve scope, record edit instruction
+// ============================================================
+
+bus.on('edit:commit', (e) => {
+  // The scope is resolved from the actual edited node in edit-mode and arrives
+  // on the event — no need to re-query the (possibly ambiguous) selector here.
+  const committedEdit = editManager.commit({
+    element: e.element,
+    oldHtml: e.oldHtml,
+    newHtml: e.newHtml,
+    oldText: e.oldText,
+    newText: e.newText,
+    ...(e.viewScope && { viewScope: e.viewScope }),
+  });
+  if (!committedEdit) {
+    editor.clearEditedMarker(e.element, e.viewScope);
+  }
 });
 
 // ============================================================
@@ -249,7 +303,8 @@ bus.on('annotation:select', (e) => {
 
 bus.on('output:copy', (e) => {
   if (!currentSession) return;
-  currentSession.annotations = manager.getAll();
+  commitPendingTextEdit();
+  captureSessionState();
   let text: string;
   if (e.format === 'compact') {
     text = formatter.toCompact(currentSession);
@@ -263,7 +318,8 @@ bus.on('output:copy', (e) => {
 
 bus.on('output:download', (e) => {
   if (!currentSession) return;
-  currentSession.annotations = manager.getAll();
+  commitPendingTextEdit();
+  captureSessionState();
   if (e.format === 'json') {
     const json = formatter.toJSON(currentSession);
     const name = currentSession.sourceName.replace(/\.[^.]+$/, '') || 'annotations';
@@ -282,8 +338,9 @@ bus.on('output:download', (e) => {
 bus.on('share:publish', async () => {
   if (!currentSession) return;
 
+  commitPendingTextEdit();
+  captureSessionState();
   bus.emit({ type: 'share:publishing' });
-  currentSession.annotations = manager.getAll();
   currentSession.updatedAt = new Date().toISOString();
 
   try {
@@ -306,7 +363,7 @@ bus.on('share:publish', async () => {
 
 async function persistCurrentSession(): Promise<void> {
   if (!currentSession) return;
-  currentSession.annotations = manager.getAll();
+  captureSessionState();
   currentSession.updatedAt = new Date().toISOString();
 
   try {
@@ -344,6 +401,9 @@ function persistAnnotationChange(mode: 'immediate' | 'text'): void {
 bus.on('annotation:create', () => persistAnnotationChange('immediate'));
 bus.on('annotation:update', () => persistAnnotationChange('text'));
 bus.on('annotation:delete', () => persistAnnotationChange('immediate'));
+bus.on('edit:create', () => persistAnnotationChange('immediate'));
+bus.on('edit:update', () => persistAnnotationChange('text'));
+bus.on('edit:delete', () => persistAnnotationChange('immediate'));
 
 // ============================================================
 // Session cleared — auto-save cleared session
@@ -352,6 +412,7 @@ bus.on('annotation:delete', () => persistAnnotationChange('immediate'));
 bus.on('session:cleared', () => {
   if (currentSession) {
     currentSession.annotations = [];
+    currentSession.edits = [];
     currentSession.updatedAt = new Date().toISOString();
     void persistCurrentSession();
   }

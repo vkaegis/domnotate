@@ -1,15 +1,25 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { createNotesPanel } from '@/sidebar/notes-panel';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
+import { createEditManager } from '@/editor/edit-manager';
 import { createEventBus } from '@/events';
 import { makeDescriptor, makeViewScope } from '@/__tests__/fixtures';
-import type { AnnotationManager, EventBus, SlideObserver, ViewScope } from '@/types/core';
+import type { AnnotationManager, EditManager, EventBus, SlideObserver, ViewScope } from '@/types/core';
 
 function makePicker() {
   return {
     activate: vi.fn(),
     deactivate: vi.fn(),
     isActive: vi.fn(() => false),
+  };
+}
+
+function makeEditor() {
+  return {
+    activate: vi.fn(),
+    deactivate: vi.fn(),
+    isActive: vi.fn(() => false),
+    revertEdit: vi.fn(() => true),
   };
 }
 
@@ -34,12 +44,15 @@ function makeObserver(scopes: ViewScope[], activeScope: ViewScope): SlideObserve
 describe('NotesPanel scope grouping', () => {
   let bus: EventBus;
   let manager: AnnotationManager;
+  let editManager: EditManager;
   let container: HTMLElement;
 
   beforeEach(() => {
     bus = createEventBus();
     manager = createAnnotationManager();
     manager.init(bus);
+    editManager = createEditManager();
+    editManager.init(bus);
     container = document.createElement('div');
     document.body.innerHTML = '';
     document.body.appendChild(container);
@@ -54,7 +67,7 @@ describe('NotesPanel scope grouping', () => {
     manager.create(makeDescriptor(), { x: 0, y: 0 }, 'first', { viewScope: first });
     manager.create(makeDescriptor(), { x: 0, y: 0 }, 'second', { viewScope: second });
 
-    const panel = createNotesPanel(container, bus, manager, makePicker(), observer);
+    const panel = createNotesPanel(container, bus, manager, makePicker(), makeEditor(), editManager, observer);
 
     const headers = Array.from(container.querySelectorAll('.dn-slide-group-header'));
     expect(headers.map((header) => header.textContent)).toEqual(['General', 'Why now', 'Today']);
@@ -73,7 +86,7 @@ describe('NotesPanel scope grouping', () => {
 
     manager.create(makeDescriptor(), { x: 0, y: 0 }, 'legacy slide note', 1);
 
-    const panel = createNotesPanel(container, bus, manager, makePicker(), observer);
+    const panel = createNotesPanel(container, bus, manager, makePicker(), makeEditor(), editManager, observer);
     const header = container.querySelector('.dn-slide-group-header') as HTMLElement;
 
     expect(header.textContent).toBe('Slide 2');
@@ -92,12 +105,67 @@ describe('NotesPanel scope grouping', () => {
     const handler = vi.fn();
     bus.on('annotation:select', handler);
 
-    const panel = createNotesPanel(container, bus, manager, makePicker(), observer);
+    const panel = createNotesPanel(container, bus, manager, makePicker(), makeEditor(), editManager, observer);
     const row = container.querySelector(`[data-annotation-id="${annotation.id}"]`) as HTMLElement;
     row.click();
 
     expect(handler).toHaveBeenCalledWith({ type: 'annotation:select', id: annotation.id });
     expect(observer.activateScope).not.toHaveBeenCalled();
+
+    panel.destroy();
+  });
+
+  test('discarding a text edit reverts the preview before deleting the edit record', () => {
+    const editor = makeEditor();
+    const edit = editManager.commit({
+      element: makeDescriptor({ cssSelector: 'p.intro' }),
+      oldHtml: 'Original',
+      newHtml: 'Edited',
+      oldText: 'Original',
+      newText: 'Edited',
+    })!;
+
+    const panel = createNotesPanel(container, bus, manager, makePicker(), editor, editManager);
+    const deleteBtn = container.querySelector(`[data-edit-id="${edit.id}"] .dn-note-delete`) as HTMLButtonElement;
+
+    deleteBtn.click();
+
+    expect(editor.revertEdit).toHaveBeenCalledWith(edit);
+    expect(editManager.getById(edit.id)).toBeUndefined();
+
+    panel.destroy();
+  });
+
+  test('discarding a text edit reverts the DOM and drops the record without touching annotation previews', () => {
+    const editor = makeEditor();
+    const selector = 'p.intro';
+    // An annotation on the edited element. Its preview is derived from the live
+    // DOM at serialize time, so discard must not eagerly mutate it here.
+    const annotation = manager.create(
+      makeDescriptor({ cssSelector: selector, textPreview: 'Edited' }),
+      { x: 0, y: 0 },
+      'note on edited element',
+    );
+    const edit = editManager.commit({
+      element: makeDescriptor({ cssSelector: selector }),
+      oldHtml: 'Original',
+      newHtml: 'Edited',
+      oldText: 'Original',
+      newText: 'Edited',
+    })!;
+
+    const panel = createNotesPanel(container, bus, manager, makePicker(), editor, editManager);
+    const deleteBtn = container.querySelector(
+      `[data-edit-id="${edit.id}"] .dn-note-delete`,
+    ) as HTMLButtonElement;
+
+    deleteBtn.click();
+
+    // The live DOM is reverted and the record dropped; the annotation preview is
+    // left as-is (refreshed from the DOM only at export/share time).
+    expect(editor.revertEdit).toHaveBeenCalledWith(edit);
+    expect(editManager.getById(edit.id)).toBeUndefined();
+    expect(manager.getById(annotation.id)!.element.textPreview).toBe('Edited');
 
     panel.destroy();
   });

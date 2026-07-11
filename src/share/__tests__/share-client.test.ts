@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { makeAnnotation, makeSession } from '@/__tests__/fixtures';
-import { fetchShare, publishShare, republishAnnotations } from '@/share/share-client';
+import { makeAnnotation, makeSession, makeTextEdit } from '@/__tests__/fixtures';
+import { fetchShare, publishShare, republishAnnotations, republishSession } from '@/share/share-client';
 
 describe('share-client', () => {
   afterEach(() => {
@@ -20,6 +20,7 @@ describe('share-client', () => {
     const session = makeSession({
       html: '<html><body>Shared</body></html>',
       annotations: [makeAnnotation()],
+      edits: [makeTextEdit()],
     });
 
     await expect(publishShare(session)).resolves.toEqual({ id: 'share-123' });
@@ -31,6 +32,7 @@ describe('share-client', () => {
         sourceName: session.sourceName,
         html: session.html,
         annotations: session.annotations,
+        edits: session.edits,
       }),
     });
   });
@@ -69,6 +71,7 @@ describe('share-client', () => {
 
   test('fetches a shared session blob', async () => {
     const annotation = makeAnnotation();
+    const edit = makeTextEdit();
     const blob = {
       schemaVersion: 1,
       id: 'share-123',
@@ -76,6 +79,7 @@ describe('share-client', () => {
       sourceName: 'page.html',
       html: '<html><body>Shared</body></html>',
       annotations: [annotation],
+      edits: [edit],
       createdAt: '2026-05-09T00:00:00.000Z',
       updatedAt: '2026-05-09T00:00:00.000Z',
     };
@@ -113,7 +117,28 @@ describe('share-client', () => {
     await expect(fetchShare('bad')).rejects.toThrow('Invalid shared session');
   });
 
-  test('republishes annotations to an existing share', async () => {
+  test('republishes annotations and edits to an existing share', async () => {
+    const session = makeSession({
+      annotations: [makeAnnotation()],
+      edits: [makeTextEdit()],
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(republishSession('share-123', session)).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith('/api/share/share-123', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ annotations: session.annotations, edits: session.edits }),
+    });
+  });
+
+  test('legacy annotation republish omits edits so the server preserves existing edits', async () => {
     const annotation = makeAnnotation();
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
@@ -134,12 +159,12 @@ describe('share-client', () => {
   test('throws on invalid update response shape', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false }))));
 
-    await expect(republishAnnotations('share-123', [])).rejects.toThrow('invalid server response');
+    await expect(republishSession('share-123', makeSession())).rejects.toThrow('invalid server response');
   });
 
   test('throws a concise oversized annotation update error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Share payload exceeds 5 MB', { status: 413 })));
 
-    await expect(republishAnnotations('share-123', [])).rejects.toThrow('Annotations are over the 5 MB limit');
+    await expect(republishSession('share-123', makeSession())).rejects.toThrow('Annotations are over the 5 MB limit');
   });
 });

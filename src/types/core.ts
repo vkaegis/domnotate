@@ -72,6 +72,34 @@ export interface Annotation {
   updatedAt: string;
 }
 
+// === Text Edits ===
+
+/**
+ * A proposed in-place text change to a source element.
+ *
+ * Edits are ephemeral with respect to the HTML file — Domnotate never writes
+ * them back to disk. They are captured as instructions and exported alongside
+ * annotations so an agent can apply the real change to the source. The live DOM
+ * edit is a preview + the authoring gesture.
+ */
+export interface TextEdit {
+  id: string;
+  /** Identified element whose text was edited */
+  element: ElementDescriptor;
+  /** innerHTML before the edit (rich — preserves inline formatting) */
+  oldHtml: string;
+  /** innerHTML after the edit */
+  newHtml: string;
+  /** textContent before the edit (readable diff for the agent) */
+  oldText: string;
+  /** textContent after the edit */
+  newText: string;
+  /** Logical view scope active when the edit was made */
+  viewScope?: ViewScope;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // === Session ===
 
 export interface AnnotationSession {
@@ -85,6 +113,8 @@ export interface AnnotationSession {
   /** Original HTML text loaded into the iframe, used for share publishing */
   html?: string;
   annotations: Annotation[];
+  /** In-place text edits captured as agent instructions (never written to file) */
+  edits?: TextEdit[];
   createdAt: string;
   updatedAt: string;
 }
@@ -98,6 +128,20 @@ export type DomnotateEvent =
   | { type: 'picker:unhover' }
   | { type: 'picker:select'; element: ElementDescriptor; mouseX: number; mouseY: number }
   | { type: 'picker:deselect' }
+  | { type: 'edit:activate' }
+  | { type: 'edit:deactivate' }
+  | {
+      type: 'edit:commit';
+      element: ElementDescriptor;
+      oldHtml: string;
+      newHtml: string;
+      oldText: string;
+      newText: string;
+      viewScope?: ViewScope;
+    }
+  | { type: 'edit:create'; edit: TextEdit }
+  | { type: 'edit:update'; edit: TextEdit }
+  | { type: 'edit:delete'; id: string }
   | { type: 'annotation:create'; annotation: Annotation }
   | { type: 'annotation:update'; annotation: Annotation }
   | { type: 'annotation:delete'; id: string }
@@ -152,6 +196,53 @@ export interface ElementPicker {
   activate(): void;
   deactivate(): void;
   isActive(): boolean;
+}
+
+export interface TextEditor {
+  init(
+    iframeEl: HTMLIFrameElement,
+    overlayEl: HTMLElement,
+    bus: EventBus,
+    /** Resolves the view scope from the actual edited node at commit time. */
+    resolveScope?: (el: Element) => ViewScope | undefined,
+  ): void;
+  /** Arm edit mode: hovering highlights text, clicking makes an element editable. */
+  activate(): void;
+  /** Commit the open field (if any) and disarm edit mode. */
+  deactivate(): void;
+  /** Whether edit mode is armed. */
+  isActive(): boolean;
+  /** Whether an element is currently open for editing. */
+  isEditing(): boolean;
+  /** Commit the open field without disarming edit mode. */
+  commitPending(): void;
+  /** Re-apply committed edits to freshly (re)loaded content as a preview. */
+  applyEdits(edits: TextEdit[]): void;
+  /** Restore a committed edit's original HTML preview in the live document. */
+  revertEdit(edit: TextEdit): boolean;
+  /** Remove the edited preview marker when an edit collapses back to no-op. */
+  clearEditedMarker(element: ElementDescriptor, viewScope?: ViewScope): boolean;
+}
+
+export interface EditManager {
+  init(bus: EventBus): void;
+  getAll(): TextEdit[];
+  getById(id: string): TextEdit | undefined;
+  /**
+   * Upsert an edit by element selector: a second edit to the same element
+   * updates the existing record's new value rather than adding a duplicate.
+   */
+  commit(input: {
+    element: ElementDescriptor;
+    oldHtml: string;
+    newHtml: string;
+    oldText: string;
+    newText: string;
+    viewScope?: ViewScope;
+  }): TextEdit | null;
+  delete(id: string): void;
+  loadEdits(edits: TextEdit[]): void;
+  clearAll(): void;
 }
 
 export interface AnnotationManager {

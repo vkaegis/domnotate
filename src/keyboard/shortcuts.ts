@@ -15,6 +15,7 @@ export interface ShortcutDef {
 interface ShortcutDeps {
   bus: EventBus;
   picker: { activate(): void; deactivate(): void; isActive(): boolean };
+  editor: { activate(): void; deactivate(): void; isActive(): boolean; isEditing(): boolean };
   isContentLoaded: () => boolean;
   getSelectedAnnotationId: () => string | null;
   getPinsVisible: () => boolean;
@@ -38,7 +39,7 @@ export function createKeyboardShortcuts(deps: ShortcutDeps): {
   attachIframe(iframe: HTMLIFrameElement): void;
   detachIframe(): void;
 } {
-  const { bus, picker, isContentLoaded, getSelectedAnnotationId, getPinsVisible } = deps;
+  const { bus, picker, editor, isContentLoaded, getSelectedAnnotationId, getPinsVisible } = deps;
 
   let iframeEl: HTMLIFrameElement | null = null;
   let iframeHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -54,6 +55,19 @@ export function createKeyboardShortcuts(deps: ShortcutDeps): {
           picker.deactivate();
         } else {
           picker.activate();
+        }
+      },
+    },
+    {
+      key: 't',
+      label: 'Toggle text edit mode',
+      requiresContent: true,
+      allowWhileTyping: false,
+      action() {
+        if (editor.isActive()) {
+          editor.deactivate();
+        } else {
+          editor.activate();
         }
       },
     },
@@ -110,10 +124,16 @@ export function createKeyboardShortcuts(deps: ShortcutDeps): {
     },
     {
       key: 'Escape',
-      label: 'Deselect / deactivate picker',
+      label: 'Deselect / exit edit or picker mode',
       requiresContent: false,
       allowWhileTyping: true,
       action() {
+        // Edit mode takes precedence: commit the open field and exit,
+        // keeping any edits already made.
+        if (editor.isActive()) {
+          editor.deactivate();
+          return;
+        }
         if (picker.isActive()) {
           picker.deactivate();
         }

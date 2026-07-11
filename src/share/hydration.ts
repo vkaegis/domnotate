@@ -13,6 +13,7 @@ export function sessionFromSharedBlob(
     loadedUrl,
     html: blob.html,
     annotations: blob.annotations,
+    edits: blob.edits,
     createdAt: blob.createdAt,
     updatedAt: blob.updatedAt,
   };

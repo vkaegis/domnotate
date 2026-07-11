@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { createOutputFormatter } from '@/output/formatter';
-import { makeSession, makeAnnotation, makeDescriptor, makeViewScope } from '@/__tests__/fixtures';
+import { makeSession, makeAnnotation, makeDescriptor, makeViewScope, makeTextEdit } from '@/__tests__/fixtures';
 
 const fmt = createOutputFormatter();
 
@@ -160,6 +160,85 @@ describe('OutputFormatter', () => {
       const parsed = JSON.parse(fmt.toJSON(session));
       expect(parsed.annotations[0].viewScope).toEqual(viewScope);
       expect(parsed.annotations[0].slideIndex).toBe(2);
+    });
+
+    test('includes edits array in JSON', () => {
+      const edit = makeTextEdit({ oldText: 'a', newText: 'b' });
+      const session = makeSession({ edits: [edit] });
+      const parsed = JSON.parse(fmt.toJSON(session));
+      expect(parsed.edits).toHaveLength(1);
+      expect(parsed.edits[0]).toEqual(edit);
+    });
+  });
+
+  describe('text edits', () => {
+    test('omits the edits section when there are none', () => {
+      const md = fmt.toMarkdown(makeSession());
+      expect(md).not.toContain('# Text Edits');
+    });
+
+    test('the top header reports both counts, so it stays relevant for edits-only sessions', () => {
+      const md = fmt.toMarkdown(makeSession({ edits: [makeTextEdit({ oldText: 'a', newText: 'b' })] }));
+      // Header carries annotation AND edit counts even with zero annotations.
+      expect(md).toContain('**Annotations:** 0');
+      expect(md).toContain('**Edits:** 1');
+    });
+
+    test('markdown renders an edits section with from → to text', () => {
+      const edit = makeTextEdit({
+        element: makeDescriptor({ tagName: 'p', id: null, classes: ['intro'], cssSelector: 'p.intro' }),
+        oldText: 'Welcome to our site',
+        newText: 'Welcome to our brand-new site',
+        oldHtml: 'Welcome to our site',
+        newHtml: 'Welcome to our brand-new site',
+      });
+      const session = makeSession({ edits: [edit] });
+      const md = fmt.toMarkdown(session);
+
+      expect(md).toContain('# Text Edits');
+      expect(md).toContain('**Edits:** 1');
+      expect(md).toContain('## Edit 1 — p.intro');
+      expect(md).toContain('`p.intro`');
+      expect(md).toContain('- from: "Welcome to our site"');
+      expect(md).toContain('- to:   "Welcome to our brand-new site"');
+    });
+
+    test('edit blocks omit XPath (selector + from → to is enough to locate)', () => {
+      const edit = makeTextEdit({
+        element: makeDescriptor({ cssSelector: '#headline', xpath: '//*[@id="headline"]' }),
+      });
+      // Edits-only session — any XPath present would come from the edit block.
+      const md = fmt.toMarkdown(makeSession({ edits: [edit] }));
+      expect(md).not.toContain('XPath');
+      expect(md).not.toContain('//*[@id="headline"]');
+    });
+
+    test('markdown shows an HTML diff block only when markup changed', () => {
+      const textOnly = makeTextEdit({ oldText: 'a', newText: 'b', oldHtml: 'a', newHtml: 'b' });
+      const rich = makeTextEdit({
+        oldText: 'a', newText: 'b',
+        oldHtml: '<strong>a</strong>', newHtml: '<strong>b</strong>',
+      });
+
+      const textMd = fmt.toMarkdown(makeSession({ edits: [textOnly] }));
+      expect(textMd).not.toContain('**HTML from → to:**');
+
+      const richMd = fmt.toMarkdown(makeSession({ edits: [rich] }));
+      expect(richMd).toContain('**HTML from → to:**');
+      expect(richMd).toContain('<strong>b</strong>');
+    });
+
+    test('no-op edits (unchanged text and html) are not emitted', () => {
+      const noop = makeTextEdit({ oldText: 'same', newText: 'same', oldHtml: 'same', newHtml: 'same' });
+      const md = fmt.toMarkdown(makeSession({ edits: [noop] }));
+      expect(md).not.toContain('# Text Edits');
+    });
+
+    test('compact output includes an edits summary', () => {
+      const edit = makeTextEdit({ oldText: 'old', newText: 'new' });
+      const out = fmt.toCompact(makeSession({ edits: [edit] }));
+      expect(out).toContain('# Edits:');
+      expect(out).toContain('"old" → "new"');
     });
   });
 });

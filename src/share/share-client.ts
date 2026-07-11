@@ -53,6 +53,7 @@ function getPublishPayload(session: AnnotationSession): PublishShareRequest {
     sourceName: session.sourceName,
     html: session.html,
     annotations: session.annotations,
+    edits: session.edits ?? [],
   };
 }
 
@@ -110,12 +111,29 @@ export async function republishAnnotations(
   id: string,
   annotations: Annotation[],
 ): Promise<RepublishShareResult> {
+  return republishPayload(id, { annotations });
+}
+
+export async function republishSession(
+  id: string,
+  session: AnnotationSession,
+): Promise<RepublishShareResult> {
+  return republishPayload(id, {
+    annotations: session.annotations,
+    edits: session.edits ?? [],
+  });
+}
+
+async function republishPayload(
+  id: string,
+  payload: { annotations: Annotation[]; edits?: NonNullable<AnnotationSession['edits']> },
+): Promise<RepublishShareResult> {
   let response: Response;
   try {
     response = await fetch(`/api/share/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ annotations }),
+      body: JSON.stringify(payload),
     });
   } catch (error) {
     throw new Error(readErrorMessage(error) || 'Could not save changes to shared link');

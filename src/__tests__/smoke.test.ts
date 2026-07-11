@@ -2,7 +2,11 @@ import { describe, test, expect } from 'vitest';
 
 import { createEventBus } from '@/events';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
+import { createTextEditor } from '@/editor/edit-mode';
+import { createEditManager } from '@/editor/edit-manager';
+import { editTargetKey } from '@/editor/edit-identity';
 import { createOutputFormatter } from '@/output/formatter';
+import { snapshotAnnotationPreviews } from '@/output/annotation-preview';
 import { serializeSession, deserializeSession, validateSession } from '@/output/json-io';
 import { reanchorAnnotation } from '@/output/reanchor';
 import { generateDescriptor, generateCssSelector, generateXPath } from '@/picker/selector-engine';
@@ -12,7 +16,7 @@ import { createSlideObserver } from '@/slides/slide-observer';
 import { activateScopeRecord, ACTIVATION_STRATEGIES } from '@/slides/activation-strategy';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createContentLoader } from '@/loader/loader';
-import { fetchShare, publishShare, republishAnnotations } from '@/share/share-client';
+import { fetchShare, publishShare, republishAnnotations, republishSession } from '@/share/share-client';
 import { sessionFromSharedBlob } from '@/share/hydration';
 import { createSharedSessionBlob } from '@/share/shared-session';
 import {
@@ -29,7 +33,11 @@ describe('smoke: core module exports', () => {
   test('all core modules export expected functions', () => {
     expect(typeof createEventBus).toBe('function');
     expect(typeof createAnnotationManager).toBe('function');
+    expect(typeof createTextEditor).toBe('function');
+    expect(typeof createEditManager).toBe('function');
+    expect(typeof editTargetKey).toBe('function');
     expect(typeof createOutputFormatter).toBe('function');
+    expect(typeof snapshotAnnotationPreviews).toBe('function');
     expect(typeof serializeSession).toBe('function');
     expect(typeof deserializeSession).toBe('function');
     expect(typeof validateSession).toBe('function');
@@ -47,6 +55,7 @@ describe('smoke: core module exports', () => {
     expect(typeof publishShare).toBe('function');
     expect(typeof fetchShare).toBe('function');
     expect(typeof republishAnnotations).toBe('function');
+    expect(typeof republishSession).toBe('function');
     expect(typeof sessionFromSharedBlob).toBe('function');
     expect(typeof createSharedSessionBlob).toBe('function');
     expect(typeof generateScopeDiagnostics).toBe('function');

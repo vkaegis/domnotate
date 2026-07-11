@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { makeAnnotation, makeViewScope } from '@/__tests__/fixtures';
+import { makeAnnotation, makeTextEdit, makeViewScope } from '@/__tests__/fixtures';
 import {
   MAX_SHARE_BYTES,
   createSharedSessionBlob,
@@ -13,12 +13,14 @@ import {
 
 describe('shared-session', () => {
   test('creates a serializable shared session blob', () => {
+    const edit = makeTextEdit();
     const result = createSharedSessionBlob(
       {
         sourceType: 'file',
         sourceName: 'page.html',
         html: '<html><body>Hello</body></html>',
         annotations: [makeAnnotation()],
+        edits: [edit],
       },
       { id: 'share-1', now: '2026-05-09T00:00:00.000Z' },
     );
@@ -33,6 +35,7 @@ describe('shared-session', () => {
       createdAt: '2026-05-09T00:00:00.000Z',
       updatedAt: '2026-05-09T00:00:00.000Z',
     });
+    expect(result.value.edits).toEqual([edit]);
     expect(JSON.parse(serializeSharedSessionBlob(result.value))).toEqual(result.value);
   });
 
@@ -80,6 +83,18 @@ describe('shared-session', () => {
     expect(result.ok).toBe(false);
   });
 
+  test('rejects malformed edits', () => {
+    const result = validatePublishShareRequest({
+      sourceType: 'file',
+      sourceName: 'page.html',
+      html: '<html></html>',
+      annotations: [],
+      edits: [{ id: 'edit-1' }],
+    });
+
+    expect(result).toEqual({ ok: false, error: 'edits must be valid TextEdit objects' });
+  });
+
   test('rejects oversized blobs', () => {
     const result = createSharedSessionBlob(
       {
@@ -107,16 +122,51 @@ describe('shared-session', () => {
     expect(result).toEqual({ ok: false, error: 'Artifact HTML exceeds 5 MB' });
   });
 
-  test('validates annotation-only update requests', () => {
+  test('validates annotation and edit update requests', () => {
     const annotation = makeAnnotation();
+    const edit = makeTextEdit();
+    expect(validateUpdateShareRequest({ annotations: [annotation], edits: [edit] })).toEqual({
+      ok: true,
+      value: { annotations: [annotation], edits: [edit] },
+    });
+
+    expect(validateUpdateShareRequest({ annotations: [], edits: [], sourceType: 'file' })).toEqual({
+      ok: false,
+      error: 'Request body has unexpected fields',
+    });
+  });
+
+  test('defaults legacy publish payloads without edits to an empty edit list', () => {
+    expect(
+      validatePublishShareRequest({
+        sourceType: 'file',
+        sourceName: 'page.html',
+        html: '<html></html>',
+        annotations: [],
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        sourceType: 'file',
+        sourceName: 'page.html',
+        html: '<html></html>',
+        annotations: [],
+        edits: [],
+      },
+    });
+
+    expect(validateUpdateShareRequest({ annotations: [] })).toEqual({
+      ok: true,
+      value: { annotations: [] },
+    });
+  });
+
+  test('omits edits from legacy update payloads so existing edit records are preserved', () => {
+    const annotation = makeAnnotation();
+
     expect(validateUpdateShareRequest({ annotations: [annotation] })).toEqual({
       ok: true,
       value: { annotations: [annotation] },
-    });
-
-    expect(validateUpdateShareRequest({ annotations: [], sourceType: 'file' })).toEqual({
-      ok: false,
-      error: 'Request body has unexpected fields',
     });
   });
 
@@ -138,6 +188,7 @@ describe('shared-session', () => {
         sourceName: 'page.html',
         html: '<html></html>',
         annotations: [legacyAnnotation],
+        edits: [],
       },
     });
   });
@@ -170,6 +221,7 @@ describe('shared-session', () => {
         sourceName: 'page.html',
         html: '<html></html>',
         annotations: [annotation],
+        edits: [],
       },
     });
     expect(validateUpdateShareRequest({ annotations: [annotation] })).toEqual({
@@ -189,12 +241,23 @@ describe('shared-session', () => {
         activation: 'set-hash',
       }),
     });
+    const edit = makeTextEdit({
+      viewScope: makeViewScope({
+        kind: 'hash-route',
+        id: 'details',
+        index: 1,
+        label: 'Details',
+        selector: '#details',
+        activation: 'set-hash',
+      }),
+    });
     const result = createSharedSessionBlob(
       {
         sourceType: 'file',
         sourceName: 'page.html',
         html: '<html><body><section id="details"></section></body></html>',
         annotations: [annotation],
+        edits: [edit],
       },
       { id: 'share-scoped', now: '2026-05-09T00:00:00.000Z' },
     );
@@ -203,6 +266,7 @@ describe('shared-session', () => {
     if (!result.ok) return;
     const restored = parseSharedSessionBlob(JSON.parse(serializeSharedSessionBlob(result.value)));
     expect(restored.annotations[0]).toEqual(annotation);
+    expect(restored.edits[0]).toEqual(edit);
   });
 
   test('rejects malformed annotation viewScope in publish and update requests', () => {
@@ -231,6 +295,7 @@ describe('shared-session', () => {
 
   test('validates complete shared blobs', () => {
     const annotation = makeAnnotation();
+    const edit = makeTextEdit();
     const blob = {
       schemaVersion: 1,
       id: 'share-1',
@@ -238,6 +303,7 @@ describe('shared-session', () => {
       sourceName: 'https://example.com',
       html: '<html><body>Example</body></html>',
       annotations: [annotation],
+      edits: [edit],
       createdAt: '2026-05-09T00:00:00.000Z',
       updatedAt: '2026-05-09T00:00:00.000Z',
     };

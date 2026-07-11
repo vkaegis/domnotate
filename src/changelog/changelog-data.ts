@@ -29,6 +29,12 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    title: 'Edit text in place and hand the changes to an agent',
+    date: '11 Jul 2026',
+    pr: 44,
+    body: 'Press T to edit any text on the page in place, keeping its formatting. Your edits show up live as a preview, and nothing touches the original file. When you export, each change goes along as an instruction an agent can act on.',
+  },
+  {
     title: 'See what changed with "What\'s new"',
     date: '10 Jul 2026',
     pr: 43,

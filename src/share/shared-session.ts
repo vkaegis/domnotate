@@ -2,7 +2,7 @@
 // Domnotate — Shared Session Blob Serialization
 // ============================================================
 
-import type { Annotation } from '@/types/core';
+import type { Annotation, ElementDescriptor, TextEdit } from '@/types/core';
 import { isViewScope } from '@/types/validation';
 
 export const SHARED_SESSION_SCHEMA_VERSION = 1;
@@ -13,10 +13,12 @@ export interface PublishShareRequest {
   sourceName: string;
   html: string;
   annotations: Annotation[];
+  edits: TextEdit[];
 }
 
 export interface UpdateShareRequest {
   annotations: Annotation[];
+  edits?: TextEdit[];
 }
 
 export interface SharedSessionBlob extends PublishShareRequest {
@@ -47,22 +49,8 @@ function hasValidHtmlSize(html: string): boolean {
   return getUtf8ByteLength(html) <= MAX_SHARE_BYTES;
 }
 
-function validateAnnotation(value: unknown): value is Annotation {
-  if (!isRecord(value)) return false;
-
-  if (typeof value.id !== 'string') return false;
-  if (typeof value.text !== 'string') return false;
-  if (typeof value.color !== 'string') return false;
-  if (typeof value.createdAt !== 'string') return false;
-  if (typeof value.updatedAt !== 'string') return false;
-  if (value.viewScope !== undefined && !isViewScope(value.viewScope)) return false;
-  if (value.slideIndex !== undefined && !isFiniteNumber(value.slideIndex)) return false;
-
-  if (!isRecord(value.anchorPoint)) return false;
-  if (!isFiniteNumber(value.anchorPoint.x) || !isFiniteNumber(value.anchorPoint.y)) return false;
-
-  if (!isRecord(value.element)) return false;
-  const element = value.element;
+function validateElementDescriptor(element: unknown): element is ElementDescriptor {
+  if (!isRecord(element)) return false;
   if (typeof element.cssSelector !== 'string') return false;
   if (typeof element.xpath !== 'string') return false;
   if (typeof element.tagName !== 'string') return false;
@@ -84,12 +72,44 @@ function validateAnnotation(value: unknown): value is Annotation {
   );
 }
 
+function validateAnnotation(value: unknown): value is Annotation {
+  if (!isRecord(value)) return false;
+
+  if (typeof value.id !== 'string') return false;
+  if (typeof value.text !== 'string') return false;
+  if (typeof value.color !== 'string') return false;
+  if (typeof value.createdAt !== 'string') return false;
+  if (typeof value.updatedAt !== 'string') return false;
+  if (value.viewScope !== undefined && !isViewScope(value.viewScope)) return false;
+  if (value.slideIndex !== undefined && !isFiniteNumber(value.slideIndex)) return false;
+
+  if (!isRecord(value.anchorPoint)) return false;
+  if (!isFiniteNumber(value.anchorPoint.x) || !isFiniteNumber(value.anchorPoint.y)) return false;
+
+  return validateElementDescriptor(value.element);
+}
+
+function validateTextEdit(value: unknown): value is TextEdit {
+  if (!isRecord(value)) return false;
+
+  if (typeof value.id !== 'string') return false;
+  if (typeof value.oldHtml !== 'string') return false;
+  if (typeof value.newHtml !== 'string') return false;
+  if (typeof value.oldText !== 'string') return false;
+  if (typeof value.newText !== 'string') return false;
+  if (typeof value.createdAt !== 'string') return false;
+  if (typeof value.updatedAt !== 'string') return false;
+  if (value.viewScope !== undefined && !isViewScope(value.viewScope)) return false;
+
+  return validateElementDescriptor(value.element);
+}
+
 export function validatePublishShareRequest(data: unknown): ValidationResult<PublishShareRequest> {
   if (!isRecord(data)) {
     return { ok: false, error: 'Request body must be an object' };
   }
 
-  if (!hasOnlyKeys(data, ['sourceType', 'sourceName', 'html', 'annotations'])) {
+  if (!hasOnlyKeys(data, ['sourceType', 'sourceName', 'html', 'annotations', 'edits'])) {
     return { ok: false, error: 'Request body has unexpected fields' };
   }
 
@@ -113,6 +133,11 @@ export function validatePublishShareRequest(data: unknown): ValidationResult<Pub
     return { ok: false, error: 'annotations must be valid Annotation objects' };
   }
 
+  const edits = data.edits ?? [];
+  if (!Array.isArray(edits) || !edits.every(validateTextEdit)) {
+    return { ok: false, error: 'edits must be valid TextEdit objects' };
+  }
+
   return {
     ok: true,
     value: {
@@ -120,6 +145,7 @@ export function validatePublishShareRequest(data: unknown): ValidationResult<Pub
       sourceName: data.sourceName,
       html: data.html,
       annotations: data.annotations,
+      edits,
     },
   };
 }
@@ -129,7 +155,7 @@ export function validateUpdateShareRequest(data: unknown): ValidationResult<Upda
     return { ok: false, error: 'Request body must be an object' };
   }
 
-  if (!hasOnlyKeys(data, ['annotations'])) {
+  if (!hasOnlyKeys(data, ['annotations', 'edits'])) {
     return { ok: false, error: 'Request body has unexpected fields' };
   }
 
@@ -137,10 +163,20 @@ export function validateUpdateShareRequest(data: unknown): ValidationResult<Upda
     return { ok: false, error: 'annotations must be valid Annotation objects' };
   }
 
+  const hasEdits = Object.hasOwn(data, 'edits');
+  let edits: TextEdit[] | undefined;
+  if (hasEdits) {
+    if (!Array.isArray(data.edits) || !data.edits.every(validateTextEdit)) {
+      return { ok: false, error: 'edits must be valid TextEdit objects' };
+    }
+    edits = data.edits;
+  }
+
   return {
     ok: true,
     value: {
       annotations: data.annotations,
+      ...(hasEdits && { edits }),
     },
   };
 }
@@ -156,6 +192,7 @@ export function validateSharedSessionBlob(data: unknown): ValidationResult<Share
       'sourceName',
       'html',
       'annotations',
+      'edits',
       'createdAt',
       'updatedAt',
     ])
@@ -168,6 +205,7 @@ export function validateSharedSessionBlob(data: unknown): ValidationResult<Share
     sourceName: data.sourceName,
     html: data.html,
     annotations: data.annotations,
+    edits: data.edits,
   });
   if (!validation.ok) return validation;
 
@@ -196,6 +234,7 @@ export function validateSharedSessionBlob(data: unknown): ValidationResult<Share
       sourceName: validation.value.sourceName,
       html: validation.value.html,
       annotations: validation.value.annotations,
+      edits: validation.value.edits,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     },
@@ -233,6 +272,7 @@ export function createSharedSessionBlob(
     sourceName: validation.value.sourceName,
     html: validation.value.html,
     annotations: validation.value.annotations,
+    edits: validation.value.edits,
     createdAt: now,
     updatedAt: now,
   };
