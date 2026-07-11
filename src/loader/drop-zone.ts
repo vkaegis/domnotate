@@ -3,6 +3,7 @@
 // ============================================================
 
 import './drop-zone.css';
+import { createChangelog } from '@/changelog/changelog';
 
 /**
  * Build the landing-page drop zone inside `container`.
@@ -80,10 +81,16 @@ export function createDropZone(
     features.appendChild(col);
   }
 
+  const footer = document.createElement('div');
+  footer.className = 'dn-landing__footer';
+
   brand.appendChild(eyebrow);
   brand.appendChild(title);
   brand.appendChild(desc);
   brand.appendChild(features);
+  brand.appendChild(footer);
+
+  createChangelog(footer);
 
   // --- Right: Drop zone ---
 
