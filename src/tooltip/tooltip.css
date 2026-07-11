@@ -1,0 +1,29 @@
+/* ============================================================
+   Domnotate — Tooltip
+   ============================================================ */
+
+.dn-tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--dn-z-tooltip);
+  max-width: 220px;
+  padding: 6px 9px;
+  border-radius: var(--dn-radius-sm);
+  background: var(--dn-tooltip-bg);
+  color: var(--dn-tooltip-text);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: var(--dn-shadow-md);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 90ms ease, transform 90ms ease;
+}
+
+.dn-tooltip--visible {
+  opacity: 1;
+  transform: translateY(0);
+}

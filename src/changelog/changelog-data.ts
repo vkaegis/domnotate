@@ -29,6 +29,12 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    title: 'A tidier annotation toolbar',
+    date: '11 Jul 2026',
+    pr: 45,
+    body: 'The toolbar keeps its main actions, Annotate, Edit Text, Copy, and Share, up front and tucks the rest, Hide Pins, Download, and Clear, into a "More" menu. Actions that need an annotation to work stay disabled until you add one, with a short note explaining why.',
+  },
+  {
     title: 'Edit text in place and hand the changes to an agent',
     date: '11 Jul 2026',
     pr: 44,

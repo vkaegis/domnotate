@@ -12,6 +12,7 @@ import type {
   ViewScope,
 } from '@/types/core';
 import { fallbackScopeLabel, scopesMatch } from '@/annotations/view-scope';
+import { attachTooltip } from '@/tooltip/tooltip';
 
 // --- SVG Icons (14px viewBox 24) ---
 const ICONS = {
@@ -25,7 +26,12 @@ const ICONS = {
   trash: `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
   x: `<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
   check: `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
+  more: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg>`,
 } as const;
+
+// Unique-per-instance id source so each panel's disclosure trigger can point at
+// its own overflow group via aria-controls.
+let overflowMenuSeq = 0;
 
 // --- Icon pop helper ---
 
@@ -322,14 +328,96 @@ export function createNotesPanel(
     });
   });
 
+  // --- Overflow menu (Hide Pins + Download) ---
+  const overflow = document.createElement('div');
+  overflow.className = 'dn-overflow';
+
+  // This is a disclosure that reveals a group of ordinary action buttons, not
+  // an ARIA menu widget: Tab moves between the buttons and there is no
+  // arrow-key roving focus, so we avoid role="menu"/aria-haspopup (which would
+  // promise a menu keyboard model we don't implement) in favor of the
+  // disclosure pattern — aria-expanded + aria-controls on the trigger, and a
+  // labelled group for the revealed buttons.
+  const overflowMenuId = `dn-overflow-menu-${overflowMenuSeq++}`;
+
+  const moreBtn = makeActionBtn(ICONS.more, 'More', null, 'More options', () => {
+    toggleOverflow();
+  });
+  moreBtn.classList.add('dn-overflow__trigger');
+  moreBtn.setAttribute('aria-expanded', 'false');
+  moreBtn.setAttribute('aria-controls', overflowMenuId);
+
+  const overflowMenu = document.createElement('div');
+  overflowMenu.className = 'dn-overflow__menu';
+  overflowMenu.id = overflowMenuId;
+  overflowMenu.setAttribute('role', 'group');
+  overflowMenu.setAttribute('aria-label', 'More actions');
+  overflowMenu.hidden = true;
+  // Hide Pins, Download, and Clear live in here now that the bar is crowded.
+  overflowMenu.appendChild(pinsBtn);
+  overflowMenu.appendChild(exportBtn);
+  overflowMenu.appendChild(clearBtn);
+
+  overflow.appendChild(moreBtn);
+  overflow.appendChild(overflowMenu);
+
+  let overflowOpen = false;
+  function openOverflow(): void {
+    if (overflowOpen) return;
+    overflowOpen = true;
+    overflowMenu.hidden = false;
+    moreBtn.classList.add('dn-overflow__trigger--open');
+    moreBtn.setAttribute('aria-expanded', 'true');
+  }
+  function closeOverflow(): void {
+    if (!overflowOpen) return;
+    overflowOpen = false;
+    // If focus lives inside the group we're about to hide (keyboard user tabbed
+    // in, pressed Escape, or activated an item), return it to the trigger so it
+    // doesn't get stranded on a now-[hidden] button. Outside/mouse dismissals
+    // leave focus wherever it already was.
+    const focusWasInside = overflowMenu.contains(document.activeElement);
+    overflowMenu.hidden = true;
+    moreBtn.classList.remove('dn-overflow__trigger--open');
+    moreBtn.setAttribute('aria-expanded', 'false');
+    if (focusWasInside) moreBtn.focus();
+  }
+  function toggleOverflow(): void {
+    if (overflowOpen) closeOverflow();
+    else openOverflow();
+  }
+
+  // Selecting an item runs its action (bus event), then dismisses the menu.
+  overflowMenu.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('.dn-action-btn')) closeOverflow();
+  });
+
+  // Dismiss on outside click / Escape.
+  const onDocPointerDown = (e: MouseEvent) => {
+    if (overflowOpen && !overflow.contains(e.target as Node)) closeOverflow();
+  };
+  const onDocKeydown = (e: KeyboardEvent) => {
+    if (overflowOpen && e.key === 'Escape') {
+      // Escape should only dismiss the menu here. Stop it before it reaches the
+      // global keyboard-shortcut handler, which would otherwise also exit
+      // edit/annotate mode or deselect the current annotation. Capture phase +
+      // stopImmediatePropagation makes this win regardless of listener order.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      closeOverflow();
+    }
+  };
+  document.addEventListener('mousedown', onDocPointerDown);
+  document.addEventListener('keydown', onDocKeydown, true);
+  unsubs.push(() => document.removeEventListener('mousedown', onDocPointerDown));
+  unsubs.push(() => document.removeEventListener('keydown', onDocKeydown, true));
+
   tabBar.appendChild(annotateBtn);
   tabBar.appendChild(editBtn);
   tabBar.appendChild(divider);
-  tabBar.appendChild(pinsBtn);
   tabBar.appendChild(copyBtn);
   tabBar.appendChild(shareBtn);
-  tabBar.appendChild(exportBtn);
-  tabBar.appendChild(clearBtn);
+  tabBar.appendChild(overflow);
 
   actionBar.appendChild(tabBar);
   container.appendChild(actionBar);
@@ -485,14 +573,17 @@ export function createNotesPanel(
   }
 
   function updateActionBarState(isEmpty: boolean): void {
-    // Annotate is always active; other buttons dimmed when empty
-    const secondaryBtns = [pinsBtn, copyBtn, exportBtn, clearBtn];
-    for (const btn of secondaryBtns) {
-      if (isEmpty) {
-        btn.classList.add('dn-action-btn--dimmed');
-      } else {
-        btn.classList.remove('dn-action-btn--dimmed');
-      }
+    // Annotate is always active; the secondary actions need at least one
+    // annotation to do anything, so they're disabled (with an explanatory
+    // tooltip) when the list is empty.
+    const secondary: [HTMLButtonElement, string][] = [
+      [pinsBtn, 'No pins to hide yet. Add an annotation first.'],
+      [copyBtn, 'Nothing to copy yet. Add an annotation first.'],
+      [exportBtn, 'Nothing to download yet. Add an annotation first.'],
+      [clearBtn, 'Nothing to clear yet. Add an annotation first.'],
+    ];
+    for (const [btn, reason] of secondary) {
+      setActionBtnDisabled(btn, isEmpty ? reason : null);
     }
   }
 
@@ -608,7 +699,13 @@ export function createNotesPanel(
   ): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'dn-action-btn';
-    btn.title = title;
+    // Enabled buttons show no tooltip — the visible label is self-explanatory.
+    // `aria-label` still carries the fuller description (with shortcut) for
+    // assistive tech without producing a visual tooltip. A visual tooltip only
+    // appears while the button is disabled (see setActionBtnDisabled).
+    btn.setAttribute('aria-label', title);
+    btn.dataset.baseLabel = title;
+    unsubs.push(attachTooltip(btn));
 
     const iconSpan = document.createElement('span');
     iconSpan.className = 'dn-action-btn__icon';
@@ -627,8 +724,34 @@ export function createNotesPanel(
       btn.appendChild(kbd);
     }
 
-    btn.addEventListener('click', onClick);
+    btn.addEventListener('click', (e) => {
+      // Disabled buttons keep pointer events (so their tooltip shows on hover),
+      // so the action itself must be guarded here.
+      if (btn.getAttribute('aria-disabled') === 'true') {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      onClick();
+    });
     return btn;
+  }
+
+  // Disable/enable an action button while keeping it hoverable so the tooltip
+  // (the "why") stays visible. A disabled action must carry a reason; an enabled
+  // one carries no tooltip at all.
+  function setActionBtnDisabled(btn: HTMLButtonElement, reason: string | null): void {
+    if (reason) {
+      btn.classList.add('dn-action-btn--dimmed');
+      btn.setAttribute('aria-disabled', 'true');
+      btn.dataset.tooltip = reason;
+      btn.setAttribute('aria-label', reason);
+    } else {
+      btn.classList.remove('dn-action-btn--dimmed');
+      btn.removeAttribute('aria-disabled');
+      delete btn.dataset.tooltip;
+      btn.setAttribute('aria-label', btn.dataset.baseLabel ?? '');
+    }
   }
 
   // --- Event listeners ---
