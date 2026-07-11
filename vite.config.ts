@@ -1,33 +1,31 @@
 /// <reference types="vitest" />
 import { defineConfig, type Plugin } from 'vite';
 import { resolve } from 'path';
+import { Buffer } from 'node:buffer';
 
-/** Dev-only proxy that mirrors the Cloudflare Pages Function at /api/proxy. */
+import { onRequestGet } from './functions/api/proxy';
+
+/**
+ * Dev-only proxy that mirrors the Cloudflare Pages Function at /api/proxy by
+ * delegating to the same handler, so local development enforces the identical
+ * URL policy, redirect, size, and content-type rules as production.
+ */
 function devProxy(): Plugin {
   return {
     name: 'domnotate-dev-proxy',
     configureServer(server) {
       server.middlewares.use('/api/proxy', async (req, res) => {
-        const url = new URL(req.url!, 'http://localhost');
-        const target = url.searchParams.get('url');
-        if (!target) {
-          res.statusCode = 400;
-          res.end('Missing ?url= parameter');
-          return;
-        }
-        try {
-          const upstream = await fetch(target, {
-            headers: { 'User-Agent': 'Domnotate/1.0' },
-            redirect: 'follow',
-          });
-          res.setHeader('Content-Type', upstream.headers.get('Content-Type') || 'text/html');
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.statusCode = upstream.status;
-          res.end(await upstream.text());
-        } catch (err: unknown) {
-          res.statusCode = 502;
-          res.end(err instanceof Error ? err.message : 'Fetch failed');
-        }
+        const search = req.url && req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const request = new Request(`http://localhost/api/proxy${search}`);
+
+        const response = await onRequestGet({
+          request,
+          env: { PROXY_ENABLED: process.env.PROXY_ENABLED },
+        } as never);
+
+        res.statusCode = response.status;
+        response.headers.forEach((value, key) => res.setHeader(key, value));
+        res.end(Buffer.from(await response.arrayBuffer()));
       });
     },
   };
