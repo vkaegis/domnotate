@@ -59,6 +59,17 @@ function commitPendingTextEdit(): void {
   }
 }
 
+// Sync the session's annotations/edits from the live managers, refreshing each
+// annotation preview from the DOM first. The single capture path for every
+// persisted copy — autosave, download, copy, share — so they can't drift on
+// preview freshness (the text-preview reanchor fallback needs post-edit text).
+function captureSessionState(): void {
+  if (!currentSession) return;
+  snapshotAnnotationPreviews(manager.getAll(), iframeEl.contentDocument);
+  currentSession.annotations = manager.getAll();
+  currentSession.edits = editManager.getAll();
+}
+
 // Clear annotations before sidebar listeners re-render (event ordering matters)
 bus.on('session:cleared', () => {
   commitPendingTextEdit();
@@ -293,9 +304,7 @@ bus.on('annotation:select', (e) => {
 bus.on('output:copy', (e) => {
   if (!currentSession) return;
   commitPendingTextEdit();
-  snapshotAnnotationPreviews(manager.getAll(), iframeEl.contentDocument);
-  currentSession.annotations = manager.getAll();
-  currentSession.edits = editManager.getAll();
+  captureSessionState();
   let text: string;
   if (e.format === 'compact') {
     text = formatter.toCompact(currentSession);
@@ -310,9 +319,7 @@ bus.on('output:copy', (e) => {
 bus.on('output:download', (e) => {
   if (!currentSession) return;
   commitPendingTextEdit();
-  snapshotAnnotationPreviews(manager.getAll(), iframeEl.contentDocument);
-  currentSession.annotations = manager.getAll();
-  currentSession.edits = editManager.getAll();
+  captureSessionState();
   if (e.format === 'json') {
     const json = formatter.toJSON(currentSession);
     const name = currentSession.sourceName.replace(/\.[^.]+$/, '') || 'annotations';
@@ -332,10 +339,8 @@ bus.on('share:publish', async () => {
   if (!currentSession) return;
 
   commitPendingTextEdit();
-  snapshotAnnotationPreviews(manager.getAll(), iframeEl.contentDocument);
+  captureSessionState();
   bus.emit({ type: 'share:publishing' });
-  currentSession.annotations = manager.getAll();
-  currentSession.edits = editManager.getAll();
   currentSession.updatedAt = new Date().toISOString();
 
   try {
@@ -358,8 +363,7 @@ bus.on('share:publish', async () => {
 
 async function persistCurrentSession(): Promise<void> {
   if (!currentSession) return;
-  currentSession.annotations = manager.getAll();
-  currentSession.edits = editManager.getAll();
+  captureSessionState();
   currentSession.updatedAt = new Date().toISOString();
 
   try {
