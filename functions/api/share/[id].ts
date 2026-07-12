@@ -5,9 +5,11 @@ import {
   validateSharedSessionBlob,
   validateUpdateShareRequest,
 } from '../../../src/share/shared-session';
+import { readLimitedJsonBody } from '../../lib/request-body';
 
 interface Env {
   SHARES: R2Bucket;
+  SHARING_ENABLED?: string;
 }
 
 function noStoreResponse(body: BodyInit | null, init: ResponseInit = {}): Response {
@@ -37,37 +39,8 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-function isOversizedRequest(request: Request): boolean {
-  const contentLength = request.headers.get('content-length');
-  if (!contentLength) return false;
-  const byteLength = Number(contentLength);
-  return Number.isFinite(byteLength) && byteLength > MAX_SHARE_BYTES;
-}
-
-async function readJsonBody(request: Request): Promise<
-  | { ok: true; value: unknown }
-  | { ok: false; response: Response }
-> {
-  if (isOversizedRequest(request)) {
-    return { ok: false, response: new Response('Share payload exceeds 5 MB', { status: 413 }) };
-  }
-
-  let text: string;
-  try {
-    text = await request.text();
-  } catch {
-    return { ok: false, response: new Response('Invalid request body', { status: 400 }) };
-  }
-
-  if (getUtf8ByteLength(text) > MAX_SHARE_BYTES) {
-    return { ok: false, response: new Response('Share payload exceeds 5 MB', { status: 413 }) };
-  }
-
-  try {
-    return { ok: true, value: JSON.parse(text) };
-  } catch {
-    return { ok: false, response: new Response('Invalid JSON body', { status: 400 }) };
-  }
+function errorResponse(status: number, code: string): Response {
+  return jsonResponse({ code }, { status });
 }
 
 function statusForValidationError(error: string): number {
@@ -112,17 +85,21 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
 };
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env, params }) => {
+  if (env.SHARING_ENABLED === 'false') {
+    return errorResponse(503, 'sharing_disabled');
+  }
+
   const id = getShareId(params);
   if (!id) {
     return noStoreResponse('Share not found', { status: 404 });
   }
 
-  const body = await readJsonBody(request);
-  if (!body.ok) return body.response;
+  const body = await readLimitedJsonBody(request, MAX_SHARE_BYTES);
+  if (!body.ok) return errorResponse(body.status, body.code);
 
   const updateValidation = validateUpdateShareRequest(body.value);
   if (!updateValidation.ok) {
-    return new Response(updateValidation.error, { status: 400 });
+    return errorResponse(400, 'invalid_payload');
   }
 
   const key = `share/${id}.json`;
@@ -151,7 +128,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
   };
   const serialized = serializeSharedSessionBlob(nextBlob);
   if (getUtf8ByteLength(serialized) > MAX_SHARE_BYTES) {
-    return new Response('Share payload exceeds 5 MB', { status: 413 });
+    return errorResponse(413, 'payload_too_large');
   }
 
   await env.SHARES.put(key, serialized, {

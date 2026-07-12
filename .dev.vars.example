@@ -1,0 +1,4 @@
+# Pages Functions configuration. Use placeholders only in this tracked example.
+SHARING_ENABLED=true
+TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET_KEY
+TURNSTILE_EXPECTED_HOSTNAME=YOUR_DOMNOTATE_HOSTNAME

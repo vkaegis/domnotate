@@ -23,10 +23,13 @@ describe('share-client', () => {
       edits: [makeTextEdit()],
     });
 
-    await expect(publishShare(session)).resolves.toEqual({ id: 'share-123' });
+    await expect(publishShare(session, 'turnstile-token')).resolves.toEqual({ id: 'share-123' });
     expect(fetchMock).toHaveBeenCalledWith('/api/share', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Abuse-Verification-Token': 'turnstile-token',
+      },
       body: JSON.stringify({
         sourceType: session.sourceType,
         sourceName: session.sourceName,
@@ -41,7 +44,7 @@ describe('share-client', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(publishShare(makeSession())).rejects.toThrow('page HTML is unavailable');
+    await expect(publishShare(makeSession(), 'turnstile-token')).rejects.toThrow('page HTML is unavailable');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -49,7 +52,7 @@ describe('share-client', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Invalid share', { status: 400 })));
 
     await expect(
-      publishShare(makeSession({ html: '<html></html>' })),
+      publishShare(makeSession({ html: '<html></html>' }), 'turnstile-token'),
     ).rejects.toThrow('Invalid share');
   });
 
@@ -57,7 +60,7 @@ describe('share-client', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }))));
 
     await expect(
-      publishShare(makeSession({ html: '<html></html>' })),
+      publishShare(makeSession({ html: '<html></html>' }), 'turnstile-token'),
     ).rejects.toThrow('invalid server response');
   });
 
@@ -65,8 +68,30 @@ describe('share-client', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Share payload exceeds 5 MB', { status: 413 })));
 
     await expect(
-      publishShare(makeSession({ html: '<html></html>' })),
+      publishShare(makeSession({ html: '<html></html>' }), 'turnstile-token'),
     ).rejects.toThrow('Share is over the 5 MB limit');
+  });
+
+  test('gives a useful retry message when verification fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ code: 'verification_failed' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } },
+    )));
+
+    await expect(
+      publishShare(makeSession({ html: '<html></html>' }), 'expired-token'),
+    ).rejects.toThrow('Verification failed. Please try sharing again.');
+  });
+
+  test('gives a distinct message when sharing is disabled', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ code: 'sharing_disabled' }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } },
+    )));
+
+    await expect(
+      publishShare(makeSession({ html: '<html></html>' }), 'turnstile-token'),
+    ).rejects.toThrow('Sharing is temporarily unavailable.');
   });
 
   test('fetches a shared session blob', async () => {

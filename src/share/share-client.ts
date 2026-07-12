@@ -23,8 +23,23 @@ async function readResponseText(response: Response): Promise<string> {
   return response.text().catch(() => response.statusText);
 }
 
-function mapPublishError(status: number, text: string): string {
+async function readErrorCode(response: Response): Promise<string> {
+  if (!response.headers.get('content-type')?.includes('application/json')) return '';
+  try {
+    const data: unknown = await response.clone().json();
+    return data !== null && typeof data === 'object' && typeof (data as { code?: unknown }).code === 'string'
+      ? (data as { code: string }).code
+      : '';
+  } catch {
+    return '';
+  }
+}
+
+function mapPublishError(status: number, code: string, text: string): string {
+  if (code === 'verification_failed') return 'Verification failed. Please try sharing again.';
+  if (code === 'sharing_disabled') return 'Sharing is temporarily unavailable.';
   if (status === 413) return 'Share is over the 5 MB limit';
+  if (code === 'invalid_payload' || code === 'malformed_json') return 'Unable to publish share';
   if (text) return text;
   return 'Unable to publish share';
 }
@@ -57,14 +72,20 @@ function getPublishPayload(session: AnnotationSession): PublishShareRequest {
   };
 }
 
-export async function publishShare(session: AnnotationSession): Promise<PublishShareResult> {
+export async function publishShare(
+  session: AnnotationSession,
+  verificationToken: string,
+): Promise<PublishShareResult> {
   const payload = getPublishPayload(session);
 
   let response: Response;
   try {
     response = await fetch('/api/share', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Abuse-Verification-Token': verificationToken,
+      },
       body: JSON.stringify(payload),
     });
   } catch (error) {
@@ -72,7 +93,8 @@ export async function publishShare(session: AnnotationSession): Promise<PublishS
   }
 
   if (!response.ok) {
-    throw new Error(mapPublishError(response.status, await readResponseText(response)));
+    const code = await readErrorCode(response);
+    throw new Error(mapPublishError(response.status, code, await readResponseText(response)));
   }
 
   const data: unknown = await response.json();

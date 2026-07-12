@@ -21,6 +21,7 @@ import { createSlideObserver } from '@/slides/slide-observer';
 import { activateScopeForAnnotation, createScopedAnnotationOptions } from '@/annotations/view-scope';
 import { publishShare } from '@/share/share-client';
 import { publishOrCopyShare } from '@/share/share-action';
+import { getTurnstileToken } from '@/share/turnstile-client';
 import {
   isDiagnosticsEnabled,
   mountDiagnosticsPanel,
@@ -346,6 +347,7 @@ bus.on('share:publish', async () => {
   try {
     const { id, url } = await publishOrCopyShare(currentSession, {
       origin: window.location.origin,
+      getVerificationToken: getTurnstileToken,
       publishShare,
       copyToClipboard,
       cacheSession: (session) => store.save(session, { cacheOnly: true }),
