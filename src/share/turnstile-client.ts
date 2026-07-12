@@ -34,7 +34,10 @@ function loadTurnstile(): Promise<TurnstileApi> {
   scriptPromise = new Promise<TurnstileApi>((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SCRIPT_URL}"]`);
     const script = existing ?? document.createElement('script');
-    const fail = () => reject(new Error('Verification failed. Please try sharing again.'));
+    const fail = () => {
+      script.remove();
+      reject(new Error('Verification failed. Please try sharing again.'));
+    };
 
     script.addEventListener('load', () => {
       if (window.turnstile) resolve(window.turnstile);
