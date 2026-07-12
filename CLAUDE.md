@@ -46,3 +46,13 @@ The changelog is shown to users via the "What's new" link on the landing page. E
 - `src/sidebar/` — annotation sidebar UI
 - `src/loader/` — content loading (file/URL)
 - Path alias: `@/` maps to `src/`
+
+<!-- OPENWIKI:START -->
+
+## OpenWiki
+
+This repository uses OpenWiki for recurring code documentation. Start with `openwiki/quickstart.md`, then follow its links to architecture, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
+
+The scheduled OpenWiki GitHub Actions workflow refreshes the repository wiki. Do not hand-edit generated OpenWiki pages unless explicitly asked; prefer updating source code/docs and letting OpenWiki regenerate.
+
+<!-- OPENWIKI:END -->
