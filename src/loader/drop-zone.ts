@@ -40,10 +40,6 @@ export function createDropZone(
   const brand = document.createElement('div');
   brand.className = 'dn-landing__brand';
 
-  const eyebrow = document.createElement('div');
-  eyebrow.className = 'dn-landing__eyebrow';
-  eyebrow.textContent = 'HTML Annotation Tool';
-
   const title = document.createElement('h1');
   title.className = 'dn-landing__title';
   const titleDom = document.createElement('span');
@@ -84,13 +80,37 @@ export function createDropZone(
   const footer = document.createElement('div');
   footer.className = 'dn-landing__footer';
 
-  brand.appendChild(eyebrow);
+  const footerLinks = document.createElement('div');
+  footerLinks.className = 'dn-landing__footer-links';
+
+  const repoLink = document.createElement('a');
+  repoLink.className = 'dn-landing__footer-link';
+  repoLink.href = 'https://github.com/vkaegis/domnotate';
+  repoLink.target = '_blank';
+  repoLink.rel = 'noopener noreferrer';
+  repoLink.textContent = 'GitHub';
+
+  const attribution = document.createElement('div');
+  attribution.className = 'dn-landing__attribution';
+  attribution.append('Made with love by ');
+
+  const authorLink = document.createElement('a');
+  authorLink.className = 'dn-landing__footer-link';
+  authorLink.href = 'https://github.com/vkaegis';
+  authorLink.target = '_blank';
+  authorLink.rel = 'noopener noreferrer';
+  authorLink.textContent = 'Vineet Kumar';
+  attribution.appendChild(authorLink);
+
   brand.appendChild(title);
   brand.appendChild(desc);
   brand.appendChild(features);
   brand.appendChild(footer);
 
-  createChangelog(footer);
+  createChangelog(footerLinks);
+  footerLinks.appendChild(repoLink);
+  footer.appendChild(footerLinks);
+  footer.appendChild(attribution);
 
   // --- Right: Drop zone ---
 
@@ -103,6 +123,9 @@ export function createDropZone(
   // Drop area
   const dropArea = document.createElement('div');
   dropArea.className = 'dn-drop-area';
+  dropArea.tabIndex = 0;
+  dropArea.setAttribute('role', 'button');
+  dropArea.setAttribute('aria-label', 'Browse for an HTML file');
 
   const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   iconSvg.setAttribute('class', 'dn-drop-area__icon');
@@ -178,13 +201,17 @@ export function createDropZone(
   const errorEl = document.createElement('div');
   errorEl.className = 'dn-landing__error';
 
+  const secondaryActions = document.createElement('div');
+  secondaryActions.className = 'dn-landing__secondary-actions';
+  secondaryActions.appendChild(urlRow);
+  secondaryActions.appendChild(browseBtn);
+  secondaryActions.appendChild(errorEl);
+
   // Assemble card
   card.appendChild(dropArea);
   card.appendChild(makeSep());
-  card.appendChild(urlRow);
-  card.appendChild(browseBtn);
+  card.appendChild(secondaryActions);
   card.appendChild(fileInput);
-  card.appendChild(errorEl);
 
   dropPanel.appendChild(card);
 
@@ -199,19 +226,20 @@ export function createDropZone(
 
   function setDragActive(active: boolean): void {
     dropArea.classList.toggle('dn-drop-area--active', active);
+    dropPanel.classList.toggle('dn-landing__drop--active', active);
   }
 
-  dropArea.addEventListener('dragenter', (e) => {
+  dropPanel.addEventListener('dragenter', (e) => {
     e.preventDefault();
     dragCounter++;
     setDragActive(true);
   });
 
-  dropArea.addEventListener('dragover', (e) => {
+  dropPanel.addEventListener('dragover', (e) => {
     e.preventDefault();
   });
 
-  dropArea.addEventListener('dragleave', (e) => {
+  dropPanel.addEventListener('dragleave', (e) => {
     e.preventDefault();
     dragCounter--;
     if (dragCounter <= 0) {
@@ -220,7 +248,7 @@ export function createDropZone(
     }
   });
 
-  dropArea.addEventListener('drop', (e) => {
+  dropPanel.addEventListener('drop', (e) => {
     e.preventDefault();
     dragCounter = 0;
     setDragActive(false);
@@ -239,6 +267,13 @@ export function createDropZone(
   // Click drop area to browse
   dropArea.addEventListener('click', () => {
     fileInput.click();
+  });
+
+  dropArea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInput.click();
+    }
   });
 
   // ---- Browse ----

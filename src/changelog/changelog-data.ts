@@ -29,6 +29,12 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    title: 'A refreshed landing page',
+    date: '12 Jul 2026',
+    pr: 49,
+    body: 'The home page has a cleaner layout with a larger drop zone. You can now drop an HTML file anywhere across the right pane, not just onto the small target, and open the file picker straight from the keyboard. The footer links out to the project on GitHub.',
+  },
+  {
     title: 'A tidier annotation toolbar',
     date: '11 Jul 2026',
     pr: 45,
