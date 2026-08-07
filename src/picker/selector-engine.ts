@@ -58,9 +58,75 @@ function escapeCssIdent(value: string): string {
   return value.replace(/([^\w-])/g, '\\$1');
 }
 
-export function generateCssSelector(el: Element): string {
-  const doc = el.ownerDocument;
+// ---------------------------------------------------------------------------
+// Runtime-hash class filtering
+// ---------------------------------------------------------------------------
 
+/**
+ * Classes emitted by a CSS-in-JS runtime rather than written in component
+ * source. They change between builds, bloat the selector, and carry no signal
+ * for anyone trying to trace the element back to the code that renders it.
+ *
+ * - `css-1a2b3c`  emotion / MUI generated rule class
+ * - `sc-bdVaJa`   styled-components component id
+ */
+const HASH_CLASS = /^(?:css-[a-z0-9]+|sc-[a-zA-Z0-9]+)$/;
+
+/**
+ * emotion's "stable" class (e.g. `e1qtd0pd0`) — `e` followed by a base36 hash,
+ * which in practice carries several interspersed digits.
+ *
+ * Two digits are required, not one. A single-digit rule keeps `expandable` and
+ * `elevation` but still eats `elevation2`, `emphasis1`, `editable2` — ordinary
+ * source-written classes whose only sin is a trailing number. Dropping one of
+ * those costs a greppable token, which is the whole reason this filter exists,
+ * so the heuristic errs toward keeping.
+ */
+const EMOTION_STABLE_CLASS = /^e[a-z0-9]{7,}$/;
+const MIN_HASH_DIGITS = 2;
+
+/**
+ * True when a class name is purely runtime-generated and can be dropped.
+ *
+ * CSS Modules classes (`Button_root__a1b2c`) are deliberately *not* matched:
+ * their prefix is source-derived and greppable, and a CSS selector cannot
+ * refer to the prefix alone, so dropping them would lose real signal.
+ */
+export function isHashClass(className: string): boolean {
+  if (HASH_CLASS.test(className)) return true;
+  if (!EMOTION_STABLE_CLASS.test(className)) return false;
+  return (className.match(/\d/g)?.length ?? 0) >= MIN_HASH_DIGITS;
+}
+
+function classSelectorPart(el: Element, filterHashes: boolean): string {
+  return Array.from(el.classList)
+    .filter((c) => !filterHashes || !isHashClass(c))
+    .map((c) => `.${escapeCssIdent(c)}`)
+    .join('');
+}
+
+/**
+ * Position among *all* siblings. Used for the annotated element itself: a
+ * component instantiated by several parents produces an identical
+ * tag-plus-class selector at each site, and only the sibling index tells them
+ * apart. Omitted when the element has no siblings, where it says nothing.
+ */
+function targetNthChildPart(el: Element): string {
+  const parent = el.parentElement;
+  if (!parent || parent.children.length < 2) return '';
+  return `:nth-child(${Array.from(parent.children).indexOf(el) + 1})`;
+}
+
+/** Ancestor rule: only disambiguate when same-tag siblings exist. */
+function ancestorNthChildPart(el: Element): string {
+  const parent = el.parentElement;
+  if (!parent) return '';
+  const sameTag = Array.from(parent.children).filter((c: Element) => c.tagName === el.tagName);
+  if (sameTag.length < 2) return '';
+  return `:nth-child(${Array.from(parent.children).indexOf(el) + 1})`;
+}
+
+function buildCssSelector(el: Element, doc: Document, filterHashes: boolean): string {
   // 1. id
   if (el.id) {
     const sel = `#${escapeCssIdent(el.id)}`;
@@ -74,44 +140,30 @@ export function generateCssSelector(el: Element): string {
     if (isUnique(doc, sel)) return sel;
   }
 
-  // 3. tag + classes
+  // 3. tag + classes + sibling position
   const tag = el.tagName.toLowerCase();
-  if (el.classList.length > 0) {
-    const classPart = Array.from(el.classList)
-      .map((c) => `.${escapeCssIdent(c)}`)
-      .join('');
-    const sel = `${tag}${classPart}`;
+  const classPart = classSelectorPart(el, filterHashes);
+  if (classPart) {
+    const sel = `${tag}${classPart}${targetNthChildPart(el)}`;
     if (isUnique(doc, sel)) return sel;
   }
 
-  // 4. Walk up using nth-child
+  // 4. Walk up, adding one ancestor at a time until the chain is unique
   const parts: string[] = [];
   let current: Element | null = el;
 
   while (current && current !== doc.body && current !== doc.documentElement) {
+    const isTarget = current === el;
     let segment = current.tagName.toLowerCase();
 
     if (current.id) {
-      segment = `#${escapeCssIdent(current.id)}`;
-      parts.unshift(segment);
-      break;
-    }
-
-    if (current.classList.length > 0) {
-      segment += Array.from(current.classList)
-        .map((c) => `.${escapeCssIdent(c)}`)
-        .join('');
-    }
-
-    const parent: Element | null = current.parentElement;
-    if (parent) {
-      const siblings = Array.from(parent.children).filter(
-        (c: Element) => c.tagName === current!.tagName,
-      );
-      if (siblings.length > 1) {
-        const idx = Array.from(parent.children).indexOf(current) + 1;
-        segment += `:nth-child(${idx})`;
-      }
+      // Keep the tag: `aside#js-nav-sidebar` says what the element is where a
+      // bare `#js-nav-sidebar` does not.
+      segment += `#${escapeCssIdent(current.id)}`;
+      if (isTarget) segment += targetNthChildPart(current);
+    } else {
+      segment += classSelectorPart(current, filterHashes);
+      segment += isTarget ? targetNthChildPart(current) : ancestorNthChildPart(current);
     }
 
     parts.unshift(segment);
@@ -120,10 +172,23 @@ export function generateCssSelector(el: Element): string {
     const candidate = parts.join(' > ');
     if (isUnique(doc, candidate)) return candidate;
 
-    current = parent;
+    // Not unique yet — keep walking, even past an id, rather than returning an
+    // ambiguous selector.
+    current = current.parentElement;
   }
 
   return parts.join(' > ');
+}
+
+export function generateCssSelector(el: Element): string {
+  const doc = el.ownerDocument;
+
+  // Prefer the hash-free selector, but never at the cost of uniqueness: if
+  // dropping a runtime class makes the selector ambiguous, keep the classes.
+  const filtered = buildCssSelector(el, doc, true);
+  if (isUnique(doc, filtered)) return filtered;
+
+  return buildCssSelector(el, doc, false);
 }
 
 // ---------------------------------------------------------------------------
