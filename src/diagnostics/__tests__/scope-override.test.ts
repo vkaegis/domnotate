@@ -36,6 +36,7 @@ function makeStubManager(): AnnotationManager {
     init: () => undefined,
     getAll: () => Array.from(store.values()),
     getById: (id) => store.get(id),
+    updateSourceHint: () => false,
     create: () => {
       throw new Error('not implemented');
     },

@@ -4,6 +4,7 @@
 
 import type { AnnotationSession, Annotation, OutputFormatter, TextEdit } from '@/types/core';
 import { fallbackScopeLabel } from '@/annotations/view-scope';
+import { formatSourceHint } from '@/core/source-hint/format';
 
 function elementHeading(el: { tagName: string; id: string | null; classes: string[] }): string {
   const tag = el.tagName;
@@ -91,6 +92,14 @@ export function createOutputFormatter(): OutputFormatter {
       session.annotations.forEach((a, i) => {
         const heading = elementHeading(a.element);
         md += `## ${i + 1}. ${heading}\n`;
+
+        // A source hint describes the element in terms that survive a
+        // production build, so it leads. The selector is a re-anchoring
+        // coordinate, not a source address (§3.2), and is demoted below it.
+        if (a.sourceHint) {
+          md += `\n${formatSourceHint(a.sourceHint)}\n\n`;
+        }
+
         md += `**Selector:** \`${a.element.cssSelector}\`\n`;
         md += `**XPath:** \`${a.element.xpath}\`\n`;
         md += `**DOM Path:** ${a.element.domPath}\n`;
@@ -123,6 +132,14 @@ export function createOutputFormatter(): OutputFormatter {
         const w = Math.round(a.element.rect.width);
         const h = Math.round(a.element.rect.height);
         const scopeLabel = annotationScopeLabel(a);
+
+        // This is the §5 target shape: the hint block carries the ordinal and
+        // the note, and the selector trails it as a re-anchoring coordinate.
+        if (a.sourceHint) {
+          out += `${formatSourceHint(a.sourceHint, { index: i + 1, note: a.text || undefined })}\n`;
+          out += `   selector: \`${selector}\`${scopeLabel ? ` [${scopeLabel}]` : ''}\n\n`;
+          return;
+        }
 
         out += `${i + 1}. ${heading} \`${selector}\` ${w}x${h}`;
         if (scopeLabel) out += ` [${scopeLabel}]`;
