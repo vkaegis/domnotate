@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Domnotate",
+  "version": "0.1.0",
+  "description": "Annotate any page you can see, then copy the notes as markdown for your coding agent.",
+  "permissions": ["activeTab", "scripting"],
+  "action": {
+    "default_title": "Annotate this page with Domnotate"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

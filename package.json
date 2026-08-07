@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:extension": "tsc && vite build -c vite.extension.config.ts --mode isolated && vite build -c vite.extension.config.ts --mode main && vite build -c vite.extension.config.ts --mode background",
     "preview": "vite preview",
     "test": "vitest",
     "test:ci": "vitest run",

@@ -27,6 +27,13 @@ import {
 } from '@/diagnostics/scope-diagnostics';
 import { scopeAnnotationToCurrentPanel } from '@/diagnostics/scope-override';
 import { isDiagnosticsEnabled, mountDiagnosticsPanel } from '@/diagnostics/diagnostics-panel';
+import { createPageHost, createIframeHost } from '@/core/content-host';
+import { createProviderRegistry, mergeSignals, filterProps } from '@/core/source-hint/provider';
+import { createDomProvider } from '@/core/source-hint/dom-provider';
+import { formatSourceHint } from '@/core/source-hint/format';
+import { requestSourceHint } from '@/extension/hint-protocol';
+import { installSourceHintResponder } from '@/extension/content-main';
+import { mountDomnotate } from '@/extension/content-isolated';
 import { createChangelog } from '@/changelog/changelog';
 import { CHANGELOG } from '@/changelog/changelog-data';
 
@@ -66,6 +73,16 @@ describe('smoke: core module exports', () => {
     expect(typeof scopeAnnotationToCurrentPanel).toBe('function');
     expect(typeof isDiagnosticsEnabled).toBe('function');
     expect(typeof mountDiagnosticsPanel).toBe('function');
+    expect(typeof createPageHost).toBe('function');
+    expect(typeof createIframeHost).toBe('function');
+    expect(typeof createProviderRegistry).toBe('function');
+    expect(typeof mergeSignals).toBe('function');
+    expect(typeof filterProps).toBe('function');
+    expect(typeof createDomProvider).toBe('function');
+    expect(typeof formatSourceHint).toBe('function');
+    expect(typeof requestSourceHint).toBe('function');
+    expect(typeof installSourceHintResponder).toBe('function');
+    expect(typeof mountDomnotate).toBe('function');
     expect(typeof createChangelog).toBe('function');
     expect(Array.isArray(CHANGELOG)).toBe(true);
   });
