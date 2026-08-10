@@ -3,11 +3,23 @@
   "name": "Domnotate",
   "version": "0.1.0",
   "description": "Annotate any page you can see, then copy the notes as markdown for your coding agent.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
   "action": {
     "default_title": "Annotate this page with Domnotate"
   },
   "background": {
     "service_worker": "background.js"
+  },
+  "commands": {
+    "toggle-domnotate": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Open or close Domnotate on this page"
+    }
   }
 }

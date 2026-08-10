@@ -30,10 +30,23 @@ export interface ChromeActionApi {
   onClicked: { addListener(cb: (tab: ChromeTab) => void): void };
 }
 
+export interface ChromeCommandsApi {
+  onCommand: { addListener(cb: (command: string, tab?: ChromeTab) => void): void };
+}
+
+export interface ChromeTabsApi {
+  query(info: { active: true; currentWindow: true }): Promise<ChromeTab[]>;
+}
+
 export interface ChromeApi {
   scripting: ChromeScriptingApi;
   action: ChromeActionApi;
+  commands?: ChromeCommandsApi;
+  tabs?: ChromeTabsApi;
 }
+
+/** Declared in the manifest; rebindable at chrome://extensions/shortcuts. */
+export const TOGGLE_COMMAND = 'toggle-domnotate';
 
 export const MAIN_WORLD_FILE = 'content-main.js';
 export const ISOLATED_WORLD_FILE = 'content-isolated.js';
@@ -75,8 +88,33 @@ export function registerActionHandler(chromeApi: ChromeApi): void {
   });
 }
 
+/**
+ * The keyboard route to the same injection.
+ *
+ * A `commands` shortcut counts as a user gesture, so it grants `activeTab`
+ * exactly as the icon click does — no host permissions needed for this.
+ *
+ * Chrome passes the active tab to the listener, but only on some versions, so
+ * fall back to querying for it. A custom command is used rather than the
+ * built-in `_execute_action` because that one's behaviour depends on whether
+ * the action has a popup, and ours deliberately does not have one.
+ */
+export function registerCommandHandler(chromeApi: ChromeApi): void {
+  if (!chromeApi.commands) return;
+
+  chromeApi.commands.onCommand.addListener((command, tab) => {
+    if (command !== TOGGLE_COMMAND) return;
+
+    void (async () => {
+      const target = tab ?? (await chromeApi.tabs?.query({ active: true, currentWindow: true }))?.[0];
+      if (target) await injectDomnotate(chromeApi, target);
+    })();
+  });
+}
+
 declare const chrome: ChromeApi | undefined;
 
 if (typeof chrome !== 'undefined' && chrome?.action) {
   registerActionHandler(chrome);
+  registerCommandHandler(chrome);
 }

@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   ISOLATED_WORLD_FILE,
   MAIN_WORLD_FILE,
+  TOGGLE_COMMAND,
   injectDomnotate,
   registerActionHandler,
+  registerCommandHandler,
   type ChromeApi,
   type ChromeScriptingApi,
   type ChromeTab,
@@ -86,5 +88,59 @@ describe('registerActionHandler', () => {
     expect(listeners).toHaveLength(1);
     listeners[0]({ id: 42 });
     await vi.waitFor(() => expect(executeScript).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('keyboard command', () => {
+  function fakeCommands() {
+    const listeners: Array<(command: string, tab?: ChromeTab) => void> = [];
+    return {
+      api: { onCommand: { addListener: (cb: (c: string, t?: ChromeTab) => void) => listeners.push(cb) } },
+      fire: (command: string, tab?: ChromeTab) => listeners.forEach((cb) => cb(command, tab)),
+    };
+  }
+
+  function setup(tabs?: ChromeTab[]) {
+    const executeScript = vi.fn().mockResolvedValue([]);
+    const commands = fakeCommands();
+    const chromeApi = {
+      scripting: { executeScript },
+      action: { onClicked: { addListener: () => {} } },
+      commands: commands.api,
+      tabs: tabs ? { query: vi.fn().mockResolvedValue(tabs) } : undefined,
+    } as unknown as ChromeApi;
+    registerCommandHandler(chromeApi);
+    return { executeScript, commands };
+  }
+
+  it('injects both worlds when the shortcut fires', async () => {
+    const { executeScript, commands } = setup();
+    commands.fire(TOGGLE_COMMAND, { id: 7 });
+    await vi.waitFor(() => expect(executeScript).toHaveBeenCalledTimes(2));
+
+    expect(executeScript.mock.calls[0][0]).toMatchObject({ world: 'MAIN', target: { tabId: 7 } });
+    expect(executeScript.mock.calls[1][0]).toMatchObject({ world: 'ISOLATED' });
+  });
+
+  it('falls back to querying the active tab when none is handed over', async () => {
+    const { executeScript, commands } = setup([{ id: 9 }]);
+    commands.fire(TOGGLE_COMMAND);
+    await vi.waitFor(() => expect(executeScript).toHaveBeenCalledTimes(2));
+    expect(executeScript.mock.calls[0][0]).toMatchObject({ target: { tabId: 9 } });
+  });
+
+  it('ignores commands that are not ours', async () => {
+    const { executeScript, commands } = setup();
+    commands.fire('something-else', { id: 7 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(executeScript).not.toHaveBeenCalled();
+  });
+
+  it('does nothing where the commands API is unavailable', () => {
+    const chromeApi = {
+      scripting: { executeScript: vi.fn() },
+      action: { onClicked: { addListener: () => {} } },
+    } as unknown as ChromeApi;
+    expect(() => registerCommandHandler(chromeApi)).not.toThrow();
   });
 });

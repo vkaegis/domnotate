@@ -58,6 +58,8 @@ afterEach(() => {
   while (live.length) live.pop()!.unmount();
   document.body.replaceChildren();
   delete (window as unknown as Record<string, unknown>).__domnotateOverlay;
+  // Notes deliberately outlive a close, so each test has to start clean.
+  delete (window as unknown as Record<string, unknown>).__domnotateStash;
   vi.restoreAllMocks();
 });
 
@@ -163,12 +165,13 @@ describe('picking and note taking', () => {
     expect(overlay.root.querySelectorAll('.dn-note-row')).toHaveLength(2);
   });
 
-  it('Escape hands the page back when you need to use the app', () => {
-    const overlay = mount();
+  it('Escape closes and hands the whole page back', () => {
+    mount();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-    expect(isArmed(overlay)).toBe(false);
+    expect(document.querySelector('[data-domnotate-root]')).toBeNull();
     expect(document.documentElement.style.cursor).toBe('');
+    expect(document.documentElement.style.getPropertyValue('margin-right')).toBe('');
   });
 
   it('writes the typed note into the exported markdown', () => {
@@ -216,10 +219,9 @@ describe('picking and note taking', () => {
     expect(overlay.root.querySelectorAll('.dn-note-row')).toHaveLength(0);
   });
 
-  it('does not swallow Escape once it has stopped picking', () => {
-    mount();
-    // First Escape disarms; the app keeps every one after that.
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  it('gives Escape back to the app once closed', () => {
+    const overlay = mount();
+    overlay.unmount();
 
     const event = new KeyboardEvent('keydown', {
       key: 'Escape',
@@ -560,5 +562,86 @@ describe('committing a note from the keyboard', () => {
 
     expect(event.defaultPrevented).toBe(false);
     expect(overlay.root.activeElement).not.toBe(input);
+  });
+});
+
+describe('closing with Escape', () => {
+  function annotate(overlay: DomnotateOverlay, note: string): void {
+    const target = document.createElement('button');
+    document.body.appendChild(target);
+    pick(overlay, target);
+    const input = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input')!;
+    input.value = note;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function pressEscape(from: EventTarget = document): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    from.dispatchEvent(event);
+    return event;
+  }
+
+  it('brings the notes back when reopened, so closing is not destructive', () => {
+    const first = mount();
+    annotate(first, 'align this');
+    // The note has focus after a pick, so the first Escape only lets go of it.
+    pressEscape(query<HTMLTextAreaElement>(first, '.dn-ext-note-input')!);
+    pressEscape();
+    expect(document.querySelector('[data-domnotate-root]')).toBeNull();
+
+    // Escape is a reflex; it must not be how an afternoon's notes disappear.
+    const second = mount();
+    expect(second.root.querySelectorAll('.dn-note-row')).toHaveLength(1);
+    expect(second.toMarkdown()).toContain('align this');
+  });
+
+  it('commits and blurs the note first, rather than closing mid-sentence', () => {
+    const overlay = mount();
+    annotate(overlay, 'half a thought');
+    const input = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input')!;
+    input.focus();
+
+    const event = pressEscape(input);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.querySelector('[data-domnotate-root]')).not.toBeNull();
+    expect(overlay.root.activeElement).not.toBe(input);
+    expect(overlay.toMarkdown()).toContain('half a thought');
+  });
+
+  it('closes on the second Escape, once the note has been let go', () => {
+    const overlay = mount();
+    annotate(overlay, 'note');
+    const input = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input')!;
+    input.focus();
+
+    pressEscape(input);
+    pressEscape();
+
+    expect(document.querySelector('[data-domnotate-root]')).toBeNull();
+  });
+
+  it('keeps nothing on the page when there was nothing to keep', () => {
+    const overlay = mount();
+    overlay.unmount();
+    expect(
+      (window as unknown as Record<string, unknown>).__domnotateStash,
+    ).toBeUndefined();
+  });
+
+  it('restores into a session that can still be added to', () => {
+    const first = mount();
+    annotate(first, 'one');
+    first.unmount();
+
+    const second = mount();
+    annotate(second, 'two');
+
+    expect(second.root.querySelectorAll('.dn-note-row')).toHaveLength(2);
   });
 });

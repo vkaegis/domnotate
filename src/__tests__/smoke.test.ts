@@ -36,6 +36,7 @@ import { requestSourceHint } from '@/extension/hint-protocol';
 import { installSourceHintResponder } from '@/extension/content-main';
 import { mountDomnotate } from '@/extension/content-isolated';
 import { installExtensionShortcuts } from '@/extension/shortcuts';
+import { registerCommandHandler, TOGGLE_COMMAND } from '@/extension/background';
 import { runCopyFeedback, flyPinsToButton, popIcon } from '@/sidebar/copy-animation';
 import { createChangelog } from '@/changelog/changelog';
 import { CHANGELOG } from '@/changelog/changelog-data';
@@ -88,6 +89,8 @@ describe('smoke: core module exports', () => {
     expect(typeof installSourceHintResponder).toBe('function');
     expect(typeof mountDomnotate).toBe('function');
     expect(typeof installExtensionShortcuts).toBe('function');
+    expect(typeof registerCommandHandler).toBe('function');
+    expect(typeof TOGGLE_COMMAND).toBe('string');
     expect(typeof runCopyFeedback).toBe('function');
     expect(typeof flyPinsToButton).toBe('function');
     expect(typeof popIcon).toBe('function');

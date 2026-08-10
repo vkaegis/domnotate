@@ -20,7 +20,7 @@ import { createElementPicker, PICKER_IGNORE_ATTR } from '@/picker/picker';
 import { requestSourceHint } from '@/extension/hint-protocol';
 import { installExtensionShortcuts } from '@/extension/shortcuts';
 import { runCopyFeedback, popIcon } from '@/sidebar/copy-animation';
-import type { AnnotationSession } from '@/types/core';
+import type { Annotation, AnnotationSession } from '@/types/core';
 
 import themeCss from '@/styles/theme.css?inline';
 import sidebarCss from '@/sidebar/sidebar.css?inline';
@@ -247,6 +247,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   // --- Core modules, reused verbatim ------------------------------------
   const bus = createEventBus();
   const manager = createAnnotationManager();
+  const stash = readStash(win);
   const formatter = createOutputFormatter();
   const picker = createElementPicker();
   const host = createPageHost(win);
@@ -520,14 +521,21 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   });
   unsubs.push(unsubSelect);
 
-  // Escape exits picking. Captured so an app's own Escape handler does not eat
-  // it first, but only swallowed while we are actually picking.
+  /**
+   * Escape closes Domnotate and gives the page back. Annotations are stashed,
+   * so reopening restores them.
+   *
+   * One step first: while a note has focus, Escape commits and blurs instead,
+   * matching the web client's popover. Escape is a reflex, and having it tear
+   * the sidebar down mid-sentence would be a nasty way to learn that.
+   *
+   * Captured, so an app's own Escape handler cannot take it first.
+   */
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || !picker.isActive()) return;
+    if (event.key !== 'Escape') return;
     event.preventDefault();
     event.stopPropagation();
-    picker.deactivate();
-    syncAnnotateBtn();
+    unmount();
   };
   doc.addEventListener('keydown', onKeyDown, true);
 
@@ -573,25 +581,36 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
    * the guard stops propagation in the capture phase — before the event ever
    * reaches the field — so a listener there would never run.
    */
-  function handleNoteKey(event: KeyboardEvent): void {
-    if (event.key !== 'Enter' || event.shiftKey || event.altKey) return;
-
+  function handleUiKey(event: KeyboardEvent): void {
     // Retargeting hides the real target at window level, so ask the root.
     const active = shadow.activeElement;
-    if (!active?.classList.contains('dn-ext-note-input')) return;
-    const input = active as HTMLTextAreaElement;
+    const note = active?.classList.contains('dn-ext-note-input')
+      ? (active as HTMLTextAreaElement)
+      : null;
+
+    // Escape lets go of the note, then closes. Both branches have to be here:
+    // the guard below stops propagation, so the document-level Escape handler
+    // never sees a keystroke that started inside our own UI.
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (note) note.blur();
+      else unmount();
+      return;
+    }
+
+    if (event.key !== 'Enter' || event.shiftKey || event.altKey || !note) return;
 
     event.preventDefault();
     if (event.metaKey || event.ctrlKey) {
-      insertNewline(input);
+      insertNewline(note);
       return;
     }
-    input.blur();
+    note.blur();
   }
 
   const swallowKeys = (event: Event): void => {
     if (!originatesInUi(event)) return;
-    if (event.type === 'keydown') handleNoteKey(event as KeyboardEvent);
+    if (event.type === 'keydown') handleUiKey(event as KeyboardEvent);
     event.stopPropagation();
     event.stopImmediatePropagation();
   };
@@ -623,6 +642,15 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   // Take the space rather than covering the page.
   const undockPage = dockPage(doc, win);
 
+  // Escape closes the sidebar, and closing must not be how you lose an
+  // afternoon's notes. Annotations survive a close and come back on reopen,
+  // for as long as the page is loaded. Reloading the page still clears them —
+  // that is Phase 5.
+  if (stash.length > 0) {
+    manager.loadAnnotations(stash);
+    render();
+  }
+
   // Armed on arrival. Opening Domnotate on a page is the decision to annotate
   // it, so making that cost a keystroke was asking users to say it twice.
   picker.activate();
@@ -644,6 +672,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     undockPage();
     cancelCopyFeedback?.();
     for (const unsub of unsubs) unsub();
+    writeStash(win, manager.getAll());
     hostEl.remove();
     delete (win as unknown as Record<string, unknown>)[MOUNTED_FLAG];
   }
@@ -663,6 +692,25 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
 // ------------------------------------------------------------
 
 const MOUNTED_FLAG = '__domnotateOverlay';
+
+/**
+ * Annotations held across a close, on the isolated world's global. Content
+ * scripts re-injected into the same page share that object, and the page
+ * cannot see it. Cleared by a page load, which is what Phase 5's real
+ * `SessionStore` is for.
+ */
+const STASH_FLAG = '__domnotateStash';
+
+function readStash(win: Window): Annotation[] {
+  const value = (win as unknown as Record<string, unknown>)[STASH_FLAG];
+  return Array.isArray(value) ? (value as Annotation[]) : [];
+}
+
+export function writeStash(win: Window, annotations: Annotation[]): void {
+  const scope = win as unknown as Record<string, unknown>;
+  if (annotations.length > 0) scope[STASH_FLAG] = annotations;
+  else delete scope[STASH_FLAG];
+}
 
 /**
  * Clicking the toolbar icon re-runs this whole file, so activation toggles:
