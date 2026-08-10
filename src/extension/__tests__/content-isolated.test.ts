@@ -248,3 +248,72 @@ describe('bootstrapIsolatedWorld', () => {
     (window as unknown as Record<string, DomnotateOverlay>).__domnotateOverlay?.unmount();
   });
 });
+
+describe('host page keyboard shortcuts', () => {
+  /** Stand-in for an app that binds single-key shortcuts on the document. */
+  function spyHostShortcut(target: Document | Window, capture = false) {
+    const fired = vi.fn();
+    target.addEventListener('keydown', fired as EventListener, capture);
+    return {
+      fired,
+      remove: () => target.removeEventListener('keydown', fired as EventListener, capture),
+    };
+  }
+
+  function typeInto(el: Element, key: string): void {
+    el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true }));
+  }
+
+  it('does not leak a keystroke typed in a note to the host page', () => {
+    const overlay = mount();
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    pick(overlay, target);
+
+    const host = spyHostShortcut(document);
+    const note = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input');
+    expect(note).not.toBeNull();
+
+    // Regression: "t" is a global shortcut on dashboard.enterpret.com, so every
+    // "t" in a note opened a modal.
+    typeInto(note!, 't');
+
+    expect(host.fired).not.toHaveBeenCalled();
+    host.remove();
+  });
+
+  it('also beats a host handler bound in the capture phase', () => {
+    const overlay = mount();
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    pick(overlay, target);
+
+    const host = spyHostShortcut(document, true);
+    typeInto(query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input')!, 't');
+
+    expect(host.fired).not.toHaveBeenCalled();
+    host.remove();
+  });
+
+  it('leaves the host page keystrokes alone', () => {
+    mount();
+    const host = spyHostShortcut(document);
+
+    // Typing on the page itself, outside our UI, must still reach the app.
+    typeInto(document.body, 't');
+
+    expect(host.fired).toHaveBeenCalledTimes(1);
+    host.remove();
+  });
+
+  it('stops swallowing once unmounted', () => {
+    const overlay = mount();
+    const host = spyHostShortcut(document);
+    overlay.unmount();
+
+    typeInto(document.body, 't');
+
+    expect(host.fired).toHaveBeenCalledTimes(1);
+    host.remove();
+  });
+});

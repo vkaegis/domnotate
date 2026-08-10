@@ -480,6 +480,36 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   };
   doc.addEventListener('keydown', onKeyDown, true);
 
+  /**
+   * Keystrokes typed into our UI must not reach the host page.
+   *
+   * A closed shadow root hides the textarea, not the event: key events bubble
+   * out of it and are *retargeted*, so a host listener sees `event.target` as
+   * the host `<div>` rather than a text field. An app's global shortcut handler
+   * therefore concludes the user is not typing and fires. On
+   * dashboard.enterpret.com every "t" in a note opened a modal.
+   *
+   * Listening on `window` in the capture phase runs before any document-level
+   * handler in either phase, and `stopImmediatePropagation` also covers an app
+   * that listens on `window` itself.
+   */
+  function originatesInUi(event: Event): boolean {
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+    // A closed root retargets to the host, so this is the only node we see.
+    return path.includes(hostEl) || event.target === hostEl;
+  }
+
+  const swallowKeys = (event: Event): void => {
+    if (!originatesInUi(event)) return;
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  };
+
+  const SWALLOWED_KEY_EVENTS = ['keydown', 'keypress', 'keyup'] as const;
+  for (const type of SWALLOWED_KEY_EVENTS) {
+    win.addEventListener(type, swallowKeys, true);
+  }
+
   // --- Teardown ----------------------------------------------------------
 
   let unmounted = false;
@@ -489,6 +519,9 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     unmounted = true;
     picker.deactivate();
     doc.removeEventListener('keydown', onKeyDown, true);
+    for (const type of SWALLOWED_KEY_EVENTS) {
+      win.removeEventListener(type, swallowKeys, true);
+    }
     if (copyTimer) clearTimeout(copyTimer);
     for (const unsub of unsubs) unsub();
     hostEl.remove();
