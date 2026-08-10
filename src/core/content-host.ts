@@ -147,8 +147,56 @@ export function createPageHost(targetWindow: Window = window): ContentHost {
       };
     },
 
-    onScroll: () => phase4('onScroll'),
-    onResize: () => phase4('onResize'),
-    onNavigate: () => phase4('onNavigate'),
+    /**
+     * Captured, and that is the whole point. Scroll events do not bubble, so a
+     * listener on the document hears the page scrolling and nothing else. Real
+     * apps scroll an inner pane — the target app's list sits several nested
+     * divs deep — and a pin that ignored those would sit still while the
+     * content moved underneath it.
+     */
+    onScroll(cb: () => void): () => void {
+      targetWindow.addEventListener('scroll', cb, { passive: true, capture: true });
+      return () => targetWindow.removeEventListener('scroll', cb, { capture: true });
+    },
+
+    onResize(cb: () => void): () => void {
+      targetWindow.addEventListener('resize', cb, { passive: true });
+      return () => targetWindow.removeEventListener('resize', cb);
+    },
+
+    /**
+     * SPA route changes. `popstate` covers back and forward only, so
+     * `pushState` and `replaceState` are wrapped to announce themselves.
+     *
+     * On unsubscribe the wrapper is only removed if it is still the installed
+     * one: the page may have wrapped history itself in the meantime, and
+     * stomping that would break the app we are a guest in.
+     */
+    onNavigate(cb: () => void): () => void {
+      const slots = ['pushState', 'replaceState'] as const;
+      const record = targetWindow.history as unknown as Record<string, unknown>;
+      const installed = new Map<string, { original: unknown; wrapper: unknown }>();
+
+      for (const name of slots) {
+        const original = record[name] as (...args: unknown[]) => void;
+        const wrapper = function (this: History, ...args: unknown[]): void {
+          original.apply(this, args);
+          cb();
+        };
+        record[name] = wrapper;
+        installed.set(name, { original, wrapper });
+      }
+      targetWindow.addEventListener('popstate', cb);
+
+      return () => {
+        targetWindow.removeEventListener('popstate', cb);
+        for (const name of slots) {
+          const entry = installed.get(name);
+          // Someone wrapped us afterwards; unwinding now would drop their hook.
+          if (!entry || record[name] !== entry.wrapper) continue;
+          record[name] = entry.original;
+        }
+      };
+    },
   };
 }

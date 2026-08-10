@@ -19,6 +19,7 @@ import { createPageHost } from '@/core/content-host';
 import { createElementPicker, PICKER_IGNORE_ATTR } from '@/picker/picker';
 import { requestSourceHint } from '@/extension/hint-protocol';
 import { installExtensionShortcuts } from '@/extension/shortcuts';
+import { createPinLayer } from '@/extension/pins';
 import { runCopyFeedback, popIcon } from '@/sidebar/copy-animation';
 import type { Annotation, AnnotationSession } from '@/types/core';
 
@@ -437,12 +438,18 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
 
   // Text edits re-render from the manager's state, which would blow away the
   // caret, so only structural changes redraw the list.
+  const pinLayer = createPinLayer({ doc, layerEl: overlayEl, host, manager, bus, hostEl });
+
   const unsubs = [
     bus.on('annotation:create', (e) => {
       focusAnnotationId = e.annotation.id;
       render();
+      pinLayer.sync();
     }),
-    bus.on('annotation:delete', () => render()),
+    bus.on('annotation:delete', () => {
+      render();
+      pinLayer.sync();
+    }),
   ];
 
   // --- Copy --------------------------------------------------------------
@@ -649,6 +656,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   if (stash.length > 0) {
     manager.loadAnnotations(stash);
     render();
+    pinLayer.sync();
   }
 
   // Armed on arrival. Opening Domnotate on a page is the decision to annotate
@@ -672,6 +680,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     undockPage();
     cancelCopyFeedback?.();
     for (const unsub of unsubs) unsub();
+    pinLayer.destroy();
     writeStash(win, manager.getAll());
     hostEl.remove();
     delete (win as unknown as Record<string, unknown>)[MOUNTED_FLAG];
