@@ -547,8 +547,48 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     return path.includes(hostEl) || event.target === hostEl;
   }
 
+  /** Insert a newline at the caret and drive the same path typing would. */
+  function insertNewline(input: HTMLTextAreaElement): void {
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    input.value = `${input.value.slice(0, start)}\n${input.value.slice(end)}`;
+    const caret = start + 1;
+    input.setSelectionRange(caret, caret);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  /**
+   * Enter commits the note, Cmd/Ctrl+Enter inserts a newline — inverted from
+   * the usual textarea convention, because an annotation is nearly always one
+   * line and the loop is: pick, type, next. Committing is a blur: the note is
+   * already saved on every keystroke, so what Enter really does is hand the
+   * keyboard back to the page, where `a` arms the picker again.
+   *
+   * Shift+Enter is left alone and still inserts a newline by default.
+   *
+   * This lives inside the swallow guard rather than on the textarea because
+   * the guard stops propagation in the capture phase — before the event ever
+   * reaches the field — so a listener there would never run.
+   */
+  function handleNoteKey(event: KeyboardEvent): void {
+    if (event.key !== 'Enter' || event.shiftKey || event.altKey) return;
+
+    // Retargeting hides the real target at window level, so ask the root.
+    const active = shadow.activeElement;
+    if (!active?.classList.contains('dn-ext-note-input')) return;
+    const input = active as HTMLTextAreaElement;
+
+    event.preventDefault();
+    if (event.metaKey || event.ctrlKey) {
+      insertNewline(input);
+      return;
+    }
+    input.blur();
+  }
+
   const swallowKeys = (event: Event): void => {
     if (!originatesInUi(event)) return;
+    if (event.type === 'keydown') handleNoteKey(event as KeyboardEvent);
     event.stopPropagation();
     event.stopImmediatePropagation();
   };

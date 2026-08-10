@@ -410,3 +410,116 @@ describe('sidebar parity with the web client', () => {
     expect(button(overlay, 'Annotate').getAttribute('aria-label')).toContain('(A)');
   });
 });
+
+describe('committing a note from the keyboard', () => {
+  function noteInput(overlay: DomnotateOverlay): HTMLTextAreaElement {
+    const input = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input');
+    if (!input) throw new Error('no note input');
+    return input;
+  }
+
+  function typeInNote(input: HTMLTextAreaElement, value: string): void {
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  /**
+   * A real keystroke starts at the field and is caught on its way out by the
+   * window-capture guard, so it has to be dispatched from there.
+   */
+  function pressEnter(input: HTMLTextAreaElement, init: KeyboardEventInit = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      ...init,
+    });
+    input.dispatchEvent(event);
+    return event;
+  }
+
+  function setup() {
+    const overlay = mount();
+    const target = document.createElement('button');
+    document.body.appendChild(target);
+    pick(overlay, target);
+    const input = noteInput(overlay);
+    input.focus();
+    return { overlay, input };
+  }
+
+  it('commits on Enter and hands the keyboard back to the page', () => {
+    const { overlay, input } = setup();
+    typeInNote(input, 'move this right');
+
+    const event = pressEnter(input);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(input.value).not.toContain('\n');
+    expect(overlay.root.activeElement).not.toBe(input);
+    expect(overlay.toMarkdown()).toContain('move this right');
+  });
+
+  it('inserts a newline on Cmd+Enter, at the caret', () => {
+    const { input } = setup();
+    typeInNote(input, 'oneTWO');
+    input.setSelectionRange(3, 3);
+
+    pressEnter(input, { metaKey: true });
+
+    expect(input.value).toBe('one\nTWO');
+    expect(input.selectionStart).toBe(4);
+  });
+
+  it('does the same on Ctrl+Enter', () => {
+    const { input } = setup();
+    typeInNote(input, 'one');
+    input.setSelectionRange(3, 3);
+
+    pressEnter(input, { ctrlKey: true });
+
+    expect(input.value).toBe('one\n');
+  });
+
+  it('persists a Cmd+Enter newline into the export', () => {
+    const { overlay, input } = setup();
+    typeInNote(input, 'first');
+    input.setSelectionRange(5, 5);
+
+    pressEnter(input, { metaKey: true });
+    typeInNote(input, `${input.value}second`);
+
+    expect(overlay.toMarkdown()).toContain('first\nsecond');
+  });
+
+  it('replaces the selection rather than appending to it', () => {
+    const { input } = setup();
+    typeInNote(input, 'keepDROPend');
+    input.setSelectionRange(4, 8);
+
+    pressEnter(input, { metaKey: true });
+
+    expect(input.value).toBe('keep\nend');
+  });
+
+  it('leaves Shift+Enter to the browser, which inserts a newline', () => {
+    const { input } = setup();
+    typeInNote(input, 'one');
+
+    const event = pressEnter(input, { shiftKey: true });
+
+    // Not ours: no preventDefault, so the default newline still happens.
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('ignores Enter when the note is not focused', () => {
+    const { overlay, input } = setup();
+    input.blur();
+
+    const event = pressEnter(input);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(overlay.root.activeElement).not.toBe(input);
+  });
+});
