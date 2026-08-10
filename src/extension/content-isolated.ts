@@ -364,7 +364,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     empty.className = 'dn-empty-state';
     const text = doc.createElement('div');
     text.className = 'dn-empty-state__text';
-    text.textContent = 'Choose Annotate, then click an element on the page';
+    text.textContent = 'Click an element to annotate it. Esc to use the page.';
     empty.appendChild(text);
     notesListEl.appendChild(empty);
   }
@@ -511,8 +511,11 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
       });
     }
 
-    // Single-shot, matching the web app.
-    picker.deactivate();
+    // Stay armed, unlike the web app. There the content is an inert document
+    // you never need to click; here the page is a live app, but the reason to
+    // have the sidebar open at all is to annotate it, and disarming after every
+    // pick made the loop pick, type, Enter, `a`, pick. Escape hands the page
+    // back when you do need to navigate.
     syncAnnotateBtn();
   });
   unsubs.push(unsubSelect);
@@ -619,6 +622,11 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
 
   // Take the space rather than covering the page.
   const undockPage = dockPage(doc, win);
+
+  // Armed on arrival. Opening Domnotate on a page is the decision to annotate
+  // it, so making that cost a keystroke was asking users to say it twice.
+  picker.activate();
+  syncAnnotateBtn();
 
   // --- Teardown ----------------------------------------------------------
 

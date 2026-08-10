@@ -26,16 +26,35 @@ function button(overlay: DomnotateOverlay, label: string): HTMLButtonElement {
   return found;
 }
 
-/** Pick `el`: the picker resolves the target via elementFromPoint. */
+/**
+ * What the pointer is currently over. The picker resolves its target through
+ * `elementFromPoint`, so this stands in for cursor position.
+ *
+ * It matters that this goes back to the shadow host after a pick: with the
+ * picker now staying armed, a later click on the sidebar's own buttons still
+ * reaches the document, and a stub that kept naming a page element would
+ * invent annotations no real browser would. Over our UI a closed shadow root
+ * retargets to the host, which the picker skips.
+ */
+let pointerTarget: Element | null = null;
+
 function pick(overlay: DomnotateOverlay, el: Element): void {
-  document.elementFromPoint = (() => el) as Document['elementFromPoint'];
-  button(overlay, 'Annotate').click();
+  document.elementFromPoint = (() => pointerTarget) as Document['elementFromPoint'];
+  pointerTarget = el;
+  // Armed on mount now, so only press Annotate if something disarmed it.
+  if (!isArmed(overlay)) button(overlay, 'Annotate').click();
   document.dispatchEvent(
     new MouseEvent('click', { clientX: 5, clientY: 5, bubbles: true, cancelable: true }),
   );
+  pointerTarget = document.querySelector('[data-domnotate-root]');
+}
+
+function isArmed(overlay: DomnotateOverlay): boolean {
+  return button(overlay, 'Annotate').classList.contains('dn-action-btn--active');
 }
 
 afterEach(() => {
+  pointerTarget = null;
   while (live.length) live.pop()!.unmount();
   document.body.replaceChildren();
   delete (window as unknown as Record<string, unknown>).__domnotateOverlay;
@@ -120,14 +139,35 @@ describe('picking and note taking', () => {
     expect(query(overlay, '.dn-empty-state')).toBeNull();
   });
 
-  it('is single-shot: picking one element disarms the picker', () => {
+  it('arms itself on mount, so the first click already annotates', () => {
     const overlay = mount();
-    const target = document.createElement('div');
-    document.body.appendChild(target);
+    expect(isArmed(overlay)).toBe(true);
+    expect(document.documentElement.style.cursor).toBe('crosshair');
+  });
 
-    pick(overlay, target);
+  it('stays armed after a pick, so the next element needs no keystroke', () => {
+    const overlay = mount();
+    const a = document.createElement('div');
+    const b = document.createElement('span');
+    document.body.append(a, b);
 
-    expect(button(overlay, 'Annotate').classList.contains('dn-action-btn--active')).toBe(false);
+    pick(overlay, a);
+    expect(isArmed(overlay)).toBe(true);
+
+    // Straight into the next one — no `a` in between.
+    pointerTarget = b;
+    document.dispatchEvent(
+      new MouseEvent('click', { clientX: 5, clientY: 5, bubbles: true, cancelable: true }),
+    );
+
+    expect(overlay.root.querySelectorAll('.dn-note-row')).toHaveLength(2);
+  });
+
+  it('Escape hands the page back when you need to use the app', () => {
+    const overlay = mount();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(isArmed(overlay)).toBe(false);
     expect(document.documentElement.style.cursor).toBe('');
   });
 
@@ -176,18 +216,11 @@ describe('picking and note taking', () => {
     expect(overlay.root.querySelectorAll('.dn-note-row')).toHaveLength(0);
   });
 
-  it('exits picking on Escape', () => {
-    const overlay = mount();
-    button(overlay, 'Annotate').click();
-    expect(document.documentElement.style.cursor).toBe('crosshair');
-
+  it('does not swallow Escape once it has stopped picking', () => {
+    mount();
+    // First Escape disarms; the app keeps every one after that.
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-    expect(document.documentElement.style.cursor).toBe('');
-  });
-
-  it('does not swallow Escape when it is not picking', () => {
-    mount();
     const event = new KeyboardEvent('keydown', {
       key: 'Escape',
       bubbles: true,
@@ -356,19 +389,25 @@ describe('docking the page', () => {
 });
 
 describe('shortcuts while active', () => {
-  it('arms the picker on "a" without the host app seeing the key', () => {
+  it('toggles annotate mode on "a" without the host app seeing the key', () => {
     const overlay = mount();
     const hostShortcut = vi.fn();
     document.addEventListener('keydown', hostShortcut as EventListener);
+    const pressA = () =>
+      document.body.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'a', bubbles: true, composed: true, cancelable: true }),
+      );
 
-    document.body.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'a', bubbles: true, composed: true, cancelable: true }),
-    );
+    // Armed on mount, so the first press turns it off.
+    pressA();
+    expect(isArmed(overlay)).toBe(false);
+    expect(document.documentElement.style.cursor).toBe('');
 
+    pressA();
+    expect(isArmed(overlay)).toBe(true);
     expect(document.documentElement.style.cursor).toBe('crosshair');
-    expect(hostShortcut).not.toHaveBeenCalled();
-    expect(button(overlay, 'Annotate').classList.contains('dn-action-btn--active')).toBe(true);
 
+    expect(hostShortcut).not.toHaveBeenCalled();
     document.removeEventListener('keydown', hostShortcut as EventListener);
   });
 
