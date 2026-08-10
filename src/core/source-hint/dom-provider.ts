@@ -20,6 +20,7 @@
 // field-tested against the target app. Behavioural changes from the probe are
 // noted inline.
 
+import { isHashClass } from '@/core/class-hash';
 import type { SourceSignal, SignalRect } from './types';
 import { type IntrospectionProvider, filterProps, isIdentifyingName } from './provider';
 
@@ -29,9 +30,6 @@ export const TEXT_LIMIT = 60;
 // ------------------------------------------------------------
 // Class hashing — the Tier B floor
 // ------------------------------------------------------------
-
-/** Fully runtime-generated: nothing recoverable, drop entirely. */
-const HASH_CLASS = /^(css-[a-z0-9]+|e[a-z0-9]{7,}|sc-[a-zA-Z0-9]+)$/;
 
 /**
  * CSS Modules are *partly* hashed — `Button_root__a1b2c` keeps a source-derived
@@ -46,9 +44,7 @@ export function cssModuleBase(c: string): string | null {
   return m && /\d/.test(m[2]) ? m[1] : null;
 }
 
-export function isHashClass(c: string): boolean {
-  return HASH_CLASS.test(c);
-}
+export { isHashClass };
 
 /** Stable, grep-worthy form of a class, or null if it is pure hash. */
 export function stableClassForm(c: string): string | null {
@@ -193,16 +189,12 @@ function parseMuiModifiers(modifiers: string[]): { props: Record<string, string>
         continue;
       }
 
-      let j = i;
-      const flag: string[] = [];
-      while (j < parts.length && !isMuiKeyword(parts[j])) {
-        flag.push(parts[j]);
-        j++;
-      }
-      if (flag.length === 0) {
-        flag.push(parts[i]);
-        j = i + 1;
-      }
+      // A flag is a whole boolean prop, so it takes the rest of the token.
+      // Stopping at the first keyword-looking word turned MUI's
+      // `disableElevation` into a bare `disable` — not a prop, and it greps
+      // for nothing.
+      const flag = parts.slice(i);
+      const j = parts.length;
       const name = lowerFirst(flag.join(''));
       if (name && !flags.includes(name)) flags.push(name);
       i = j;
@@ -658,11 +650,20 @@ export function landmarkPath(el: Element): string[] {
  * (§3.7 fixed floor); the registry applies it again on the way out, so a
  * provider cannot leak `customerEmail` even by constructing the signal by hand.
  */
+/**
+ * Domnotate's own attributes. `data-dn-target` is the MAIN/ISOLATED handoff
+ * nonce, which is live on the element at exactly the moment we describe it —
+ * without this it exports as a per-pick random uuid. Never describe our own
+ * plumbing as though it were the page's.
+ */
+const OWN_ATTR_PREFIXES = ['data-dn-', 'data-domnotate-'];
+
 export function collectAttributes(el: Element, skipAttribute?: string): Record<string, string> {
   const raw: Record<string, string> = {};
   for (const attr of Array.from(el.attributes)) {
     if (attr.name === skipAttribute) continue;
     if (attr.name === 'class' || attr.name === 'style') continue;
+    if (OWN_ATTR_PREFIXES.some((prefix) => attr.name.startsWith(prefix))) continue;
     raw[attr.name] = attr.value;
   }
   return filterProps(raw);

@@ -79,6 +79,10 @@ export function installSourceHintResponder(
 
     let hint: SourceHintPayload | null = null;
     if (el) {
+      // Untag before describing, or the nonce lands in the element's own
+      // attributes and we export our own plumbing. The ISOLATED world removes
+      // it again when the response arrives; removing twice is harmless.
+      el.removeAttribute(HINT_TARGET_ATTR);
       try {
         hint = describe(el);
       } catch {

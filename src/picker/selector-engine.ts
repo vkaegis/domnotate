@@ -1,4 +1,7 @@
 import type { ElementDescriptor } from '@/types/core';
+import { isHashClass } from '@/core/class-hash';
+
+export { isHashClass };
 
 // ---------------------------------------------------------------------------
 // XPath generation
@@ -56,46 +59,6 @@ function escapeCssIdent(value: string): string {
     return CSS.escape(value);
   }
   return value.replace(/([^\w-])/g, '\\$1');
-}
-
-// ---------------------------------------------------------------------------
-// Runtime-hash class filtering
-// ---------------------------------------------------------------------------
-
-/**
- * Classes emitted by a CSS-in-JS runtime rather than written in component
- * source. They change between builds, bloat the selector, and carry no signal
- * for anyone trying to trace the element back to the code that renders it.
- *
- * - `css-1a2b3c`  emotion / MUI generated rule class
- * - `sc-bdVaJa`   styled-components component id
- */
-const HASH_CLASS = /^(?:css-[a-z0-9]+|sc-[a-zA-Z0-9]+)$/;
-
-/**
- * emotion's "stable" class (e.g. `e1qtd0pd0`) — `e` followed by a base36 hash,
- * which in practice carries several interspersed digits.
- *
- * Two digits are required, not one. A single-digit rule keeps `expandable` and
- * `elevation` but still eats `elevation2`, `emphasis1`, `editable2` — ordinary
- * source-written classes whose only sin is a trailing number. Dropping one of
- * those costs a greppable token, which is the whole reason this filter exists,
- * so the heuristic errs toward keeping.
- */
-const EMOTION_STABLE_CLASS = /^e[a-z0-9]{7,}$/;
-const MIN_HASH_DIGITS = 2;
-
-/**
- * True when a class name is purely runtime-generated and can be dropped.
- *
- * CSS Modules classes (`Button_root__a1b2c`) are deliberately *not* matched:
- * their prefix is source-derived and greppable, and a CSS selector cannot
- * refer to the prefix alone, so dropping them would lose real signal.
- */
-export function isHashClass(className: string): boolean {
-  if (HASH_CLASS.test(className)) return true;
-  if (!EMOTION_STABLE_CLASS.test(className)) return false;
-  return (className.match(/\d/g)?.length ?? 0) >= MIN_HASH_DIGITS;
 }
 
 function classSelectorPart(el: Element, filterHashes: boolean): string {

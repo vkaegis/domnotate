@@ -90,3 +90,39 @@ describe('formatter renders a source hint', () => {
     expect(annotation.element.cssSelector).toContain('MuiButton-root');
   });
 });
+
+describe('a hinted annotation does not restate the same tree four times', () => {
+  test('the verbose export drops the raw DOM fields the hint already covers', () => {
+    document.body.innerHTML = PROD_HTML;
+    const el = document.querySelector('button')!;
+    const annotation = makeAnnotation({
+      element: generateDescriptor(el),
+      text: 'move this right',
+      sourceHint: buildHint(el),
+    });
+    const out = createOutputFormatter().toMarkdown(makeSession({ annotations: [annotation] }));
+
+    // XPath, DOM Path and Text Preview restate the selector in three more
+    // formats; the full descriptor still round-trips through the JSON export.
+    expect(out).not.toContain('**XPath:**');
+    expect(out).not.toContain('**DOM Path:**');
+    expect(out).not.toContain('**Text Preview:**');
+    expect(out).not.toContain('**Dimensions:**');
+
+    // What an agent actually needs survives.
+    expect(out).toContain('Save changes');
+    expect(out).toContain('selector:');
+    expect(out).toContain('> move this right');
+  });
+
+  test('an unhinted annotation keeps the full descriptor, unchanged', () => {
+    document.body.innerHTML = PROD_HTML;
+    const el = document.querySelector('button')!;
+    const plain = makeAnnotation({ element: generateDescriptor(el), text: 'note' });
+    const out = createOutputFormatter().toMarkdown(makeSession({ annotations: [plain] }));
+
+    for (const field of ['**Selector:**', '**XPath:**', '**DOM Path:**', '**Text Preview:**']) {
+      expect(out).toContain(field);
+    }
+  });
+});

@@ -90,16 +90,21 @@ export function createOutputFormatter(): OutputFormatter {
       md += `\n---\n\n`;
 
       session.annotations.forEach((a, i) => {
-        const heading = elementHeading(a.element);
-        md += `## ${i + 1}. ${heading}\n`;
-
-        // A source hint describes the element in terms that survive a
-        // production build, so it leads. The selector is a re-anchoring
-        // coordinate, not a source address (§3.2), and is demoted below it.
+        // When a hint is present it *is* the description, and the raw DOM
+        // fields below only restate the same tree in three more formats. The
+        // full descriptor still round-trips through the JSON export, which is
+        // what re-anchoring reads; this is the agent-facing view.
         if (a.sourceHint) {
-          md += `\n${formatSourceHint(a.sourceHint)}\n\n`;
+          md += `${formatSourceHint(a.sourceHint, { index: i + 1, note: a.text || undefined })}\n`;
+          md += `   selector: \`${a.element.cssSelector}\`\n`;
+          const scope = annotationScopeLabel(a);
+          if (scope) md += `   scope: ${scope}\n`;
+          md += `\n---\n\n`;
+          return;
         }
 
+        const heading = elementHeading(a.element);
+        md += `## ${i + 1}. ${heading}\n`;
         md += `**Selector:** \`${a.element.cssSelector}\`\n`;
         md += `**XPath:** \`${a.element.xpath}\`\n`;
         md += `**DOM Path:** ${a.element.domPath}\n`;

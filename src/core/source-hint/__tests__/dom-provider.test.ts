@@ -463,3 +463,44 @@ describe('createDomProvider', () => {
     expect(route && 'pathname' in route ? route.pathname.startsWith('/') : false).toBe(true);
   });
 });
+
+describe('regressions from the first real annotation', () => {
+  test('never describes domnotate own attributes as the page own', () => {
+    document.body.innerHTML = '<button type="button" data-record-id="12345">Go</button>';
+    const el = document.querySelector('button')!;
+    // The handoff nonce is live on the element at exactly the moment we
+    // describe it, so it leaked into the export as a per-pick random uuid.
+    el.setAttribute('data-dn-target', 'c23b2ca4-bad7-4d3c-9bbf-311bfb0a7de1-1');
+
+    const attrs = collectAttributes(el);
+
+    expect(attrs['data-dn-target']).toBeUndefined();
+    expect(JSON.stringify(attrs)).not.toContain('c23b2ca4');
+    // The page's own data-* attributes still come through.
+    expect(attrs['data-record-id']).toBe('12345');
+  });
+
+  test('a boolean modifier keeps its whole prop name', () => {
+    document.body.innerHTML =
+      '<button class="MuiButton-root MuiButton-text MuiButton-disableElevation">Go</button>';
+    const provider = createDomProvider({ window });
+    const signals = provider.describe(document.querySelector('button')!);
+    const klass = signals.find((s) => s.kind === 'class-convention');
+
+    // `disableElevation` was being split to a bare `disable`, which is not a
+    // prop and greps for nothing.
+    expect(klass?.reconstructed).toContain('disableElevation');
+    expect(klass?.reconstructed).not.toMatch(/\bdisable\b(?!Elevation)/);
+  });
+
+  test('a MUI element carries no emotion class into its grep set', () => {
+    document.body.innerHTML =
+      '<button class="MuiButton-root css-mmlk58-MuiButtonBase-root-MuiButton-root">Go</button>';
+    const provider = createDomProvider({ window });
+    const signals = provider.describe(document.querySelector('button')!);
+    const klass = signals.find((s) => s.kind === 'class-convention');
+
+    expect(klass?.grepClasses).toContain('MuiButton-root');
+    expect(klass?.grepClasses.join(' ')).not.toContain('css-');
+  });
+});
