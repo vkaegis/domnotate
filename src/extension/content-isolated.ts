@@ -18,6 +18,7 @@ import { copyToClipboard } from '@/output/exporter';
 import { createPageHost } from '@/core/content-host';
 import { createElementPicker, PICKER_IGNORE_ATTR } from '@/picker/picker';
 import { requestSourceHint } from '@/extension/hint-protocol';
+import { installExtensionShortcuts } from '@/extension/shortcuts';
 import type { AnnotationSession } from '@/types/core';
 
 import themeCss from '@/styles/theme.css?inline';
@@ -26,6 +27,42 @@ import sidebarCss from '@/sidebar/sidebar.css?inline';
 // ------------------------------------------------------------
 // Styles
 // ------------------------------------------------------------
+
+/** Must match `--dn-sidebar-width` in theme.css — the page is inset by it. */
+const SIDEBAR_WIDTH_PX = 360;
+
+/**
+ * Give the sidebar its own space instead of floating it over the page.
+ *
+ * Inset the root element and the page reflows into what is left, so nothing
+ * ends up underneath the sidebar where it cannot be annotated. A resize event
+ * follows because app shells and virtualised lists measure on resize and would
+ * otherwise keep their old width.
+ *
+ * Known limit: the host's own `position: fixed` elements are placed against
+ * the viewport, not the root box, so a full-width fixed header still runs
+ * under the sidebar. Nothing generic fixes that from outside the page.
+ *
+ * Returns a restore function that puts back exactly what was there, which is
+ * usually nothing.
+ */
+function dockPage(doc: Document, win: Window): () => void {
+  const root = doc.documentElement;
+  const previousValue = root.style.getPropertyValue('margin-right');
+  const previousPriority = root.style.getPropertyPriority('margin-right');
+
+  root.style.setProperty('margin-right', `${SIDEBAR_WIDTH_PX}px`, 'important');
+  win.dispatchEvent(new Event('resize'));
+
+  return () => {
+    if (previousValue) {
+      root.style.setProperty('margin-right', previousValue, previousPriority);
+    } else {
+      root.style.removeProperty('margin-right');
+    }
+    win.dispatchEvent(new Event('resize'));
+  };
+}
 
 /**
  * Locks the host element down against the page. `all: initial` is the load
@@ -510,6 +547,28 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     win.addEventListener(type, swallowKeys, true);
   }
 
+  // Registered after the swallow guard so a keystroke from inside our own UI
+  // is stopped before it can be read as a command.
+  const uninstallShortcuts = installExtensionShortcuts({
+    win,
+    hostEl,
+    shortcuts: [
+      {
+        key: 'a',
+        label: 'Toggle annotate mode',
+        action: () => {
+          if (picker.isActive()) picker.deactivate();
+          else picker.activate();
+          syncAnnotateBtn();
+        },
+      },
+      { key: 'c', label: 'Copy annotations as Markdown', action: () => void copyMarkdown() },
+    ],
+  });
+
+  // Take the space rather than covering the page.
+  const undockPage = dockPage(doc, win);
+
   // --- Teardown ----------------------------------------------------------
 
   let unmounted = false;
@@ -522,6 +581,8 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     for (const type of SWALLOWED_KEY_EVENTS) {
       win.removeEventListener(type, swallowKeys, true);
     }
+    uninstallShortcuts();
+    undockPage();
     if (copyTimer) clearTimeout(copyTimer);
     for (const unsub of unsubs) unsub();
     hostEl.remove();

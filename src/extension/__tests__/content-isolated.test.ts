@@ -317,3 +317,70 @@ describe('host page keyboard shortcuts', () => {
     host.remove();
   });
 });
+
+describe('docking the page', () => {
+  it('insets the page so nothing sits under the sidebar', () => {
+    mount();
+    // Overlaying hid elements, which meant they could not be annotated at all.
+    expect(document.documentElement.style.getPropertyValue('margin-right')).toBe('360px');
+    expect(document.documentElement.style.getPropertyPriority('margin-right')).toBe('important');
+  });
+
+  it('tells the app to re-measure, on the way in and out', () => {
+    const onResize = vi.fn();
+    window.addEventListener('resize', onResize);
+    const overlay = mount();
+    expect(onResize).toHaveBeenCalledTimes(1);
+
+    overlay.unmount();
+    expect(onResize).toHaveBeenCalledTimes(2);
+    window.removeEventListener('resize', onResize);
+  });
+
+  it('leaves no inset behind on unmount', () => {
+    const overlay = mount();
+    overlay.unmount();
+    expect(document.documentElement.style.getPropertyValue('margin-right')).toBe('');
+    expect(document.documentElement.getAttribute('style') ?? '').not.toContain('margin-right');
+  });
+
+  it('restores a margin the page had set itself', () => {
+    document.documentElement.style.setProperty('margin-right', '12px');
+    const overlay = mount();
+    expect(document.documentElement.style.getPropertyValue('margin-right')).toBe('360px');
+
+    overlay.unmount();
+    expect(document.documentElement.style.getPropertyValue('margin-right')).toBe('12px');
+    document.documentElement.style.removeProperty('margin-right');
+  });
+});
+
+describe('shortcuts while active', () => {
+  it('arms the picker on "a" without the host app seeing the key', () => {
+    const overlay = mount();
+    const hostShortcut = vi.fn();
+    document.addEventListener('keydown', hostShortcut as EventListener);
+
+    document.body.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'a', bubbles: true, composed: true, cancelable: true }),
+    );
+
+    expect(document.documentElement.style.cursor).toBe('crosshair');
+    expect(hostShortcut).not.toHaveBeenCalled();
+    expect(button(overlay, 'Annotate').classList.contains('dn-action-btn--active')).toBe(true);
+
+    document.removeEventListener('keydown', hostShortcut as EventListener);
+  });
+
+  it('gives every key back once unmounted', () => {
+    const overlay = mount();
+    overlay.unmount();
+    const hostShortcut = vi.fn();
+    document.addEventListener('keydown', hostShortcut as EventListener);
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+
+    expect(hostShortcut).toHaveBeenCalledTimes(1);
+    document.removeEventListener('keydown', hostShortcut as EventListener);
+  });
+});

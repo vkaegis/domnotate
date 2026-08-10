@@ -35,6 +35,7 @@ import { formatSourceHint } from '@/core/source-hint/format';
 import { requestSourceHint } from '@/extension/hint-protocol';
 import { installSourceHintResponder } from '@/extension/content-main';
 import { mountDomnotate } from '@/extension/content-isolated';
+import { installExtensionShortcuts } from '@/extension/shortcuts';
 import { createChangelog } from '@/changelog/changelog';
 import { CHANGELOG } from '@/changelog/changelog-data';
 
@@ -85,6 +86,7 @@ describe('smoke: core module exports', () => {
     expect(typeof requestSourceHint).toBe('function');
     expect(typeof installSourceHintResponder).toBe('function');
     expect(typeof mountDomnotate).toBe('function');
+    expect(typeof installExtensionShortcuts).toBe('function');
     expect(typeof createChangelog).toBe('function');
     expect(Array.isArray(CHANGELOG)).toBe(true);
   });

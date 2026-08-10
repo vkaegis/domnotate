@@ -21,7 +21,12 @@ interface ShortcutDeps {
   getPinsVisible: () => boolean;
 }
 
-function isTyping(e: KeyboardEvent): boolean {
+/**
+ * Focus is in a text field, so the keystroke is content rather than a command.
+ * Exported because the extension applies the same rule against the *host*
+ * page's fields before it claims a key.
+ */
+export function isTyping(e: KeyboardEvent): boolean {
   const target = e.target as HTMLElement | null;
   if (!target) return false;
   const tag = target.tagName;
