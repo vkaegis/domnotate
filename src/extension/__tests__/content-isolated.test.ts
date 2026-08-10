@@ -384,3 +384,29 @@ describe('shortcuts while active', () => {
     document.removeEventListener('keydown', hostShortcut as EventListener);
   });
 });
+
+describe('sidebar parity with the web client', () => {
+  it('badges the actions with their shortcut keys', () => {
+    const overlay = mount();
+
+    const badge = (label: string) =>
+      button(overlay, label).querySelector('.dn-action-btn__shortcut')?.textContent ?? null;
+
+    expect(badge('Annotate')).toBe('A');
+    expect(badge('Copy')).toBe('C');
+    // Actions with no shortcut get no badge rather than an empty one.
+    expect(badge('Clear')).toBeNull();
+    expect(badge('Close')).toBeNull();
+  });
+
+  it('uses a kbd element, so it inherits the web client styling', () => {
+    const overlay = mount();
+    const badge = button(overlay, 'Annotate').querySelector('.dn-action-btn__shortcut');
+    expect(badge?.tagName).toBe('KBD');
+  });
+
+  it('names the shortcut in the accessible label too', () => {
+    const overlay = mount();
+    expect(button(overlay, 'Annotate').getAttribute('aria-label')).toContain('(A)');
+  });
+});

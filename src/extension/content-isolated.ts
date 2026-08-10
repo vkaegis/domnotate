@@ -19,6 +19,7 @@ import { createPageHost } from '@/core/content-host';
 import { createElementPicker, PICKER_IGNORE_ATTR } from '@/picker/picker';
 import { requestSourceHint } from '@/extension/hint-protocol';
 import { installExtensionShortcuts } from '@/extension/shortcuts';
+import { runCopyFeedback, popIcon } from '@/sidebar/copy-animation';
 import type { AnnotationSession } from '@/types/core';
 
 import themeCss from '@/styles/theme.css?inline';
@@ -286,6 +287,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   function makeActionBtn(
     icon: keyof typeof ICONS,
     label: string,
+    shortcut: string | null,
     title: string,
     onClick: () => void,
   ): HTMLButtonElement {
@@ -304,34 +306,43 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     labelSpan.textContent = label;
     btn.appendChild(labelSpan);
 
+    if (shortcut) {
+      const kbd = doc.createElement('kbd');
+      kbd.className = 'dn-action-btn__shortcut';
+      kbd.textContent = shortcut;
+      btn.appendChild(kbd);
+    }
+
     btn.addEventListener('click', onClick);
     tabBar.appendChild(btn);
     return btn;
   }
 
+  /** Mirrors the web client's `setIconWithPop`, built as DOM rather than HTML. */
   function setIcon(btn: HTMLButtonElement, icon: keyof typeof ICONS): void {
     const iconSpan = btn.querySelector('.dn-action-btn__icon');
     if (!iconSpan) return;
     iconSpan.replaceChildren(makeIcon(icon));
+    popIcon(btn.querySelector('svg'));
   }
 
-  const annotateBtn = makeActionBtn('pencil', 'Annotate', 'Annotate an element', () => {
+  const annotateBtn = makeActionBtn('pencil', 'Annotate', 'A', 'Annotate an element (A)', () => {
     if (picker.isActive()) picker.deactivate();
     else picker.activate();
     syncAnnotateBtn();
   });
   annotateBtn.classList.add('dn-action-btn--accent');
 
-  let copyTimer: ReturnType<typeof setTimeout> | null = null;
-  const copyBtn = makeActionBtn('clipboard', 'Copy', 'Copy annotations as Markdown', () => {
+  let cancelCopyFeedback: (() => void) | null = null;
+  const copyBtn = makeActionBtn('clipboard', 'Copy', 'C', 'Copy annotations as Markdown (C)', () => {
     void copyMarkdown();
   });
 
-  const clearBtn = makeActionBtn('trash', 'Clear', 'Delete all annotations', () => {
+  const clearBtn = makeActionBtn('trash', 'Clear', null, 'Delete all annotations', () => {
     for (const annotation of manager.getAll()) manager.delete(annotation.id);
   });
 
-  makeActionBtn('x', 'Close', 'Close Domnotate', () => unmount());
+  makeActionBtn('x', 'Close', null, 'Close Domnotate', () => unmount());
 
   function syncAnnotateBtn(): void {
     annotateBtn.classList.toggle('dn-action-btn--active', picker.isActive());
@@ -443,14 +454,14 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     if (!ok) ok = fallbackCopy(markdown);
 
     if (ok) {
-      setIcon(copyBtn, 'check');
-      copyBtn.classList.add('dn-action-btn--copied');
-      if (copyTimer) clearTimeout(copyTimer);
-      copyTimer = setTimeout(() => {
-        setIcon(copyBtn, 'clipboard');
-        copyBtn.classList.remove('dn-action-btn--copied');
-        copyTimer = null;
-      }, 1500);
+      cancelCopyFeedback?.();
+      cancelCopyFeedback = runCopyFeedback({
+        rows: notesListEl.querySelectorAll('.dn-note-row'),
+        button: copyBtn,
+        // Never the host page's body: our stylesheet lives in the shadow root.
+        ghostLayer: rootEl,
+        setIcon: (name) => setIcon(copyBtn, name),
+      });
     }
     return ok;
   }
@@ -583,7 +594,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     }
     uninstallShortcuts();
     undockPage();
-    if (copyTimer) clearTimeout(copyTimer);
+    cancelCopyFeedback?.();
     for (const unsub of unsubs) unsub();
     hostEl.remove();
     delete (win as unknown as Record<string, unknown>)[MOUNTED_FLAG];
