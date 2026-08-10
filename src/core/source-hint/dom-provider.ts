@@ -658,12 +658,35 @@ export function landmarkPath(el: Element): string[] {
  */
 const OWN_ATTR_PREFIXES = ['data-dn-', 'data-domnotate-'];
 
+/**
+ * Values generated fresh on every render, which therefore appear nowhere in
+ * source. Same failure as the handoff nonce above and the same fix: an id that
+ * changes per render is noise an agent may still try to grep.
+ *
+ * - `:r1fb:` — React's `useId`, which is what MUI wires into `aria-describedby`
+ *   and `aria-labelledby`. Seen on 1 of 10 blocks in the first Phase 2 capture.
+ * - `mui-12345` — MUI's own fallback id generator.
+ */
+const RUNTIME_ID_PATTERNS = [/^:[a-z0-9]+:$/i, /^mui-\d+$/];
+
+/**
+ * Library bookkeeping attributes. They are stable across renders, so they are
+ * not runtime ids, but they say nothing about the app's source either.
+ */
+const NOISE_ATTRS = new Set(['data-mui-internal-clone-element']);
+
+export function isRuntimeAttrValue(value: string): boolean {
+  return RUNTIME_ID_PATTERNS.some((pattern) => pattern.test(value));
+}
+
 export function collectAttributes(el: Element, skipAttribute?: string): Record<string, string> {
   const raw: Record<string, string> = {};
   for (const attr of Array.from(el.attributes)) {
     if (attr.name === skipAttribute) continue;
     if (attr.name === 'class' || attr.name === 'style') continue;
     if (OWN_ATTR_PREFIXES.some((prefix) => attr.name.startsWith(prefix))) continue;
+    if (NOISE_ATTRS.has(attr.name)) continue;
+    if (isRuntimeAttrValue(attr.value)) continue;
     raw[attr.name] = attr.value;
   }
   return filterProps(raw);

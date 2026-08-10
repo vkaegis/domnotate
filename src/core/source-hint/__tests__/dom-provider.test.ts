@@ -375,6 +375,25 @@ describe('allow-list floor (§3.7)', () => {
     const el = mount('<div id="target" data-testid="save-btn">x</div>');
     expect(collectAttributes(el, 'data-testid')).toEqual({ id: 'target' });
   });
+
+  test('drops values generated fresh on every render', () => {
+    // Regression, first Phase 2 capture: `aria-describedby=":r1fb:"` shipped in
+    // a block. React's useId changes per render, so it greps for nothing — the
+    // same failure as exporting our own handoff nonce.
+    const el = mount('<div id="target" role="button">x</div>');
+    el.setAttribute('aria-describedby', ':r1fb:');
+    el.setAttribute('aria-labelledby', 'mui-42');
+    el.setAttribute('data-mui-internal-clone-element', 'true');
+
+    expect(collectAttributes(el)).toEqual({ id: 'target', role: 'button' });
+  });
+
+  test('keeps an id that only looks generated', () => {
+    // `mui-nav` is hand-written and greps fine; only the numeric form is noise.
+    const el = mount('<div id="target">x</div>');
+    el.setAttribute('aria-labelledby', 'mui-nav-heading');
+    expect(collectAttributes(el)['aria-labelledby']).toBe('mui-nav-heading');
+  });
 });
 
 // ------------------------------------------------------------
