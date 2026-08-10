@@ -146,7 +146,12 @@ export function formatSourceHint(hint: SourceHint, options: FormatOptions = {}):
   if (klass?.reconstructed) {
     lines.push(`${indent}element: ${klass.reconstructed} (${klass.convention} classes)`);
   }
-  if (klass && klass.grepClasses.length > 0) {
+  // Only when nothing was reconstructed from them. A recognised convention's
+  // classes are library artefacts — `MuiButton-root` appears in MUI, not in
+  // the app you are searching, whereas the reconstructed `variant="text"`
+  // does. An unrecognised convention is the reverse: the class string was
+  // written by hand and is the only grep candidate there is, so it stays.
+  if (klass && !klass.reconstructed && klass.grepClasses.length > 0) {
     const shown = klass.grepClasses.slice(0, maxClasses);
     const more = klass.grepClasses.length - shown.length;
     lines.push(`${indent}classes: ${shown.join(' ')}${more > 0 ? ` (+${more} more)` : ''}`);

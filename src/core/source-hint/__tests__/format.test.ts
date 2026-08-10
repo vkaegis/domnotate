@@ -187,7 +187,28 @@ describe('formatSourceHint — headline', () => {
     const out = lines(hint, 1, '');
     expect(out[0]).toMatch(/^1\. <Button> — "Save changes"\s+\[weak\]$/);
     expect(out).toContain('   element: <Button variant="outlined"> (mui classes)');
-    expect(out).toContain('   classes: MuiButton-root MuiButton-outlined');
+    // The reconstruction supersedes the raw list: MuiButton-root lives in MUI,
+    // not in the app being searched.
+    expect(out.some((l) => l.startsWith('   classes:'))).toBe(false);
+  });
+
+  test('keeps the raw class list when no component could be reconstructed', () => {
+    const hint: SourceHint = {
+      provider: 'dom',
+      confidence: 'weak',
+      signals: [
+        {
+          kind: 'class-convention',
+          convention: 'utility',
+          component: null,
+          modifiers: [],
+          reconstructed: null,
+          grepClasses: ['flex', 'items-center', 'gap-2'],
+        },
+      ],
+    };
+    // Hand-written classes are the only grep candidate there is.
+    expect(lines(hint, 1, '')).toContain('   classes: flex items-center gap-2');
   });
 
   test('never uses a generic wrapper name as the headline component', () => {
