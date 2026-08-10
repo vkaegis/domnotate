@@ -61,6 +61,27 @@ export function grepAdvice(hint: SourceHint): string {
   return 'no greppable string recovered — use the selector and landmark path';
 }
 
+/**
+ * Conventions whose reconstructed name is the *library's* component, not the
+ * application's. `MuiBadge-root` yields `<Badge>`, which is MUI's file, not the
+ * `BetaBadge` an agent is looking for. CSS Modules and BEM are the opposite:
+ * `Button_root__a1b2c` and `card__header` were written in the app's own source,
+ * so the name there is a genuine grep candidate.
+ */
+const LIBRARY_CONVENTIONS = new Set(['mui', 'ant', 'bootstrap']);
+
+/**
+ * Whether a reconstructed component name could land on an application
+ * definition. Drives the honesty line below: naming `<Badge>` in the headline
+ * and then claiming nothing was recovered is a contradiction, but so is letting
+ * an agent think `<Badge>` is the file to open.
+ */
+export function componentIsAppAuthored(hint: SourceHint): boolean {
+  const klass = findSignal(hint, 'class-convention');
+  if (!klass?.component) return false;
+  return !LIBRARY_CONVENTIONS.has(klass.convention);
+}
+
 /** The component name, only when it is one that could land on a definition. */
 export function headlineComponent(hint: SourceHint): string | null {
   const path = findSignal(hint, 'component-path');
@@ -139,7 +160,19 @@ export function formatSourceHint(hint: SourceHint, options: FormatOptions = {}):
     // Never print `Cn > t > Kr` as though it were meaningful.
     lines.push(`${indent}component chain minified — ${grepAdvice(hint)}`);
   } else if (!source) {
-    lines.push(`${indent}no component identity recovered — ${grepAdvice(hint)}`);
+    // The headline may already name a component reconstructed from classes, in
+    // which case a bare "no component identity recovered" contradicts the line
+    // directly above it — and per §3.1a a misleading line costs an agent more
+    // than an absent one. Which correction to make depends on the convention:
+    // `<Badge>` from `MuiBadge-root` is MUI's own component and a dead end to
+    // grep, while `<Button>` from `Button_root__a1b2c` is the app's and is the
+    // best lead in the block.
+    if (component && !componentIsAppAuthored(hint)) {
+      lines.push(`${indent}<${component}> is the library's component, not the app's`);
+      lines.push(`${indent}app component not identified — ${grepAdvice(hint)}`);
+    } else if (!component) {
+      lines.push(`${indent}no component identity recovered — ${grepAdvice(hint)}`);
+    }
   }
 
   // --- Tier B ----------------------------------------------------

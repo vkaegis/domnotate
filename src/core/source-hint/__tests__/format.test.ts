@@ -333,8 +333,68 @@ describe('formatSourceHint — end to end from the DOM', () => {
       'element: <Button variant="outlined" color="primary" size="small"> (mui classes)',
     );
     expect(out).toContain('in <main> > <aside("Primary navigation")>');
-    expect(out).toContain('no component identity recovered — grep the literal text');
+    // Regression, first Phase 2 capture: this used to read "no component
+    // identity recovered" on all 10 blocks, directly under a headline naming a
+    // component. The block contradicted itself. `<Button>` here is MUI's, so
+    // the honest statement is that it is the library's and the app's is unknown.
+    expect(out).toContain("<Button> is the library's component, not the app's");
+    expect(out).toContain('app component not identified — grep the literal text');
+    expect(out).not.toContain('no component identity recovered');
     expect(out).not.toContain('css-1a2b3c');
     expect(out).toContain('> this button is too small');
+  });
+});
+
+describe('formatSourceHint — library vs app-authored component names', () => {
+  function hintFor(convention: string, component: string): SourceHint {
+    return {
+      provider: 'dom',
+      confidence: 'weak',
+      signals: [
+        {
+          kind: 'class-convention',
+          convention,
+          component,
+          modifiers: ['root'],
+          reconstructed: `<${component} root>`,
+          grepClasses: [`${component}-root`],
+        },
+        { kind: 'literal-text', text: 'Save changes', truncated: false, from: 'own-text-nodes' },
+      ],
+    };
+  }
+
+  test.each(['mui', 'ant', 'bootstrap'])('marks a %s name as the library, not the app', (c) => {
+    const out = formatSourceHint(hintFor(c, 'Button'));
+    expect(out).toContain("<Button> is the library's component, not the app's");
+    expect(out).toContain('app component not identified');
+  });
+
+  test.each(['css-modules', 'bem'])('leaves a %s name standing as a real lead', (c) => {
+    // `Button_root__a1b2c` and `card__header` are written in the app's own
+    // source, so the reconstructed name is the best grep candidate in the block
+    // and must not be disclaimed.
+    const out = formatSourceHint(hintFor(c, 'Button'));
+    expect(out).not.toContain("is the library's component");
+    expect(out).not.toContain('no component identity recovered');
+    expect(out).toContain('<Button>');
+  });
+
+  test('still says nothing was recovered when nothing was', () => {
+    const out = formatSourceHint({
+      provider: 'dom',
+      confidence: 'weak',
+      signals: [
+        {
+          kind: 'class-convention',
+          convention: 'utility',
+          component: null,
+          modifiers: [],
+          reconstructed: null,
+          grepClasses: ['flex', 'items-center'],
+        },
+      ],
+    });
+    expect(out).toContain('no component identity recovered');
   });
 });

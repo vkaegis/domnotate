@@ -61,8 +61,13 @@ describe('formatter renders a source hint', () => {
 
     const out = createOutputFormatter().toCompact(makeSession({ annotations: [annotation] }));
     expect(out).toContain('[weak]');
-    // It must say it has no source address rather than implying one.
-    expect(out).toMatch(/no component identity recovered|component chain minified/);
+    // It must say it has no source address rather than implying one. On a MUI
+    // element the headline names the library's component, so the disclaimer is
+    // that the *app's* component is unknown — a bare "no component identity
+    // recovered" there would contradict the line above it.
+    expect(out).toMatch(
+      /no component identity recovered|component chain minified|app component not identified/,
+    );
   });
 
   test('the selector is demoted below the hint, not dropped', () => {
