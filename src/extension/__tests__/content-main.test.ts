@@ -1,7 +1,11 @@
 import type { SourceHint } from '@/core/source-hint/types';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { HINT_CHANNEL, HINT_TARGET_ATTR, isHintResponse } from '@/extension/hint-protocol';
-import { bootstrapMainWorld, installSourceHintResponder } from '@/extension/content-main';
+import {
+  bootstrapMainWorld,
+  installSourceHintResponder,
+  teardownMainWorld,
+} from '@/extension/content-main';
 
 const teardown: Array<() => void> = [];
 
@@ -91,9 +95,67 @@ describe('installSourceHintResponder', () => {
 });
 
 describe('bootstrapMainWorld', () => {
-  it('installs once no matter how often the script is re-injected', () => {
-    expect(bootstrapMainWorld(window)).toBe(true);
+  afterEach(() => teardownMainWorld(window));
+
+  it('never stacks responders, however often the script is re-injected', async () => {
+    bootstrapMainWorld(window);
+    bootstrapMainWorld(window);
+    bootstrapMainWorld(window);
+
+    const el = document.createElement('div');
+    el.setAttribute(HINT_TARGET_ATTR, 'once');
+    document.body.appendChild(el);
+
+    // Three injections, one answer.
+    const replies: unknown[] = [];
+    const listener = (event: MessageEvent): void => {
+      const data = event.data as { kind?: string };
+      if (data?.kind === 'response') replies.push(data);
+    };
+    window.addEventListener('message', listener);
+    window.postMessage(
+      { channel: 'domnotate:source-hint', kind: 'request', nonce: 'once' },
+      window.location.origin,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    window.removeEventListener('message', listener);
+
+    expect(replies).toHaveLength(1);
+  });
+
+  /**
+   * Regression: the guard was a boolean, so a copy injected before an
+   * extension rebuild stayed resident and kept answering with its old
+   * describer. Only a page reload cleared it.
+   */
+  it('lets a newly injected copy take over from a resident one', async () => {
+    const stale = vi.fn(
+      (): SourceHint => ({ signals: [], confidence: 'weak', provider: 'stale' }),
+    );
+    const scope = window as unknown as Record<string, unknown>;
+    scope.__domnotateMainUninstall = installSourceHintResponder({ describe: stale });
+
     expect(bootstrapMainWorld(window)).toBe(false);
-    expect(bootstrapMainWorld(window)).toBe(false);
+
+    const el = document.createElement('div');
+    el.setAttribute(HINT_TARGET_ATTR, 'fresh');
+    document.body.appendChild(el);
+
+    const replies: Array<{ hint?: { provider?: string } }> = [];
+    const listener = (event: MessageEvent): void => {
+      const data = event.data as { kind?: string; hint?: { provider?: string } };
+      if (data?.kind === 'response') replies.push(data);
+    };
+    window.addEventListener('message', listener);
+    window.postMessage(
+      { channel: 'domnotate:source-hint', kind: 'request', nonce: 'fresh' },
+      window.location.origin,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    window.removeEventListener('message', listener);
+
+    expect(stale).not.toHaveBeenCalled();
+    expect(replies).toHaveLength(1);
+    expect(replies[0].hint?.provider).not.toBe('stale');
   });
 });

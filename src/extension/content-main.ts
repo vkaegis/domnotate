@@ -105,14 +105,39 @@ export function installSourceHintResponder(
   return () => win.removeEventListener('message', onMessage);
 }
 
-/** Idempotent entry point: re-injection must not stack listeners. */
-const INSTALLED_FLAG = '__domnotateMainInstalled';
+/**
+ * Where the resident copy parks its uninstall function, so a later injection
+ * can take over from it.
+ */
+const UNINSTALL_KEY = '__domnotateMainUninstall';
 
+/**
+ * Entry point. Re-injection must not stack listeners, but it must not *skip*
+ * either: this script lives in the page's realm and survives everything short
+ * of a page load, so a copy injected before the extension was rebuilt is still
+ * resident and still answering. Skipping left it in charge, and hints kept
+ * coming back from the old describer while the ISOLATED world — which
+ * remounts per activation — was already running new code.
+ *
+ * So: replace rather than skip. Exactly one responder, always the newest.
+ */
 export function bootstrapMainWorld(win: Window = window): boolean {
   const scope = win as unknown as Record<string, unknown>;
-  if (scope[INSTALLED_FLAG]) return false;
-  scope[INSTALLED_FLAG] = true;
-  installSourceHintResponder({ win });
+  const previous = scope[UNINSTALL_KEY];
+  const replaced = typeof previous === 'function';
+  if (replaced) (previous as () => void)();
+
+  scope[UNINSTALL_KEY] = installSourceHintResponder({ win });
+  return !replaced;
+}
+
+/** Remove the resident responder, if any. Returns whether one was there. */
+export function teardownMainWorld(win: Window = window): boolean {
+  const scope = win as unknown as Record<string, unknown>;
+  const uninstall = scope[UNINSTALL_KEY];
+  if (typeof uninstall !== 'function') return false;
+  (uninstall as () => void)();
+  delete scope[UNINSTALL_KEY];
   return true;
 }
 
