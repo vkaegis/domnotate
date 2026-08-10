@@ -622,10 +622,37 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     event.stopImmediatePropagation();
   };
 
+  /**
+   * `focusin` is swallowed for the same reason keystrokes are, against a
+   * different mechanism: a modal focus trap.
+   *
+   * MUI's `FocusTrap` registers `document.addEventListener('focusin', contain)`
+   * while a Dialog or Drawer is open. `contain` reads the active element and,
+   * when the trap's root does not contain it, drags focus back to the dialog.
+   * Our textarea lives in a *closed* shadow root, which nothing can pierce, so
+   * the active element it sees is the host `<div>` sitting on `body` — outside
+   * the dialog. Focus was therefore yanked out of the note the instant it
+   * arrived, which reads as "I can't type, and the whole screen selects".
+   *
+   * Window capture runs long before a document bubble listener, so stopping the
+   * event here means `contain` never learns focus left the dialog.
+   *
+   * The 50ms interval in the same effect is not a second enforcer: it only calls
+   * `contain()` when the active element is `BODY`, and ours is a `<div>`. And
+   * `loopFocus`, its Tab handler, is a document *capture* listener, which the
+   * key guard above already beats. So this one listener closes the whole case.
+   */
+  const swallowFocus = (event: Event): void => {
+    if (!originatesInUi(event)) return;
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  };
+
   const SWALLOWED_KEY_EVENTS = ['keydown', 'keypress', 'keyup'] as const;
   for (const type of SWALLOWED_KEY_EVENTS) {
     win.addEventListener(type, swallowKeys, true);
   }
+  win.addEventListener('focusin', swallowFocus, true);
 
   // Registered after the swallow guard so a keystroke from inside our own UI
   // is stopped before it can be read as a command.
@@ -676,6 +703,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     for (const type of SWALLOWED_KEY_EVENTS) {
       win.removeEventListener(type, swallowKeys, true);
     }
+    win.removeEventListener('focusin', swallowFocus, true);
     uninstallShortcuts();
     undockPage();
     cancelCopyFeedback?.();

@@ -330,6 +330,76 @@ describe('host page keyboard shortcuts', () => {
     host.remove();
   });
 
+  /**
+   * Stand-in for MUI's `FocusTrap`, which is the reason notes could not be
+   * typed inside a Dialog or Drawer. It registers a bubble-phase `focusin`
+   * listener on the document and drags focus back whenever the active element
+   * is outside the trap. See the `swallowFocus` comment for why our closed
+   * shadow root always looks "outside".
+   */
+  function spyFocusTrap() {
+    const contain = vi.fn();
+    document.addEventListener('focusin', contain as EventListener);
+    return {
+      contain,
+      remove: () => document.removeEventListener('focusin', contain as EventListener),
+    };
+  }
+
+  it('does not let a host focus trap see focus entering a note', () => {
+    const overlay = mount();
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    pick(overlay, target);
+
+    const trap = spyFocusTrap();
+    const note = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input');
+    expect(note).not.toBeNull();
+
+    // Regression: annotations 8-10 of the Phase 2 capture picked correctly
+    // inside a dialog but could not be typed into, because MUI's FocusTrap
+    // pulled focus back to the dialog the instant the note received it.
+    note!.dispatchEvent(new FocusEvent('focusin', { bubbles: true, composed: true }));
+
+    expect(trap.contain).not.toHaveBeenCalled();
+    trap.remove();
+  });
+
+  it('leaves the host page focus changes alone', () => {
+    mount();
+    const trap = spyFocusTrap();
+
+    // A focus trap still has to work for the page's own fields.
+    const field = document.createElement('input');
+    document.body.appendChild(field);
+    field.dispatchEvent(new FocusEvent('focusin', { bubbles: true, composed: true }));
+
+    expect(trap.contain).toHaveBeenCalledTimes(1);
+    trap.remove();
+  });
+
+  it('stops swallowing focus once unmounted', () => {
+    const overlay = mount();
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    pick(overlay, target);
+    const note = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input');
+    const hostEl = document.querySelector('[data-domnotate-root]') as HTMLElement;
+
+    overlay.unmount();
+    // `unmount` detaches the host, and a detached node's events never reach the
+    // document at all. Re-attaching is what makes this a test of the guard
+    // rather than of DOM propagation.
+    document.body.appendChild(hostEl);
+
+    const trap = spyFocusTrap();
+    note!.dispatchEvent(new FocusEvent('focusin', { bubbles: true, composed: true }));
+
+    expect(trap.contain).toHaveBeenCalledTimes(1);
+    trap.remove();
+    hostEl.remove();
+  });
+
   it('leaves the host page keystrokes alone', () => {
     mount();
     const host = spyHostShortcut(document);
