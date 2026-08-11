@@ -1,0 +1,19 @@
+/* An external sheet, because `hostile-csp.html` forbids inline styles. */
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  padding: 24px;
+  background: #f7f7f5;
+  color: #1a1a1a;
+}
+
+main {
+  max-width: 640px;
+}
+
+div {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 16px;
+  margin-top: 16px;
+}

@@ -79,26 +79,47 @@ export function createNonce(): string {
 }
 
 /**
- * Same-window postMessage target. Pages served from an opaque origin report
- * `"null"`, which is not a legal targetOrigin, so fall back to `*` there. The
- * message never leaves this window either way — both worlds already share it.
+ * Same-window postMessage target. The message never leaves this window either
+ * way — both worlds already share it — so `*` is only ever a fallback for
+ * origins that cannot be named.
+ *
+ * Two shapes cannot be named, and only one was handled. An opaque origin
+ * reports the string `"null"`, which is not a legal targetOrigin. A `file:`
+ * URL is worse: `location.origin` reports `"file://"`, which *looks* like a
+ * usable origin and is not — the window's actual origin is opaque, so
+ * `postMessage(msg, "file://")` throws
+ *
+ *   The target origin provided ('file://') does not match the recipient
+ *   window's origin ('null').
+ *
+ * and every source hint on a local HTML file is lost. Chrome is the only engine
+ * that reports `file://` here rather than `null`, which is exactly why it went
+ * unnoticed until the fixture was opened over `file://`.
  */
 function targetOriginFor(win: Window): string {
   const origin = win.location?.origin;
-  return !origin || origin === 'null' ? '*' : origin;
+  if (!origin || origin === 'null') return '*';
+  if (win.location?.protocol === 'file:') return '*';
+  return origin;
 }
 
 export interface RequestSourceHintOptions {
   win?: Window;
   timeoutMs?: number;
+  /**
+   * Abandon a request in flight. The overlay aborts on unmount: without it a
+   * pick followed by a close inside the timeout window leaves our nonce on a
+   * host element permanently, which is a page mutation outliving the tool.
+   */
+  signal?: AbortSignal;
 }
 
 /**
  * Ask the MAIN world to describe `el`. Resolves `null` when nothing answers in
  * time — Phase 1 always resolves to the empty hint from `content-main.ts`.
  *
- * The target attribute is written and removed within this call, so the host
- * page never keeps a Domnotate attribute after a pick completes.
+ * The target attribute is written and removed within this call, on every exit
+ * path including abort, so the host page never keeps a Domnotate attribute.
  */
 export function requestSourceHint(
   el: Element,
@@ -106,7 +127,10 @@ export function requestSourceHint(
 ): Promise<SourceHintPayload | null> {
   const win = options.win ?? window;
   const timeoutMs = options.timeoutMs ?? HINT_TIMEOUT_MS;
+  const signal = options.signal;
   const nonce = createNonce();
+
+  if (signal?.aborted) return Promise.resolve(null);
 
   return new Promise((resolve) => {
     let settled = false;
@@ -116,9 +140,12 @@ export function requestSourceHint(
       settled = true;
       win.clearTimeout(timer);
       win.removeEventListener('message', onMessage);
+      signal?.removeEventListener('abort', onAbort);
       el.removeAttribute(HINT_TARGET_ATTR);
       resolve(hint);
     };
+
+    const onAbort = (): void => finish(null);
 
     const onMessage = (event: MessageEvent): void => {
       const data: unknown = event.data;
@@ -127,6 +154,7 @@ export function requestSourceHint(
     };
 
     win.addEventListener('message', onMessage);
+    signal?.addEventListener('abort', onAbort);
     const timer = win.setTimeout(() => finish(null), timeoutMs);
 
     el.setAttribute(HINT_TARGET_ATTR, nonce);

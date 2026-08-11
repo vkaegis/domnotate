@@ -147,3 +147,50 @@ describe('describeStub', () => {
     });
   });
 });
+
+describe('targetOrigin — the origins that cannot be named', () => {
+  /**
+   * A fake window, because the real one's `location` is not writable and the
+   * bug is entirely about what `location` reports. Only the postMessage target
+   * is under test.
+   */
+  function fakeWin(location: { origin: string; protocol: string }): Window {
+    const listeners = new Set<(e: MessageEvent) => void>();
+    return {
+      location,
+      posted: [] as string[],
+      addEventListener: (_t: string, fn: (e: MessageEvent) => void) => listeners.add(fn),
+      removeEventListener: (_t: string, fn: (e: MessageEvent) => void) => listeners.delete(fn),
+      setTimeout: () => 1,
+      clearTimeout: () => {},
+      postMessage(_msg: unknown, target: string) {
+        (this as unknown as { posted: string[] }).posted.push(target);
+      },
+    } as unknown as Window;
+  }
+
+  function targetUsedFor(location: { origin: string; protocol: string }): string {
+    const win = fakeWin(location);
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    void requestSourceHint(el, { win });
+    return (win as unknown as { posted: string[] }).posted[0];
+  }
+
+  it('names an ordinary origin', () => {
+    expect(targetUsedFor({ origin: 'https://app.test', protocol: 'https:' })).toBe(
+      'https://app.test',
+    );
+  });
+
+  it('falls back for an opaque origin', () => {
+    expect(targetUsedFor({ origin: 'null', protocol: 'https:' })).toBe('*');
+  });
+
+  // Regression, 11 Aug: Chrome reports `file://` here, which looks like a usable
+  // origin and is not — the window's real origin is opaque, so postMessage threw
+  // and every source hint on a local HTML file was lost.
+  it('falls back for a file URL, which reports a plausible-looking origin', () => {
+    expect(targetUsedFor({ origin: 'file://', protocol: 'file:' })).toBe('*');
+  });
+});

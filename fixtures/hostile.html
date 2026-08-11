@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Domnotate — hostile host page</title>
+
+    <!--
+      Every rule below is something a real site does, collected into one page so
+      the Phase 1 style rows can be checked in about a minute instead of by
+      remembering what to look for. Served by the dev server at
+      http://localhost:8000/fixtures/hostile.html — it is not part of the build
+      and never ships.
+
+      Not included here: a strict Content-Security-Policy. That one needs its own
+      document, so it lives in `hostile-csp.html`.
+    -->
+    <style>
+      /* 1. The 62.5% trick. `rem` inside a shadow root resolves against *this*
+            root, not `:host`, so anything sized in rem shrinks to ~62%. */
+      html {
+        font-size: 62.5%;
+      }
+
+      /* 2. Inherited properties crossing the shadow boundary. `all: initial` on
+            the host is what stops these — except direction, which `all` does
+            not reset, hence dir="rtl" on <html> above.
+
+            These have to sit on html/body, because the shadow host is a child
+            of body and inherits from it directly. Comic Sans + uppercase + red
+            + wide tracking is the tell: if any of it appears in the sidebar,
+            the reset has a hole. */
+      html,
+      body {
+        font-family: 'Comic Sans MS', cursive !important;
+        letter-spacing: 3px !important;
+        line-height: 2.4 !important;
+        color: #c0392b !important;
+        text-transform: uppercase !important;
+        font-size: 1.6rem;
+      }
+
+      /* The page's own content, restored to a readable size. This weakens
+         nothing: what reaches the shadow host is inherited from body, not from
+         these descendants, so the test above is unaffected — and a fixture you
+         have to scroll past an 800px header to read is a fixture nobody runs. */
+      .site-header,
+      main,
+      .checklist {
+        font-size: 15px !important;
+        line-height: 1.5 !important;
+        letter-spacing: normal !important;
+        text-transform: none !important;
+      }
+
+      /* 3. A blunt !important rule that matches our shadow host as a plain div.
+            Inline !important outranks it — a style attribute beats every
+            selector in the same origin — so if this ever wins, the whole
+            overlay turns lime and dashed and there is no missing it.
+
+            `html > div` is the selector that reaches us: the host mounts on
+            `documentElement`, not `body`, to stay clear of transformed
+            ancestors. `#stage` is excluded because it wraps the entire page and
+            hue-rotating all of it makes the fixture unreadable for no gain. */
+      html > div,
+      body > div:not(#stage) {
+        background: #00ff88 !important;
+        border: 6px dashed #c0392b !important;
+        filter: hue-rotate(90deg) !important;
+      }
+
+      /* 4. A transformed ancestor. This is the nasty one: a transform on an
+            ancestor makes `position: fixed` resolve against *it* rather than the
+            viewport, so a fixed overlay silently stops covering the screen. It
+            caught us on 11 Aug — the overlay used to mount on `body`.
+
+            It sits on a wrapper rather than on `body` now, and the reason is
+            worth knowing: with `body` transformed, *the page's own* fixed
+            elements are captured too, so the cookie bar below pinned itself to
+            the bottom of the document instead of the viewport and the z-index
+            check silently never ran. A fixture that quietly stops testing is
+            worse than no fixture. The body-mount regression is held by
+            `isolation.test.ts` instead, which is the better home for it. */
+      #stage {
+        transform: translateZ(0);
+      }
+
+      body {
+        margin: 0;
+        padding: 56px 0 40vh;
+        background: #fdf6e3;
+      }
+
+      /* 5. A full-width **fixed** header — open question 7 in the plan.
+            Deliberately not `position: sticky`: sticky sits in normal flow and
+            so respects the docked inset, which means it passes without testing
+            anything. Fixed is the case that fails, and it is meant to: a fixed
+            header is placed against the viewport, not the inset root, so it
+            runs under the sidebar. Confirm it reads as a known limit rather
+            than as a broken overlay. */
+      .site-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 999;
+        background: #2c3e50;
+        color: #fff;
+        padding: 16px;
+      }
+
+      /* 6. A fixed element already sitting at the top of the z stack. */
+      .cookie-bar {
+        position: fixed;
+        bottom: 0;
+        inset-inline: 0;
+        z-index: 2147483647;
+        background: #34495e;
+        color: #fff;
+        padding: 12px 16px;
+      }
+
+      /* 7. A scrolling inner pane — pins must track this, and it fires no
+            document scroll event (§3.9, case 1). */
+      .pane {
+        height: 40vh;
+        overflow: auto;
+        border: 1px solid #ccc;
+        margin: 16px;
+        padding: 8px;
+      }
+
+      main {
+        padding: 16px;
+      }
+      .card {
+        border: 1px solid #d8cfae;
+        background: #fff;
+        padding: 12px;
+        margin: 12px 0;
+      }
+      .checklist {
+        background: #fff;
+        border: 2px solid #2c3e50;
+        padding: 12px 32px;
+        margin: 16px;
+        max-width: 60ch;
+      }
+      .checklist li {
+        margin: 6px 0;
+      }
+      .checklist strong {
+        color: #2c3e50;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!--
+      The header and the cookie bar sit outside #stage on purpose: they are
+      `position: fixed` and have to resolve against the viewport to test
+      anything. Everything else goes inside the transformed wrapper.
+    -->
+    <header class="site-header">Hostile Host Inc. — fixed, full width</header>
+
+    <div id="stage">
+    <div class="checklist">
+      <p>
+        <strong>This page is supposed to look broken.</strong> Comic Sans, the red uppercase text,
+        the lime and the dashes are all attacks aimed at the sidebar. Nothing about how the
+        <em>page</em> looks is a finding. Judge the sidebar only.
+      </p>
+      <ol>
+        <li>Sidebar reads left-to-right, not mirrored (direction / unicode-bidi).</li>
+        <li>Sidebar text is the system font at normal size, not Comic Sans, not uppercase, not red.</li>
+        <li>Nothing in the sidebar is lime, dashed, or hue-rotated.</li>
+        <li>Sidebar spans the full viewport height and sits flush against the right edge.</li>
+        <li>Sidebar renders above the cookie bar at the bottom, which claims the same z-index.</li>
+        <li>
+          The fixed header <em>does</em> run under the sidebar. That is the known limit in open
+          question 7, not a bug. The check is whether it looks like a known limit.
+        </li>
+        <li>Pins stay attached when the inner pane scrolls, not just the page.</li>
+        <li>
+          With the dialog open, the sidebar is still bright and still clickable, and a note can be
+          typed. <code>showModal()</code> puts the dialog in the top layer, which paints over every
+          z-index and makes everything outside it inert.
+        </li>
+        <li>Picking an element inside the dialog works.</li>
+        <li>Close the extension: this page looks exactly as it did before, no leftover inset.</li>
+      </ol>
+    </div>
+
+    <main>
+      <h1>Records</h1>
+
+      <div class="card">
+        <h2>Sentiment breakdown</h2>
+        <p>A card with real text, so the literal-text signal has something to find.</p>
+        <button id="save" data-testid="save-btn">Save changes</button>
+      </div>
+
+      <!-- A text-free icon: the floor case, Phase 2 block 10. -->
+      <div class="card">
+        <button aria-label="" id="icon-only">
+          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" fill="#2c3e50" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="pane" id="pane">
+        <p>Inner scrolling pane.</p>
+        <div class="card">Row 1</div>
+        <div class="card">Row 2</div>
+        <div class="card">Row 3</div>
+        <div class="card">Row 4</div>
+        <div class="card">Row 5</div>
+        <div class="card">Row 6</div>
+        <div class="card">Row 7</div>
+        <div class="card">Row 8</div>
+      </div>
+
+      <button id="open-dialog">Open dialog</button>
+      <dialog id="dialog" aria-label="Connect an MCP server">
+        <h2>Connect an MCP server</h2>
+        <p>Picking in here is the portal case.</p>
+        <label>Server URL <input type="text" name="url" /></label>
+        <button id="close-dialog">Close</button>
+      </dialog>
+    </main>
+    </div>
+    <!-- /#stage -->
+
+    <div class="cookie-bar">We use cookies. z-index: 2147483647.</div>
+
+    <script>
+      const dialog = document.getElementById('dialog');
+      document.getElementById('open-dialog').addEventListener('click', () => dialog.showModal());
+      document.getElementById('close-dialog').addEventListener('click', () => dialog.close());
+    </script>
+  </body>
+</html>

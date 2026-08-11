@@ -67,13 +67,125 @@ function dockPage(doc: Document, win: Window): () => void {
 }
 
 /**
+ * TypeScript's DOM lib declares these as always present. They are not: the
+ * popover API landed in Chrome 114, and happy-dom has none of it.
+ */
+function popoverApiOf(el: HTMLElement): Pick<HTMLElement, 'showPopover' | 'hidePopover'> | null {
+  const candidate = el as Partial<Pick<HTMLElement, 'showPopover' | 'hidePopover'>>;
+  if (typeof candidate.showPopover !== 'function' || typeof candidate.hidePopover !== 'function') {
+    return null;
+  }
+  return { showPopover: candidate.showPopover, hidePopover: candidate.hidePopover };
+}
+
+/**
+ * Join the **top layer**.
+ *
+ * `dialog.showModal()` and `[popover]` do not participate in the z-index game
+ * at all: the browser promotes them to the top layer, which paints above every
+ * stacking context in the document, and marks everything outside the topmost
+ * one `inert`. `z-index: 2147483647` loses to it, and inert is enforced by the
+ * browser rather than by an event listener, so no capture-phase guard reaches
+ * it either — the sidebar goes dim under the dialog's `::backdrop` and its note
+ * field cannot even be focused.
+ *
+ * The only way to paint above the top layer is to be in it, which a manual
+ * popover does. `manual` rather than `auto` because auto popovers light-dismiss
+ * on Escape and on any outside click, and both belong to the annotation loop.
+ *
+ * **This fixes painting and not inertness.** Measured in Chrome, 11 Aug: a fresh
+ * manual popover, shown *after* a modal dialog and confirmed `:popover-open`,
+ * still could not take focus. Insertion order into the top layer buys paint
+ * order and nothing else — inertness is a flat-tree question, and the only place
+ * it does not reach is the dialog's own subtree. See `homeFor` below for what
+ * actually restores typing.
+ *
+ * Returns whether promotion took: pre-Chrome-114 and happy-dom have no popover
+ * API, and the overlay has to keep working there on plain z-index.
+ */
+function enterTopLayer(el: HTMLElement): boolean {
+  const api = popoverApiOf(el);
+  if (!api) return false;
+  const fresh = !el.hasAttribute('popover');
+  if (fresh) el.setAttribute('popover', 'manual');
+  try {
+    api.showPopover.call(el);
+    return true;
+  } catch {
+    // Showing an already-shown popover throws too, and that is harmless. On a
+    // *fresh* promotion a throw means it will never show, and a popover
+    // attribute on an element that will not show is worse than none: the UA
+    // stylesheet hides it outright.
+    if (fresh) el.removeAttribute('popover');
+    return !fresh;
+  }
+}
+
+/**
+ * Where the host has to live to be interactive.
+ *
+ * `showModal()` marks every element that is not a shadow-including descendant of
+ * the dialog `inert`, and inert is enforced by the browser: no capture-phase
+ * guard reaches it, and no z-index or top-layer trick escapes it. `focus()`
+ * fails silently, clicks do not land, and the sidebar reads as frozen.
+ *
+ * So while a modal dialog is open, the overlay moves *inside* it, and moves back
+ * out when it closes. This is the one place in the codebase that restructures
+ * the host page's DOM, which is worth stating plainly — but it is reversible, it
+ * is the only mechanism the platform leaves open, and it only ever runs on pages
+ * that use a native modal, which are precisely the pages that are otherwise
+ * unusable. MUI's Dialog is a `<div>` with a z-index, so the primary target never
+ * takes this path.
+ *
+ * `:modal` also matches fullscreen elements, which inert the page the same way,
+ * so they are handled by the same code for free.
+ */
+function homeFor(doc: Document, hostEl: HTMLElement): Element {
+  const fallback = doc.documentElement ?? doc.body;
+  let modals: Element[];
+  try {
+    modals = Array.from(doc.querySelectorAll(':modal'));
+  } catch {
+    // `:modal` is Chrome 105+, and happy-dom does not know it at all.
+    return fallback;
+  }
+  const topmost = modals[modals.length - 1];
+  if (!topmost || topmost === hostEl || hostEl.contains(topmost)) return fallback;
+  return topmost;
+}
+
+/**
+ * Top layer paint order is insertion order, so a dialog opened after us paints
+ * over us. Re-showing puts us back on top. Paint order only — inertness does not
+ * work this way, see `enterTopLayer`.
+ */
+function reassertTopLayer(el: HTMLElement): void {
+  const api = popoverApiOf(el);
+  if (!api || !el.hasAttribute('popover')) return;
+  try {
+    api.hidePopover.call(el);
+    api.showPopover.call(el);
+  } catch {
+    /* Mid-teardown, or never shown. Nothing useful to do. */
+  }
+}
+
+/**
  * Locks the host element down against the page. `all: initial` is the load
  * bearing declaration: inherited properties (font, colour, line-height,
  * visibility, letter-spacing) cross the shadow boundary, and this is what
- * stops them.
+ * stops them. Set inline and `!important`, so it also outranks any host rule
+ * that happens to match this element — a style attribute beats every selector.
+ *
+ * `direction` and `unicode-bidi` are the spec's explicit carve-out from `all`,
+ * so they are the two inherited properties that would otherwise still reach us:
+ * on `<html dir="rtl">` the whole sidebar mirrors. They have to be listed by
+ * hand or the reset has a hole in exactly the place nobody tests.
  */
 const HOST_STYLE: ReadonlyArray<[string, string]> = [
   ['all', 'initial'],
+  ['direction', 'ltr'],
+  ['unicode-bidi', 'isolate'],
   ['position', 'fixed'],
   ['top', '0'],
   ['left', '0'],
@@ -249,6 +361,9 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   const bus = createEventBus();
   const manager = createAnnotationManager();
   const stash = readStash(win);
+  // Every source-hint request in flight, cancelled on unmount so a pending one
+  // cannot leave its nonce on a host element after we are gone.
+  const hintRequests = new AbortController();
   const formatter = createOutputFormatter();
   const picker = createElementPicker();
   const host = createPageHost(win);
@@ -432,6 +547,11 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
         `[data-annotation-id="${focusAnnotationId}"] .dn-ext-note-input`,
       );
       focusAnnotationId = null;
+      // The one moment interactivity is definitely required, so take the top
+      // layer back before asking for focus rather than trusting that we still
+      // hold it. `focus()` on an inert element fails silently — a pin lands and
+      // the note simply cannot be typed, which is exactly how this presented.
+      followTopLayer();
       input?.focus();
     }
   }
@@ -514,7 +634,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     // race against a delete, which `updateSourceHint` treats as normal.
     const target = doc.elementFromPoint(e.mouseX, e.mouseY);
     if (target && target !== hostEl) {
-      void requestSourceHint(target, { win }).then((hint) => {
+      void requestSourceHint(target, { win, signal: hintRequests.signal }).then((hint) => {
         manager.updateSourceHint(annotation.id, hint);
       });
     }
@@ -695,10 +815,66 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
 
   let unmounted = false;
 
+  /**
+   * Put the host wherever it currently needs to be, and take the paint order
+   * back. Idempotent and cheap, so it is safe to call from anything.
+   *
+   * Moving a shown popover through the DOM closes it — a popover is hidden when
+   * its element is removed from the document — so promotion is re-applied after
+   * every move rather than only on the first.
+   */
+  function followTopLayer(): void {
+    if (unmounted) return;
+    const home = homeFor(doc, hostEl);
+    if (hostEl.parentElement !== home) {
+      home.appendChild(hostEl);
+      watchHome(home);
+    }
+    if (hostEl.hasAttribute('popover')) reassertTopLayer(hostEl);
+    else enterTopLayer(hostEl);
+  }
+
+  /**
+   * While docked inside a page-owned node, that node is not ours to rely on: a
+   * React dialog that unmounts takes our whole UI with it, annotations and all.
+   * Two narrow childList observers — the dialog, for our own removal, and its
+   * parent, for the dialog's — are enough to notice and re-home. Scoped to the
+   * dialog rather than the document, so this costs nothing on a busy app.
+   */
+  function watchHome(home: Element): void {
+    homeWatcher.disconnect();
+    if (home === doc.documentElement) return;
+    homeWatcher.observe(home, { childList: true });
+    if (home.parentNode) homeWatcher.observe(home.parentNode, { childList: true });
+  }
+
+  /** A host page dialog or popover opening puts it above us. Follow it. */
+  function onHostPageToggle(e: Event): void {
+    if (e.target === hostEl) return;
+    followTopLayer();
+  }
+
+  const homeWatcher = new MutationObserver(() => followTopLayer());
+
+  const topLayerWatcher = new MutationObserver((records) => {
+    // `open` going *away* matters as much as arriving: that is the signal to
+    // move back out of a dialog before the page can tear it down.
+    for (const record of records) {
+      if ((record.target as Element).tagName === 'DIALOG') {
+        followTopLayer();
+        return;
+      }
+    }
+  });
+
   function unmount(): void {
     if (unmounted) return;
     unmounted = true;
     picker.deactivate();
+    hintRequests.abort();
+    doc.removeEventListener('toggle', onHostPageToggle, true);
+    topLayerWatcher.disconnect();
+    homeWatcher.disconnect();
     doc.removeEventListener('keydown', onKeyDown, true);
     for (const type of SWALLOWED_KEY_EVENTS) {
       win.removeEventListener(type, swallowKeys, true);
@@ -715,7 +891,35 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   }
 
   render();
-  doc.body.appendChild(hostEl);
+  // On `documentElement`, not `body`. A `transform`, `filter`, `perspective` or
+  // `will-change` on any ancestor makes it the containing block for `position:
+  // fixed` descendants, so a `transform: translateZ(0)` on `body` — a GPU-layer
+  // hint sites apply routinely — silently stops the overlay covering the
+  // viewport: it lands inside the docked page instead, short of the right edge
+  // and the bottom. Mounting a level up puts `body` out of our ancestry, so
+  // only a transform on `<html>` itself can still catch us, which is rare
+  // enough to accept. The parser never produces element children of `<html>`
+  // besides head and body, but the DOM permits them and they render.
+  (doc.documentElement ?? doc.body).appendChild(hostEl);
+  followTopLayer();
+
+  // Two triggers, because neither covers the other.
+  //
+  // `toggle` is the popover API's own event and fires reliably for popovers,
+  // but for `<dialog>` it is recent (Chrome 129) — so on an older Chrome, or
+  // any engine that has popovers without dialog toggle events, a `showModal()`
+  // would put the page above us and nothing would tell us.
+  //
+  // `showModal()` always sets the `open` attribute, so an attribute observer
+  // catches it everywhere. `attributeFilter` keeps this far cheaper than a
+  // childList observer over a live app: no callback at all for ordinary DOM
+  // churn, and `subtree` covers dialogs added after we start watching.
+  doc.addEventListener('toggle', onHostPageToggle, true);
+  topLayerWatcher.observe(doc.documentElement, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['open'],
+  });
 
   return {
     unmount,

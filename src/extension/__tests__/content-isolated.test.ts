@@ -68,12 +68,14 @@ describe('mounting', () => {
     expect(document.querySelector('[data-domnotate-root]')).toBeNull();
   });
 
-  it('attaches a closed shadow root to the body', () => {
+  it('attaches a closed shadow root to the document element', () => {
     const overlay = mount();
     const hostEl = document.querySelector('[data-domnotate-root]');
 
     expect(hostEl).not.toBeNull();
-    expect(hostEl?.parentElement).toBe(document.body);
+    // Outside `body` on purpose — a transformed body would otherwise become the
+    // containing block for our fixed host. See `isolation.test.ts`.
+    expect(hostEl?.parentElement).toBe(document.documentElement);
     // Closed means the page cannot reach in through the element.
     expect(hostEl?.shadowRoot).toBeNull();
     expect(overlay.root.host).toBe(hostEl);
