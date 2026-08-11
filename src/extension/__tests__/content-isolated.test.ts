@@ -53,6 +53,19 @@ function isArmed(overlay: DomnotateOverlay): boolean {
   return button(overlay, 'Annotate').classList.contains('dn-action-btn--active');
 }
 
+function annotate(overlay: DomnotateOverlay, note: string): void {
+  const target = document.createElement('button');
+  document.body.appendChild(target);
+  pick(overlay, target);
+  const input = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input')!;
+  input.value = note;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function noteCount(overlay: DomnotateOverlay): number {
+  return overlay.root.querySelectorAll('.dn-note-row').length;
+}
+
 afterEach(() => {
   pointerTarget = null;
   while (live.length) live.pop()!.unmount();
@@ -60,6 +73,9 @@ afterEach(() => {
   delete (window as unknown as Record<string, unknown>).__domnotateOverlay;
   // Notes deliberately outlive a close, so each test has to start clean.
   delete (window as unknown as Record<string, unknown>).__domnotateStash;
+  // The stash is stamped with the route, so a test that navigates would
+  // otherwise decide what the next one restores.
+  window.history.pushState({}, '', '/');
   vi.restoreAllMocks();
 });
 
@@ -638,15 +654,6 @@ describe('committing a note from the keyboard', () => {
 });
 
 describe('closing with Escape', () => {
-  function annotate(overlay: DomnotateOverlay, note: string): void {
-    const target = document.createElement('button');
-    document.body.appendChild(target);
-    pick(overlay, target);
-    const input = query<HTMLTextAreaElement>(overlay, '.dn-ext-note-input')!;
-    input.value = note;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
   function pressEscape(from: EventTarget = document): KeyboardEvent {
     const event = new KeyboardEvent('keydown', {
       key: 'Escape',
@@ -715,5 +722,89 @@ describe('closing with Escape', () => {
     annotate(second, 'two');
 
     expect(second.root.querySelectorAll('.dn-note-row')).toHaveLength(2);
+  });
+});
+
+/**
+ * The stash lives on `window`, which a client-side navigation does not replace,
+ * so held notes have to know which screen they belong to. Every case here is a
+ * single-page navigation: nothing reloads, and the annotations survive in
+ * memory throughout.
+ */
+describe('notes held across a close belong to one screen', () => {
+  function navigate(to: string): void {
+    window.history.pushState({}, '', to);
+  }
+
+  it('does not bring notes from one screen back on another', () => {
+    navigate('/records/1');
+    const first = mount();
+    annotate(first, 'align this');
+    first.unmount();
+
+    navigate('/records/2');
+
+    expect(noteCount(mount())).toBe(0);
+  });
+
+  it('still finds them on walking back', () => {
+    navigate('/records/1');
+    const first = mount();
+    annotate(first, 'align this');
+    first.unmount();
+
+    // Opening and closing elsewhere writes nothing, and must not take the
+    // notes waiting on the screen you came from with it.
+    navigate('/records/2');
+    const elsewhere = mount();
+    expect(noteCount(elsewhere)).toBe(0);
+    elsewhere.unmount();
+    navigate('/records/1');
+
+    const back = mount();
+    expect(noteCount(back)).toBe(1);
+    expect(back.toMarkdown()).toContain('align this');
+  });
+
+  it('counts a hash route as its own screen', () => {
+    navigate('/#/records/1');
+    const first = mount();
+    annotate(first, 'align this');
+    first.unmount();
+
+    navigate('/#/records/2');
+
+    // A hash router keeps its whole route after the `#`, so ignoring it would
+    // give every screen in such an app the same stamp.
+    expect(noteCount(mount())).toBe(0);
+  });
+
+  it('does not count a changed query param as one', () => {
+    navigate('/records/1?tab=sentiment');
+    const first = mount();
+    annotate(first, 'align this');
+    first.unmount();
+
+    navigate('/records/1?tab=summary&utm_source=slack');
+
+    // Deliberate: params churn without a screen change, and a stamp that
+    // drifted on its own would strand notes on a screen still in front of you.
+    expect(noteCount(mount())).toBe(1);
+  });
+
+  it('keeps them on the screen the session began on, not wherever it ended', () => {
+    navigate('/records/1');
+    const overlay = mount();
+    annotate(overlay, 'align this');
+    // The app navigating under an open sidebar: a redirect, or a route change
+    // the page made for itself.
+    navigate('/records/2');
+    overlay.unmount();
+
+    expect(noteCount(mount())).toBe(0);
+
+    live.pop()!.unmount();
+    navigate('/records/1');
+    expect(noteCount(mount())).toBe(1);
   });
 });

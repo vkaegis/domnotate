@@ -360,7 +360,10 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   // --- Core modules, reused verbatim ------------------------------------
   const bus = createEventBus();
   const manager = createAnnotationManager();
-  const stash = readStash(win);
+  // Read once, at mount. The app can navigate under an open sidebar, and notes
+  // belong to the screen they were taken on, not to wherever it ended up.
+  const route = routeOf(win);
+  const stash = readStash(win, route);
   // Every source-hint request in flight, cancelled on unmount so a pending one
   // cannot leave its nonce on a host element after we are gone.
   const hintRequests = new AbortController();
@@ -798,8 +801,8 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
 
   // Escape closes the sidebar, and closing must not be how you lose an
   // afternoon's notes. Annotations survive a close and come back on reopen,
-  // for as long as the page is loaded. Reloading the page still clears them —
-  // that is Phase 5.
+  // for as long as the page is loaded and you are still on the screen they
+  // were taken on.
   if (stash.length > 0) {
     manager.loadAnnotations(stash);
     render();
@@ -885,7 +888,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     cancelCopyFeedback?.();
     for (const unsub of unsubs) unsub();
     pinLayer.destroy();
-    writeStash(win, manager.getAll());
+    writeStash(win, manager.getAll(), route);
     hostEl.remove();
     delete (win as unknown as Record<string, unknown>)[MOUNTED_FLAG];
   }
@@ -937,20 +940,68 @@ const MOUNTED_FLAG = '__domnotateOverlay';
 /**
  * Annotations held across a close, on the isolated world's global. Content
  * scripts re-injected into the same page share that object, and the page
- * cannot see it. Cleared by a page load, which is what Phase 5's real
- * `SessionStore` is for.
+ * cannot see it. A page load clears them, deliberately: once notes have been
+ * copied into an agent they are spent, and bringing them back days later would
+ * dress stale work up as current.
+ *
+ * Stamped with the screen they were taken on, because a client-side SPA
+ * navigation replaces neither the window nor this object. Without the stamp,
+ * notes taken on one screen come back in the sidebar on the next one, attached
+ * to elements that are no longer in the document.
  */
 const STASH_FLAG = '__domnotateStash';
 
-function readStash(win: Window): Annotation[] {
-  const value = (win as unknown as Record<string, unknown>)[STASH_FLAG];
-  return Array.isArray(value) ? (value as Annotation[]) : [];
+interface Stash {
+  route: string;
+  annotations: Annotation[];
 }
 
-export function writeStash(win: Window, annotations: Annotation[]): void {
+/**
+ * Which screen a stash belongs to.
+ *
+ * The hash is in: a hash router keeps its entire route there, so leaving it out
+ * would give every screen of such an app the same label — the bug this stamp
+ * exists to prevent. `search` is out: params churn without a screen change (an
+ * analytics tag, an auth redirect), and a stamp that drifts on its own would
+ * strand notes on a screen you are still looking at. The cost is that an app
+ * routing its tabs through `?tab=` shares one label across them, which shows
+ * the notes rather than hiding them — visible in the sidebar, and their pins
+ * hide themselves when the elements cannot be found.
+ */
+function routeOf(win: Window): string {
+  const { origin, pathname, hash } = win.location;
+  return `${origin}${pathname}${hash}`;
+}
+
+/**
+ * Notes for this screen, if the stash is holding any.
+ *
+ * A stash stamped with a different screen is left alone rather than discarded.
+ * Reopening somewhere else should show an empty sidebar; walking back should
+ * still find the notes where they were left.
+ */
+function readStash(win: Window, route: string): Annotation[] {
+  const stash = (win as unknown as Record<string, unknown>)[STASH_FLAG] as Stash | undefined;
+  if (!stash || !Array.isArray(stash.annotations)) return [];
+  return stash.route === route ? stash.annotations : [];
+}
+
+/**
+ * Hold this session's notes for the next open, under the screen the session
+ * began on rather than wherever the app has navigated to since.
+ *
+ * With nothing to hold, only this screen's stash is cleared. Opening and
+ * closing Domnotate on another screen without writing anything must not throw
+ * away the notes still waiting on the screen you came from.
+ */
+export function writeStash(win: Window, annotations: Annotation[], route: string): void {
   const scope = win as unknown as Record<string, unknown>;
-  if (annotations.length > 0) scope[STASH_FLAG] = annotations;
-  else delete scope[STASH_FLAG];
+  if (annotations.length > 0) {
+    scope[STASH_FLAG] = { route, annotations } satisfies Stash;
+    return;
+  }
+  const existing = scope[STASH_FLAG] as Stash | undefined;
+  if (!existing || existing.route === route) delete scope[STASH_FLAG];
 }
 
 /**
