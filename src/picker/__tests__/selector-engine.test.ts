@@ -109,11 +109,34 @@ describe('generateCssSelector — tag is kept at an id boundary', () => {
     expectResolvesUniquelyTo(doc, selector, target);
   });
 
-  test('still prefers a bare unique id for the annotated element itself', () => {
-    const doc = makePlainDocument('<main><div id="unique-target">x</div></main>');
-    const target = query(doc, '#unique-target');
+  test('tags the annotated element too, when its own id is the whole selector', () => {
+    // Regression: captured on `fixtures/hostile-csp.html`, where a `<button
+    // id="save">` exported as a bare `#save`. The tag was dropped for the
+    // target element while ancestors kept theirs, which read as minimality but
+    // costs the agent the one thing the selector is there to say.
+    const doc = makePlainDocument('<main><button id="save">Save changes</button></main>');
+    const target = query(doc, '#save');
 
-    expect(generateCssSelector(target)).toBe('#unique-target');
+    expect(generateCssSelector(target)).toBe('button#save');
+    expectResolvesUniquelyTo(doc, 'button#save', target);
+  });
+
+  test('a tagged id can disambiguate where a bare one cannot', () => {
+    // Duplicate ids are invalid and common. Tagging is what makes this
+    // resolvable at all, so it is not purely a readability change.
+    const doc = makePlainDocument('<main><div id="dup">a</div><button id="dup">b</button></main>');
+    const target = query(doc, 'button#dup');
+
+    expect(generateCssSelector(target)).toBe('button#dup');
+    expectResolvesUniquelyTo(doc, 'button#dup', target);
+  });
+
+  test('tags a testid-derived selector for the annotated element', () => {
+    const doc = makePlainDocument('<main><button data-testid="save-btn">Save</button></main>');
+    const target = query(doc, '[data-testid="save-btn"]');
+
+    expect(generateCssSelector(target)).toBe('button[data-testid="save-btn"]');
+    expectResolvesUniquelyTo(doc, 'button[data-testid="save-btn"]', target);
   });
 });
 
@@ -156,13 +179,15 @@ describe('generateCssSelector — sibling position on the annotated element', ()
     expect(generateCssSelector(target)).toBe('span.only');
   });
 
-  test('leaves a unique data-testid selector alone', () => {
+  test('adds no nth-child to a unique data-testid selector, which is already exact', () => {
     const doc = makePlainDocument(`
       <div class="row"><b data-testid="a">a</b><b data-testid="b">b</b></div>
     `);
     const target = query(doc, '[data-testid="b"]');
 
-    expect(generateCssSelector(target)).toBe('[data-testid="b"]');
+    // Tagged, per the id-boundary rule; the point here is the absent position.
+    expect(generateCssSelector(target)).toBe('b[data-testid="b"]');
+    expect(generateCssSelector(target)).not.toContain(':nth-child');
   });
 });
 

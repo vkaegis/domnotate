@@ -90,21 +90,31 @@ function ancestorNthChildPart(el: Element): string {
 }
 
 function buildCssSelector(el: Element, doc: Document, filterHashes: boolean): string {
+  const tag = el.tagName.toLowerCase();
+
   // 1. id
+  //
+  // Tagged, for the same reason the walk below tags an id-bearing ancestor: the
+  // selector is read by an agent as much as resolved by a browser, and
+  // `button#save` says what the element is where a bare `#save` does not. The
+  // element's own `role:` line is not a substitute — a `div[role=button]`
+  // reports the same role and is a different thing to go looking for.
+  //
+  // No `:nth-child` here, unlike the walk: sibling position discriminates
+  // between identical instances, and a unique id means there are none.
   if (el.id) {
-    const sel = `#${escapeCssIdent(el.id)}`;
+    const sel = `${tag}#${escapeCssIdent(el.id)}`;
     if (isUnique(doc, sel)) return sel;
   }
 
-  // 2. data-testid
+  // 2. data-testid — tagged for the same reason
   const testId = el.getAttribute('data-testid');
   if (testId) {
-    const sel = `[data-testid="${testId}"]`;
+    const sel = `${tag}[data-testid="${testId}"]`;
     if (isUnique(doc, sel)) return sel;
   }
 
   // 3. tag + classes + sibling position
-  const tag = el.tagName.toLowerCase();
   const classPart = classSelectorPart(el, filterHashes);
   if (classPart) {
     const sel = `${tag}${classPart}${targetNthChildPart(el)}`;
