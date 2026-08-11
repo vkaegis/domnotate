@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import {
+  formatRoute,
   formatSourceHint,
   grepAdvice,
   headlineComponent,
@@ -7,7 +8,7 @@ import {
 } from '@/core/source-hint/format';
 import { createDomProvider } from '@/core/source-hint/dom-provider';
 import { createProviderRegistry } from '@/core/source-hint/provider';
-import type { SourceHint } from '@/core/source-hint/types';
+import type { SignalOf, SourceHint } from '@/core/source-hint/types';
 
 const NOTE = 'the sentiment pill should be right-aligned with the timestamp';
 
@@ -551,5 +552,35 @@ describe('formatSourceHint — saying when the block is at the floor', () => {
         signals: [{ kind: 'source-location', file: 'src/App.tsx', line: 1 }],
       }),
     ).toBe(false);
+  });
+});
+
+describe('formatRoute — a page that came off disk', () => {
+  function route(url: string, pathname: string): SignalOf<'route'> {
+    return { kind: 'route', url, pathname };
+  }
+
+  test('names an ordinary route in full', () => {
+    expect(formatRoute(route('https://app.test/records/12345', '/records/12345'))).toBe(
+      'route: /records/12345',
+    );
+  });
+
+  /**
+   * Regression, verification session A: `location.pathname` on a `file:` URL is
+   * the whole absolute path, so the export carried a username and a machine's
+   * directory layout onto the clipboard.
+   */
+  test('cuts a file URL back to its basename, and says it is a file', () => {
+    const out = formatRoute(
+      route(
+        'file:///Users/someone/conductor/workspaces/domnotate/vienna/fixtures/hostile.html',
+        '/Users/someone/conductor/workspaces/domnotate/vienna/fixtures/hostile.html',
+      ),
+    );
+
+    expect(out).toBe('file: hostile.html');
+    expect(out).not.toContain('someone');
+    expect(out).not.toContain('/Users/');
   });
 });

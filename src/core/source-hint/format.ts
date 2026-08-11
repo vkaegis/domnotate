@@ -17,6 +17,30 @@
 import type { SignalOf, SourceHint, SourceSignal } from './types';
 import { findSignal, isIdentifyingName } from './provider';
 
+/**
+ * A route line, or a file line when the page came off disk.
+ *
+ * `location.pathname` on a `file:` URL is the whole absolute path, so the
+ * export carried `/Users/<name>/conductor/workspaces/…/fixtures/hostile.html`
+ * — a username and a machine's directory layout, onto the clipboard and into a
+ * model. Two independent reasons to cut it back to the basename: none of those
+ * leading segments exist in the repo the agent is searching, so they are the
+ * §10 lesson 2 shape; and the floor in §3.7 is meant to be fixed rather than
+ * something the redaction toggle has to rescue.
+ *
+ * The basename alone, rather than a guessed number of parent directories: a
+ * shorter path is less specific but never wrong, and there is no non-arbitrary
+ * place to cut. `file:` is the label because on a local file that is what it
+ * is — the page is the file, not a route into an app.
+ */
+export function formatRoute(route: SignalOf<'route'>): string {
+  if (route.url.startsWith('file:')) {
+    const basename = route.pathname.split('/').filter(Boolean).pop();
+    return basename ? `file: ${basename}` : 'file: (unnamed)';
+  }
+  return `route: ${route.pathname}${route.search ?? ''}${route.hash ?? ''}`;
+}
+
 export interface FormatOptions {
   /** Ordinal prefix, e.g. `3.` — omitted when absent. */
   index?: number;
@@ -286,7 +310,7 @@ export function formatSourceHint(hint: SourceHint, options: FormatOptions = {}):
   }
 
   if (route) {
-    lines.push(`${indent}route: ${route.pathname}${route.search ?? ''}${route.hash ?? ''}`);
+    lines.push(`${indent}${formatRoute(route)}`);
   }
 
   if (options.note) {

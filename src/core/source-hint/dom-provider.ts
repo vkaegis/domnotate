@@ -204,6 +204,26 @@ function parseMuiModifiers(modifiers: string[]): { props: Record<string, string>
   return { props, flags };
 }
 
+const BOOTSTRAP_BASE = /^(btn|card|navbar|badge|alert|form-control)$/;
+
+/** Bootstrap base classes present, in class order. */
+function bootstrapBases(classes: string[]): string[] {
+  return classes.filter((c) => BOOTSTRAP_BASE.test(c));
+}
+
+/**
+ * The first base that also carries one of its own modifiers — `card` alongside
+ * `card-body`, `btn` alongside `btn-primary`. This is what distinguishes real
+ * Bootstrap from a hand-written `.card`.
+ */
+function bootstrapBaseWithModifier(classes: string[]): string | null {
+  return (
+    bootstrapBases(classes).find((base) =>
+      classes.some((c) => c !== base && c.startsWith(`${base}-`)),
+    ) ?? null
+  );
+}
+
 /**
  * The convention table. **Adding a convention is a table entry, not a code
  * change** (§3.6) — append an entry with `test` and `parse`; everything else
@@ -292,10 +312,19 @@ export const CLASS_CONVENTIONS: ClassConvention[] = [
   },
   {
     id: 'bootstrap',
-    test: (cs) =>
-      cs.includes('btn') || cs.some((c) => /^(card|navbar|form-control|badge|alert)$/.test(c)),
+    // A lone `card`, `badge`, `btn` or `alert` is not evidence of Bootstrap —
+    // they are among the most common hand-written class names there are, and
+    // claiming them costs more than missing them. The block would say
+    // "<card> is the library's component, not the app's" about the app's own
+    // class, sending the agent away from the best lead it has.
+    //
+    // Bootstrap's actual signature is the modifier pattern, so require
+    // corroboration: a base with one of its own modifiers (`card card-body`),
+    // or two distinct bases. Under-claiming degrades to the class-grep floor,
+    // which §3.6 designs for and which keeps `card` as a candidate either way.
+    test: (cs) => bootstrapBases(cs).length >= 2 || bootstrapBaseWithModifier(cs) !== null,
     parse: (cs) => {
-      const base = cs.find((c) => /^(btn|card|navbar|badge|alert|form-control)$/.test(c)) ?? null;
+      const base = bootstrapBaseWithModifier(cs) ?? bootstrapBases(cs)[0] ?? null;
       return {
         component: base,
         modifiers: base
@@ -687,6 +716,9 @@ export function collectAttributes(el: Element, skipAttribute?: string): Record<s
     if (OWN_ATTR_PREFIXES.some((prefix) => attr.name.startsWith(prefix))) continue;
     if (NOISE_ATTRS.has(attr.name)) continue;
     if (isRuntimeAttrValue(attr.value)) continue;
+    // `aria-label=""` greps for nothing and names nothing. An attribute present
+    // but empty is the absence of a signal, so it is not one (§10 lesson 2).
+    if (attr.value.trim() === '') continue;
     raw[attr.name] = attr.value;
   }
   return filterProps(raw);

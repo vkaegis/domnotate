@@ -523,3 +523,53 @@ describe('regressions from the first real annotation', () => {
     expect(klass?.grepClasses.join(' ')).not.toContain('css-');
   });
 });
+
+describe('classConventionSignal — Bootstrap needs corroboration', () => {
+  /**
+   * Regression, verification session A: `fixtures/hostile.html` has a
+   * hand-written `.card`, and a lone base class was enough to claim Bootstrap.
+   * The block then said "<card> is the library's component, not the app's"
+   * about the app's own class, pointing the agent away from its best lead.
+   */
+  test('a lone hand-written card is not evidence of Bootstrap', () => {
+    const result = classConventionSignal(withClasses('card'));
+
+    expect(result?.convention).toBe('unknown');
+    expect(result?.component).toBeNull();
+    // §3.6: unrecognised degrades to the floor rather than failing, so the
+    // class is still a grep candidate — which is the whole point of backing off.
+    expect(result?.grepClasses).toContain('card');
+  });
+
+  test('a base with its own modifier is Bootstrap', () => {
+    const result = classConventionSignal(withClasses('card card-body'));
+
+    expect(result?.convention).toBe('bootstrap');
+    expect(result?.reconstructed).toBe('<card body>');
+  });
+
+  test('two distinct bases are Bootstrap', () => {
+    expect(classConventionSignal(withClasses('card badge'))?.convention).toBe('bootstrap');
+  });
+
+  test('a lone btn backs off too, rather than only the generic names', () => {
+    expect(classConventionSignal(withClasses('btn'))?.convention).toBe('unknown');
+  });
+});
+
+describe('collectAttributes — an empty value is not a signal', () => {
+  /**
+   * Regression, verification session A: `<button aria-label="" id="icon-only">`
+   * exported `attrs: aria-label="" id="icon-only"`. An empty attribute greps
+   * for nothing and names nothing (§10 lesson 2).
+   */
+  test('drops an attribute that is present but empty', () => {
+    const el = mount('<button id="icon-only" aria-label="">x</button>');
+    expect(collectAttributes(el)).toEqual({ id: 'icon-only' });
+  });
+
+  test('drops one that is only whitespace', () => {
+    const el = mount('<button id="b" aria-label="   ">x</button>');
+    expect(collectAttributes(el)).toEqual({ id: 'b' });
+  });
+});
