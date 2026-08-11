@@ -29,12 +29,6 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    title: 'Shared links expire, and you can delete one',
-    date: '11 Aug 2026',
-    pr: 53,
-    body: 'A shared link now stops working 30 days after you create it, so a capture you shared once does not stay online forever. Deleting a session that you shared also removes the shared copy, so the link stops working straight away. If someone else saves to the same link at the same moment as you, your save is retried and you are told when it could not be applied, instead of one of the two changes vanishing.',
-  },
-  {
     title: 'A refreshed landing page',
     date: '12 Jul 2026',
     pr: 49,
