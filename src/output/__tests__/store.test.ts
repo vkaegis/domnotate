@@ -135,6 +135,53 @@ describe('createSessionStore', () => {
     await expect(store.load('share-123')).resolves.toEqual(loaded);
   });
 
+  test('deleting a local-only session leaves the share API alone', async () => {
+    const deleteShare = vi.fn();
+    const store = createSessionStore({ dbName: getDbName(), deleteShare });
+    const session = makeSession({ annotations: [makeAnnotation()] });
+    await store.save(session);
+
+    await store.delete(session.id);
+
+    expect(deleteShare).not.toHaveBeenCalled();
+    await expect(store.load(session.id)).resolves.toBeNull();
+  });
+
+  test('deleting a shared session removes the shared copy and the local row', async () => {
+    const deleteShare = vi.fn().mockResolvedValue(undefined);
+    const store = createSessionStore({
+      dbName: getDbName(),
+      deleteShare,
+      republishAnnotations: vi.fn().mockResolvedValue({ ok: true }),
+    });
+    const session = makeSession({
+      id: 'local-session',
+      shareId: 'share-123',
+      annotations: [makeAnnotation()],
+    });
+    await store.save(session);
+
+    await store.delete('share-123');
+
+    expect(deleteShare).toHaveBeenCalledWith('share-123');
+    await expect(store.load('local-session')).resolves.toBeNull();
+    await expect(store.load('share-123')).resolves.toBeNull();
+  });
+
+  test('a failed shared delete still clears the local row, then reports the failure', async () => {
+    const deleteShare = vi.fn().mockRejectedValue(new Error('Network offline'));
+    const store = createSessionStore({
+      dbName: getDbName(),
+      deleteShare,
+      republishAnnotations: vi.fn().mockResolvedValue({ ok: true }),
+    });
+    const session = makeSession({ shareId: 'share-123', annotations: [makeAnnotation()] });
+    await store.save(session);
+
+    await expect(store.delete(session.id)).rejects.toThrow('Network offline');
+    await expect(store.load(session.id)).resolves.toBeNull();
+  });
+
   test('shared load falls back to IndexedDB when the cloud read fails', async () => {
     const fetchShare = vi.fn().mockRejectedValue(new Error('Network offline'));
     const store = createSessionStore({

@@ -7,6 +7,7 @@ import {
   createTurnstileVerifier,
   type AbuseVerifier,
 } from '../lib/abuse-verification';
+import { errorResponse, jsonResponse } from '../lib/json-response';
 import { hasJsonContentType, readLimitedJsonBody } from '../lib/request-body';
 
 interface Env {
@@ -22,21 +23,6 @@ interface Data {
 
 const VERIFICATION_HEADER = 'X-Abuse-Verification-Token';
 const TURNSTILE_ACTION = 'create_share';
-
-function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-      ...init.headers,
-    },
-  });
-}
-
-function errorResponse(status: number, code: string): Response {
-  return jsonResponse({ code }, { status });
-}
 
 function logCreation(outcome: 'accepted' | 'rejected', reason?: string): void {
   console.info(JSON.stringify({

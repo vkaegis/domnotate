@@ -5,7 +5,11 @@
 import Dexie from 'dexie';
 import type { AnnotationSession, SessionStore } from '@/types/core';
 import { serializeSession, deserializeSession } from '@/output/json-io';
-import { fetchShare as defaultFetchShare, republishSession as defaultRepublishSession } from '@/share/share-client';
+import {
+  deleteShare as defaultDeleteShare,
+  fetchShare as defaultFetchShare,
+  republishSession as defaultRepublishSession,
+} from '@/share/share-client';
 import { sessionFromSharedBlob } from '@/share/hydration';
 import type { SharedSessionBlob } from '@/share/shared-session';
 
@@ -13,6 +17,7 @@ interface SessionStoreOptions {
   dbName?: string;
   fetchShare?: (id: string) => Promise<SharedSessionBlob>;
   republishAnnotations?: (id: string, session: AnnotationSession) => Promise<{ ok: true }>;
+  deleteShare?: (id: string) => Promise<void>;
 }
 
 class DomnotateDB extends Dexie {
@@ -33,6 +38,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const db = new DomnotateDB(options.dbName ?? 'DomnotateDB');
   const fetchShare = options.fetchShare ?? defaultFetchShare;
   const republishAnnotations = options.republishAnnotations ?? defaultRepublishSession;
+  const deleteShare = options.deleteShare ?? defaultDeleteShare;
 
   async function findCachedSession(idOrShareId: string): Promise<AnnotationSession | null> {
     const direct = await db.sessions.get(idOrShareId);
@@ -88,7 +94,22 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     },
 
     async delete(id: string): Promise<void> {
-      await db.sessions.delete(id);
+      const record = await findCachedSession(id);
+      if (!record?.shareId) {
+        await db.sessions.delete(id);
+        return;
+      }
+
+      // Same posture as save(): the local row goes either way, so a failed
+      // server delete never leaves the session stranded locally, and the caller
+      // still hears that the shared copy is still out there.
+      try {
+        await deleteShare(record.shareId);
+        await db.sessions.delete(record.id);
+      } catch (error) {
+        await db.sessions.delete(record.id);
+        throw error;
+      }
     },
 
     exportJSON(session: AnnotationSession): string {

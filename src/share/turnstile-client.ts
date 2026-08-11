@@ -1,6 +1,12 @@
 const TURNSTILE_SCRIPT_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-const TURNSTILE_ACTION = 'create_share';
 const CHALLENGE_TIMEOUT_MS = 2 * 60 * 1000;
+
+/**
+ * Actions are checked server side, so a token minted for one purpose cannot be
+ * replayed at the other endpoint.
+ */
+export const CREATE_SHARE_ACTION = 'create_share';
+export const UPDATE_SHARE_ACTION = 'update_share';
 
 interface TurnstileRenderOptions {
   sitekey: string;
@@ -59,7 +65,7 @@ function loadTurnstile(): Promise<TurnstileApi> {
   return scriptPromise;
 }
 
-export async function getTurnstileToken(): Promise<string> {
+export async function getTurnstileToken(action: string = CREATE_SHARE_ACTION): Promise<string> {
   const sitekey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
   if (!sitekey) {
     throw new Error('Sharing verification is not configured');
@@ -92,7 +98,7 @@ export async function getTurnstileToken(): Promise<string> {
     const timeout = setTimeout(() => finish(), CHALLENGE_TIMEOUT_MS);
     widgetId = turnstile.render(container, {
       sitekey,
-      action: TURNSTILE_ACTION,
+      action,
       execution: 'execute',
       appearance: 'interaction-only',
       callback: (token) => finish(token),

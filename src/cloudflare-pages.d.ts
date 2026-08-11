@@ -7,11 +7,26 @@ interface R2Bucket {
       httpMetadata?: {
         contentType?: string;
       };
+      /**
+       * Precondition for the write. R2 resolves the put to `null` instead of
+       * writing when the condition does not hold.
+       */
+      onlyIf?: {
+        etagMatches?: string;
+      };
     },
-  ): Promise<unknown>;
+  ): Promise<R2Object | null>;
+  delete(key: string): Promise<void>;
 }
 
-interface R2ObjectBody {
+interface R2Object {
+  /** Strong entity tag, unquoted. */
+  etag: string;
+  /** Entity tag in HTTP header form, i.e. quoted. */
+  httpEtag: string;
+}
+
+interface R2ObjectBody extends R2Object {
   text(): Promise<string>;
 }
 

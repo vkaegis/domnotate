@@ -19,9 +19,9 @@ import { createToast } from '@/toast/toast';
 import { createKeyboardShortcuts } from '@/keyboard/shortcuts';
 import { createSlideObserver } from '@/slides/slide-observer';
 import { activateScopeForAnnotation, createScopedAnnotationOptions } from '@/annotations/view-scope';
-import { publishShare } from '@/share/share-client';
+import { isDefinitiveShareUpdateError, publishShare } from '@/share/share-client';
 import { publishOrCopyShare } from '@/share/share-action';
-import { getTurnstileToken } from '@/share/turnstile-client';
+import { CREATE_SHARE_ACTION, getTurnstileToken } from '@/share/turnstile-client';
 import {
   isDiagnosticsEnabled,
   mountDiagnosticsPanel,
@@ -347,7 +347,7 @@ bus.on('share:publish', async () => {
   try {
     const { id, url } = await publishOrCopyShare(currentSession, {
       origin: window.location.origin,
-      getVerificationToken: getTurnstileToken,
+      getVerificationToken: () => getTurnstileToken(CREATE_SHARE_ACTION),
       publishShare,
       copyToClipboard,
       cacheSession: (session) => store.save(session, { cacheOnly: true }),
@@ -371,7 +371,9 @@ async function persistCurrentSession(): Promise<void> {
   try {
     await store.save(currentSession);
   } catch (error) {
-    const message = currentSession.shareId
+    // A shared save that the server refused (expired, conflict, sharing off)
+    // has a specific reason worth reading; anything else is a sync failure.
+    const message = currentSession.shareId && !isDefinitiveShareUpdateError(error)
       ? 'Offline: changes saved locally but could not sync to the shared link'
       : error instanceof Error ? error.message : 'Unable to save annotations';
     bus.emit({ type: 'share:error', message });
