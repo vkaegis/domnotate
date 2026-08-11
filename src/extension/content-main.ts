@@ -23,6 +23,7 @@ import {
   HINT_CHANNEL,
   HINT_TARGET_ATTR,
   isHintRequest,
+  targetOriginFor,
   type HintResponseMessage,
   type SourceHintPayload,
 } from '@/extension/hint-protocol';
@@ -97,8 +98,7 @@ export function installSourceHintResponder(
       nonce: data.nonce,
       hint,
     };
-    const origin = win.location?.origin;
-    win.postMessage(response, !origin || origin === 'null' ? '*' : origin);
+    win.postMessage(response, targetOriginFor(win));
   };
 
   win.addEventListener('message', onMessage);

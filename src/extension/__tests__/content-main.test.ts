@@ -94,6 +94,70 @@ describe('installSourceHintResponder', () => {
   });
 });
 
+/**
+ * Regression, 11 Aug: `hint-protocol` learned that a `file:` URL reports a
+ * plausible-but-unusable `file://` origin, and the responder did not — it
+ * carried its own inline copy of the rule that only handled `"null"`. The
+ * request reached the MAIN world, the hint was computed, and the reply threw on
+ * the way back, so every annotation on a local HTML file exported with no
+ * source hint and no visible failure.
+ *
+ * The same shape as the Phase 1 filter that existed twice and drifted, so these
+ * assert the responder's target directly rather than trusting the shared helper.
+ */
+describe('the response reaches origins that cannot be named', () => {
+  /** Only the postMessage target is under test; `location` is not writable. */
+  function fakeWin(location: { origin: string; protocol: string }): {
+    win: Window;
+    posted: string[];
+    deliver: (nonce: string) => void;
+  } {
+    let onMessage: ((e: MessageEvent) => void) | null = null;
+    const posted: string[] = [];
+    const win = {
+      location,
+      document,
+      addEventListener: (_t: string, fn: (e: MessageEvent) => void) => {
+        onMessage = fn;
+      },
+      removeEventListener: () => {
+        onMessage = null;
+      },
+      postMessage: (_msg: unknown, target: string) => posted.push(target),
+    } as unknown as Window;
+
+    return {
+      win,
+      posted,
+      deliver: (nonce) =>
+        onMessage?.({
+          data: { channel: HINT_CHANNEL, kind: 'request', nonce },
+        } as MessageEvent),
+    };
+  }
+
+  function targetUsedFor(location: { origin: string; protocol: string }): string {
+    const { win, posted, deliver } = fakeWin(location);
+    teardown.push(installSourceHintResponder({ win, describe: () => null }));
+    deliver('abc-1');
+    return posted[0];
+  }
+
+  it('names an ordinary origin', () => {
+    expect(targetUsedFor({ origin: 'https://app.test', protocol: 'https:' })).toBe(
+      'https://app.test',
+    );
+  });
+
+  it('falls back for an opaque origin', () => {
+    expect(targetUsedFor({ origin: 'null', protocol: 'https:' })).toBe('*');
+  });
+
+  it('falls back for a file URL, whose origin looks nameable and is not', () => {
+    expect(targetUsedFor({ origin: 'file://', protocol: 'file:' })).toBe('*');
+  });
+});
+
 describe('bootstrapMainWorld', () => {
   afterEach(() => teardownMainWorld(window));
 

@@ -96,7 +96,7 @@ export function createNonce(): string {
  * that reports `file://` here rather than `null`, which is exactly why it went
  * unnoticed until the fixture was opened over `file://`.
  */
-function targetOriginFor(win: Window): string {
+export function targetOriginFor(win: Window): string {
   const origin = win.location?.origin;
   if (!origin || origin === 'null') return '*';
   if (win.location?.protocol === 'file:') return '*';
