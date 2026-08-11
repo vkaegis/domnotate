@@ -44,22 +44,61 @@ function isSourceLiteral(signal: SourceSignal | undefined): boolean {
   return signal?.kind === 'literal-text' && !signal.runtimeDataReasons?.length;
 }
 
-/** What the agent should actually do, given what survived. */
-export function grepAdvice(hint: SourceHint): string {
-  const text = findSignal(hint, 'literal-text');
-  if (isSourceLiteral(text)) return 'grep the literal text';
+/**
+ * The strings that would actually land somewhere if an agent grepped them,
+ * best-first. `null` means the block is at the floor — see `isAtFloor`.
+ *
+ * Library class names are deliberately not a lead: `MuiSvgIcon-root` appears in
+ * MUI's source, not in the app being searched, and the formatter does not even
+ * print them. Advising a grep that resolves to nothing is the §3.1a failure
+ * mode — a misleading line costs an agent more than an absent one.
+ */
+type Lead = 'literal-text' | 'component-name' | 'classes' | 'test-id' | 'accessible-name' | null;
+
+function bestLead(hint: SourceHint): Lead {
+  if (isSourceLiteral(findSignal(hint, 'literal-text'))) return 'literal-text';
+  if (componentIsAppAuthored(hint)) return 'component-name';
 
   const klass = findSignal(hint, 'class-convention');
-  if (klass && klass.grepClasses.length > 0) return 'grep the class names';
+  if (klass && klass.grepClasses.length > 0 && !LIBRARY_CONVENTIONS.has(klass.convention)) {
+    return 'classes';
+  }
 
-  const testId = findSignal(hint, 'test-id');
-  if (testId) return 'grep the test id';
+  if (findSignal(hint, 'test-id')) return 'test-id';
+  if (findSignal(hint, 'accessible-name')?.name) return 'accessible-name';
+  return null;
+}
 
-  const name = findSignal(hint, 'accessible-name');
-  if (name?.name) return 'grep the accessible name';
+const LEAD_ADVICE: Record<Exclude<Lead, null>, string> = {
+  'literal-text': 'grep the literal text',
+  'component-name': 'grep the component name',
+  classes: 'grep the class names',
+  'test-id': 'grep the test id',
+  'accessible-name': 'grep the accessible name',
+};
 
+/** What the agent should actually do, given what survived. */
+export function grepAdvice(hint: SourceHint): string {
+  const lead = bestLead(hint);
+  if (lead) return LEAD_ADVICE[lead];
   return 'no greppable string recovered — use the selector and landmark path';
 }
+
+/**
+ * Whether the block has no greppable string at all — an icon with no text, no
+ * accessible name and no test id, where the selector is genuinely the only
+ * lead. Phase 2's block 10 was this case and the tool did not say so, and an
+ * agent that cannot tell the floor from a thin block settles on the nearest
+ * named ancestor instead of looking inside it.
+ */
+export function isAtFloor(hint: SourceHint): boolean {
+  if (findSignal(hint, 'source-location')) return false;
+  return bestLead(hint) === null;
+}
+
+const FLOOR_LINE =
+  'no distinguishing text, name, or test id — the selector is the only lead; ' +
+  "find the element among its parent's children rather than settling on the parent";
 
 /**
  * Conventions whose reconstructed name is the *library's* component, not the
@@ -154,11 +193,16 @@ export function formatSourceHint(hint: SourceHint, options: FormatOptions = {}):
     lines.push(tagLine(`${indent}source: ${loc}`, tag, column));
   }
 
+  // The floor line below carries the "nothing to grep" message, so the honesty
+  // lines here drop their advice tail rather than duplicating it.
+  const atFloor = isAtFloor(hint);
+  const advice = atFloor ? '' : ` — ${grepAdvice(hint)}`;
+
   if (componentPath && !componentPath.minified && componentPath.chain.length > 0) {
     lines.push(`${indent}component: ${componentPath.chain.join(' > ')}`);
   } else if (componentPath) {
     // Never print `Cn > t > Kr` as though it were meaningful.
-    lines.push(`${indent}component chain minified — ${grepAdvice(hint)}`);
+    lines.push(`${indent}component chain minified${advice}`);
   } else if (!source) {
     // The headline may already name a component reconstructed from classes, in
     // which case a bare "no component identity recovered" contradicts the line
@@ -169,11 +213,13 @@ export function formatSourceHint(hint: SourceHint, options: FormatOptions = {}):
     // best lead in the block.
     if (component && !componentIsAppAuthored(hint)) {
       lines.push(`${indent}<${component}> is the library's component, not the app's`);
-      lines.push(`${indent}app component not identified — ${grepAdvice(hint)}`);
+      if (!atFloor) lines.push(`${indent}app component not identified${advice}`);
     } else if (!component) {
-      lines.push(`${indent}no component identity recovered — ${grepAdvice(hint)}`);
+      lines.push(`${indent}no component identity recovered${advice}`);
     }
   }
+
+  if (atFloor) lines.push(`${indent}${FLOOR_LINE}`);
 
   // --- Tier B ----------------------------------------------------
   if (klass?.reconstructed) {
@@ -192,7 +238,16 @@ export function formatSourceHint(hint: SourceHint, options: FormatOptions = {}):
 
   // --- Tier A ----------------------------------------------------
   if (testId) {
-    const where = testId.own === false ? ` (on an ancestor, ${testId.hops ?? 1} up)` : '';
+    // An ancestor's testid is not the element's identity, and on a React app it
+    // is frequently not even the ancestor's own: Phase 2's block 9 followed
+    // `other-users-dashboards-list` to the file that *passes* it as a prop and
+    // stopped there, 14 tool calls in, one file short. The scope caveat is a
+    // property of this signal rather than of the annotation (§9.4), so it rides
+    // the line instead of the confidence tag.
+    const where =
+      testId.own === false
+        ? ` (on an ancestor, ${testId.hops ?? 1} up — may be supplied by a parent)`
+        : '';
     lines.push(`${indent}testid: ${testId.value}${where}`);
   }
 

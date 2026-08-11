@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'vitest';
-import { formatSourceHint, grepAdvice, headlineComponent } from '@/core/source-hint/format';
+import {
+  formatSourceHint,
+  grepAdvice,
+  headlineComponent,
+  isAtFloor,
+} from '@/core/source-hint/format';
 import { createDomProvider } from '@/core/source-hint/dom-provider';
 import { createProviderRegistry } from '@/core/source-hint/provider';
 import type { SourceHint } from '@/core/source-hint/types';
@@ -93,7 +98,9 @@ describe('formatSourceHint — the [weak] path', () => {
     const out = lines(weakHint);
     expect(out[0]).toMatch(/^3\. "Sentiment breakdown"\s+\[weak\]$/);
     expect(out[1]).toBe('   component chain minified — grep the literal text');
-    expect(out).toContain('   testid: feedback-card-sentiment (on an ancestor, 2 up)');
+    expect(out).toContain(
+      '   testid: feedback-card-sentiment (on an ancestor, 2 up — may be supplied by a parent)',
+    );
     expect(out).toContain('   role: article, in <main> > <dialog>');
     expect(out).toContain('   route: /records/12345?tab=sentiment');
   });
@@ -396,5 +403,153 @@ describe('formatSourceHint — library vs app-authored component names', () => {
       ],
     });
     expect(out).toContain('no component identity recovered');
+  });
+});
+
+// ------------------------------------------------------------
+// The two fixes the Phase 2 eval earned (plan §8 → Phase 2)
+// ------------------------------------------------------------
+
+describe('formatSourceHint — a testid whose scope is not local', () => {
+  function withTestId(own: boolean, hops?: number): SourceHint {
+    return {
+      provider: 'dom',
+      confidence: 'weak',
+      signals: [
+        {
+          kind: 'test-id',
+          value: 'other-users-dashboards-list',
+          attribute: 'data-testid',
+          own,
+          hops,
+        },
+        { kind: 'literal-text', text: 'See All', truncated: false, from: 'own-text-nodes' },
+      ],
+    };
+  }
+
+  // Regression, Phase 2 block 9: the agent followed an ancestor's testid to the
+  // file that supplies it as a prop and stopped one file short of the element.
+  test("warns that an ancestor's testid may be a prop from further up", () => {
+    const out = formatSourceHint(withTestId(false, 1));
+    expect(out).toContain(
+      'testid: other-users-dashboards-list (on an ancestor, 1 up — may be supplied by a parent)',
+    );
+  });
+
+  test("does not caveat the element's own testid", () => {
+    const out = formatSourceHint(withTestId(true));
+    expect(out).toContain('testid: other-users-dashboards-list');
+    expect(out).not.toContain('may be supplied by a parent');
+    expect(out).not.toContain('on an ancestor');
+  });
+
+  test('assumes local when the provider recorded no scope', () => {
+    const out = formatSourceHint({
+      provider: 'dom',
+      confidence: 'weak',
+      signals: [{ kind: 'test-id', value: 'x', attribute: 'data-testid' }],
+    });
+    expect(out).not.toContain('may be supplied by a parent');
+  });
+});
+
+describe('formatSourceHint — saying when the block is at the floor', () => {
+  /** Phase 2 block 10: a bare MUI icon. No text, no name, no testid. */
+  const icon: SourceHint = {
+    provider: 'dom',
+    confidence: 'weak',
+    signals: [
+      {
+        kind: 'class-convention',
+        convention: 'mui',
+        component: 'SvgIcon',
+        modifiers: ['root', 'fontSizeSmall'],
+        reconstructed: '<SvgIcon fontSizeSmall>',
+        grepClasses: ['MuiSvgIcon-root', 'MuiSvgIcon-fontSizeSmall'],
+      },
+      { kind: 'dom-attributes', tagName: 'svg', attributes: { 'aria-hidden': 'true' } },
+      { kind: 'landmark-path', path: ['main'] },
+    ],
+  };
+
+  test('says so, and says what to do instead', () => {
+    expect(isAtFloor(icon)).toBe(true);
+    const out = formatSourceHint(icon);
+    expect(out).toContain('no distinguishing text, name, or test id');
+    expect(out).toContain("find the element among its parent's children");
+  });
+
+  // The library's class names are not in the app being searched, and the
+  // formatter does not even print them — advising a grep for them sends an
+  // agent after a string that resolves to nothing (§10, lesson 2).
+  test('does not offer library class names as a lead', () => {
+    expect(grepAdvice(icon)).toBe('no greppable string recovered — use the selector and landmark path');
+    expect(formatSourceHint(icon)).not.toContain('grep the class names');
+    expect(formatSourceHint(icon)).not.toContain('MuiSvgIcon');
+  });
+
+  test('does not duplicate the advice it already gave', () => {
+    const out = formatSourceHint(icon);
+    expect(out).not.toContain('no greppable string recovered');
+    expect(out.match(/selector is the only lead/g)).toHaveLength(1);
+  });
+
+  test('an app-authored class convention is a lead, so not the floor', () => {
+    expect(
+      isAtFloor({
+        provider: 'dom',
+        confidence: 'weak',
+        signals: [
+          {
+            kind: 'class-convention',
+            convention: 'unknown',
+            component: null,
+            modifiers: [],
+            reconstructed: null,
+            grepClasses: ['sidebar-nav'],
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  test.each([
+    ['literal text', { kind: 'literal-text', text: 'Save', truncated: false }],
+    ['an accessible name', { kind: 'accessible-name', role: 'button', name: 'Save' }],
+    ['a test id', { kind: 'test-id', value: 'save-btn', attribute: 'data-testid', own: true }],
+  ] as const)('%s keeps a block off the floor', (_label, signal) => {
+    const out = formatSourceHint({ ...icon, signals: [...icon.signals, signal] });
+    expect(isAtFloor({ ...icon, signals: [...icon.signals, signal] })).toBe(false);
+    expect(out).not.toContain('the selector is the only lead');
+  });
+
+  test('runtime data is not a lead off the floor', () => {
+    // `:r1fb:` and friends grep for nothing, so a block carrying only runtime
+    // text is still at the floor and must say so.
+    const hint: SourceHint = {
+      ...icon,
+      signals: [
+        ...icon.signals,
+        {
+          kind: 'literal-text',
+          text: 'feedback-dashboard.html',
+          truncated: false,
+          runtimeDataReasons: ['filename-like'],
+        },
+      ],
+    };
+    expect(isAtFloor(hint)).toBe(true);
+    expect(formatSourceHint(hint)).toContain('the selector is the only lead');
+  });
+
+  test('a real source location is never the floor', () => {
+    expect(
+      isAtFloor({
+        provider: 'react+dom',
+        confidence: 'exact',
+        signals: [{ kind: 'source-location', file: 'src/App.tsx', line: 1 }],
+      }),
+    ).toBe(false);
   });
 });
