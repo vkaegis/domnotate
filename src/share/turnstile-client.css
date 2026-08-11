@@ -1,0 +1,55 @@
+/* ============================================================
+   Domnotate — Turnstile challenge surface
+   ============================================================ */
+
+/* The widget is interaction-only, so this stays hidden for the common
+   invisible pass and is revealed in place only when Cloudflare asks the
+   visitor to do something. */
+
+.dn-challenge-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--dn-z-challenge);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 1;
+  transition: opacity var(--dn-transition-normal);
+}
+
+.dn-challenge-backdrop--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dn-challenge-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 20px;
+  background: var(--dn-bg-elevated);
+  border: 1px solid var(--dn-border);
+  border-radius: var(--dn-radius-lg);
+  box-shadow: var(--dn-shadow-md);
+}
+
+.dn-challenge-caption {
+  max-width: 300px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--dn-text-secondary);
+  text-align: center;
+}
+
+/* Reserve the checkbox widget's height so revealing does not resize the panel. */
+.dn-challenge-widget {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 65px;
+}
