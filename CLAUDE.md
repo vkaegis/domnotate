@@ -1,6 +1,6 @@
 # Domnotate
 
-Vanilla TypeScript annotation tool deployed on Cloudflare Pages.
+Vanilla TypeScript annotation tool. It ships as a web app on Cloudflare Pages and as a Chrome extension. The two share a core; see Architecture.
 
 ## Commands
 
@@ -9,6 +9,13 @@ Vanilla TypeScript annotation tool deployed on Cloudflare Pages.
 - `npm run test` — watch mode tests
 - `npm run test:ci` — single-run tests (CI)
 - `npm run test:coverage` — tests with coverage report
+
+Extension:
+
+- `npm run build:extension` — build the extension into `dist-extension/`
+- `npm run check:extension` — verify the built package is installable
+- `npm run zip:extension` — build, check, then write `domnotate-extension.zip`
+- `npm run icons:extension` — rasterise the icon SVGs. Needs `rsvg-convert`. The PNGs are committed on purpose, so neither CI nor a contributor has to install it.
 
 ## Testing
 
@@ -38,11 +45,55 @@ The changelog is shown to users via the "What's new" link on the landing page. E
 
 ## Architecture
 
+Three tiers. There are two entry points: `src/main.ts` is the web app, and `src/extension/content-isolated.ts` plus `content-main.ts` are the extension. The tiers below are what those two graphs actually reach, not what they were meant to reach.
+
+Path alias: `@/` maps to `src/`.
+
+### Shared — both entry points reach these
+
 - `src/types/core.ts` — all shared types and interfaces
 - `src/events.ts` — typed event bus
-- `src/annotations/` — annotation CRUD manager
-- `src/output/` — JSON serialization, formatters, reanchoring
+- `src/core/content-host.ts` — the annotated-document abstraction. The iframe and the live page both satisfy it.
+- `src/core/source-hint/` — the element-to-search-brief pipeline. The web app reaches it through `output/formatter` and `picker/`.
+- `src/core/class-hash.ts` — reached through source-hint
+- `src/annotations/annotation-manager.ts` — annotation CRUD
+- `src/annotations/pin-element.ts` — the pin DOM node both pin layers build
 - `src/picker/` — element selection and selector generation
-- `src/sidebar/` — annotation sidebar UI
-- `src/loader/` — content loading (file/URL)
-- Path alias: `@/` maps to `src/`
+- `src/output/formatter.ts`, `exporter.ts`, `reanchor.ts`
+- `src/keyboard/shortcuts.ts` — `src/extension/shortcuts.ts` wraps it
+- `src/sidebar/copy-animation.ts`
+- `src/styles/theme.css` and `src/sidebar/sidebar.css` — the extension inlines both with `?inline`
+
+### Web app only
+
+`src/loader/` (file and URL intake), `src/share/`, `src/editor/`, `src/changelog/`, `src/slides/`, `src/diagnostics/`, `src/popover/`, `src/toast/`, `src/tooltip/`, `src/theme/`, `src/main.ts`, `functions/`.
+
+Also web-only, and easy to get wrong because the folder is shared:
+
+- `src/sidebar/sidebar.ts` and `src/sidebar/notes-panel.ts`. The extension reuses the *stylesheet* but builds its own sidebar DOM inside `content-isolated.ts`.
+- `src/annotations/pin-renderer.ts` and `view-scope.ts`. The extension has `src/extension/pins.ts` instead.
+- `src/output/store.ts`, `json-io.ts`, `annotation-preview.ts`. These are the IndexedDB and session-file path, which the extension does not have.
+
+### Extension only
+
+All of `src/extension/`. The two-world split is not derivable from the file names:
+
+- `background.ts` — MV3 service worker. It injects both content scripts on the toolbar click. Nothing runs before that click.
+- `content-isolated.ts` — ISOLATED world. It owns the sidebar UI, the picker, and the clipboard.
+- `content-main.ts` — MAIN world. This is the only place that can read page framework internals, so it owns the source-hint probe.
+- `hint-protocol.ts` — the message bridge between those two worlds. Both sides import it, which is what keeps the message shapes honest.
+- `pins.ts`, `shortcuts.ts`, `manifest.json`, `icons/`.
+
+### Rules
+
+- `src/extension/**` must not import a web-only module. `src/extension/__tests__/boundaries.test.ts` enforces this. If you need something from one, move that part into the shared tier first.
+- The web app must not import from `src/extension/**`. The same test enforces this. `src/__tests__/smoke.test.ts` is the one exemption.
+- New shared code goes in `src/core/`. Do not add it to a web-only folder and then import it from the extension.
+
+## Release
+
+- **Web app** — Cloudflare Pages, on merge to main.
+- **Extension zip** — GitHub release, on an `ext-v*` tag. `tools/check-extension-version.mjs` fails the release if the tag and `src/extension/manifest.json` disagree.
+- **Chrome Web Store** — manual upload of that zip to the [published listing](https://chromewebstore.google.com/detail/domnotate/hgllflmkglkhaamjkgmmjhgelhokdkma) (item `hgllflmkglkhaamjkgmmjhgelhokdkma`). The listing copy lives in `docs/chrome-web-store-listing.md`. It must change in the same PR as the thing it describes.
+
+The `package.json` version and the manifest version are independent. Only the manifest one is checked.
