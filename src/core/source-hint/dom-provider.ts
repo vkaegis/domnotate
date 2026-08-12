@@ -16,8 +16,9 @@
 //            Recognised conventions additionally yield a component name and its
 //            variant props; unrecognised ones degrade to that floor.
 //
-// Several helpers are ports of `tools/fiber-probe.js`, where they were
-// field-tested against the target app. Behavioural changes from the probe are
+// Several helpers are ports of the Phase 0 reconnaissance probe, a throwaway
+// DevTools console script that was field-tested against the target app and
+// deleted once its findings landed here. Behavioural changes from the probe are
 // noted inline.
 
 import { isHashClass } from '@/core/class-hash';

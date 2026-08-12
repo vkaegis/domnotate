@@ -33,8 +33,8 @@ export interface IntrospectionProvider {
 // Naming honesty
 // ------------------------------------------------------------
 //
-// Ported from `tools/fiber-probe.js`, where the corrected versions were
-// field-tested. Phase 0's first run reported a false PASS at 100% because
+// Ported from the Phase 0 reconnaissance probe, where the corrected versions
+// were field-tested. Phase 0's first run reported a false PASS at 100% because
 // `looksMinified()` tested name *length*: `Styled(div)` (89 occurrences),
 // `Primitive.div` and `ContextProvider` all scored as real component names.
 // Across 240 chain nodes the truth was 60% generic wrappers, 36% minified,
@@ -92,10 +92,16 @@ export function isIdentifyingName(name: string | null | undefined): boolean {
 // Prop allow-list — fixed floor (§3.7)
 // ------------------------------------------------------------
 //
-// Raw props are **never** dumped, in any mode. This is not the redaction
-// toggle's business (that is Phase 3 and governs text content); it is a floor
-// that holds underneath it. Enforced in `mergeSignals`, so it applies to every
-// provider's output rather than relying on each provider to behave.
+// Raw props are **never** dumped. This is not the redaction toggle's business
+// (that would govern text content); it is a floor that holds underneath it, and
+// it is the reason deferring that toggle costs nothing here — see §3.7a. There
+// is currently one mode, and this holds in it.
+//
+// The floor earns its place on correctness before privacy: raw props are mostly
+// dead strings that grep for nothing, and emitting those costs an agent tool
+// calls (§10 lesson 2). Enforced in `mergeSignals`, so it applies to every
+// provider's output rather than relying on each provider to behave — including a
+// future `react-provider` hand-constructing a signal.
 
 const ALLOWED_PROP_KEYS = new Set(['id', 'name', 'variant', 'type', 'role']);
 
