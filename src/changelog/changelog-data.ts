@@ -29,6 +29,12 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    title: 'Annotate any page with the Chrome extension',
+    date: '12 Aug 2026',
+    pr: 54,
+    body: 'Domnotate now runs as a Chrome extension, so you can annotate a live page instead of loading a copy of it. That includes apps behind a login, which the web app cannot open. Install it from the Chrome Web Store, then click the icon or press Cmd+Shift+Y, click an element, type your note, then copy. Each note carries the context an agent needs to find the code: the text you clicked, its role and label, its test id, the landmarks around it, and the route you were on. Nothing is uploaded, and the notes go straight to your clipboard.',
+  },
+  {
     title: 'A refreshed landing page',
     date: '12 Jul 2026',
     pr: 49,

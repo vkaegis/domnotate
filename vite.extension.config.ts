@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import { resolve } from 'path';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 
 /**
  * Chrome extension build → dist-extension/
@@ -37,10 +37,17 @@ function isExtensionMode(mode: string): mode is ExtensionMode {
   return mode in ENTRIES;
 }
 
-/** Copies the MV3 manifest next to the bundles. */
-function copyManifest(): Plugin {
+/**
+ * Copies the MV3 manifest and the toolbar icons next to the bundles.
+ *
+ * The icons are committed PNGs rather than something generated at build time:
+ * `icon.svg` is the source, `npm run icons:extension` rasterises it, and the
+ * output is checked in so neither CI nor anyone building the zip needs
+ * rsvg-convert for an asset that changes almost never.
+ */
+function copyStaticAssets(): Plugin {
   return {
-    name: 'domnotate-copy-manifest',
+    name: 'domnotate-copy-static-assets',
     closeBundle() {
       const outDir = resolve(__dirname, OUT_DIR);
       mkdirSync(outDir, { recursive: true });
@@ -48,6 +55,16 @@ function copyManifest(): Plugin {
         resolve(__dirname, 'src/extension/manifest.json'),
         resolve(outDir, 'manifest.json'),
       );
+
+      const iconSrc = resolve(__dirname, 'src/extension/icons');
+      const iconOut = resolve(outDir, 'icons');
+      mkdirSync(iconOut, { recursive: true });
+      for (const name of readdirSync(iconSrc)) {
+        // The `.svg` source stays out of the zip — Chrome cannot use it for an
+        // icon, so shipping it would only pad the package.
+        if (!name.endsWith('.png')) continue;
+        copyFileSync(resolve(iconSrc, name), resolve(iconOut, name));
+      }
     },
   };
 }
@@ -86,6 +103,6 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [copyManifest()],
+    plugins: [copyStaticAssets()],
   };
 });

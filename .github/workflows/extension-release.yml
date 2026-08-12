@@ -1,0 +1,68 @@
+# Builds the Chrome extension and attaches a zip to a GitHub release.
+#
+# Triggered by an `ext-v*` tag, which is a deliberately separate train from the
+# web app: Pages deploys on merge to main, the extension ships on a tag, and
+# neither blocks the other (plan §3.1).
+#
+# To cut a release:
+#   1. bump "version" in src/extension/manifest.json
+#   2. merge that
+#   3. git tag ext-v0.1.0 && git push origin ext-v0.1.0
+#
+# Step 1 is not optional and the version check below is what enforces it.
+name: Extension release
+
+on:
+  push:
+    tags: ['ext-v*']
+
+# The release step creates a release and uploads an asset; nothing else here
+# writes to the repo.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # The tag names the artefact, but the manifest is what Chrome reads. A
+      # drift between them is silent until a store upload is rejected for
+      # reusing a published version, so fail here instead.
+      - name: Check the tag matches the manifest version
+        run: node tools/check-extension-version.mjs "$GITHUB_REF_NAME"
+
+      # The extension ships from the same source as the web app, so the shared
+      # core has to be green for the zip to be trustworthy. `build:extension`
+      # runs tsc itself; the suite is the part that would otherwise be skipped.
+      - run: npm run test:ci
+
+      - run: npm run build:extension
+
+      # Guards against a zip that installs and then does nothing — an entry
+      # renamed in vite.extension.config.ts, or an icon path that no longer
+      # resolves, both produce a build that "succeeds".
+      - name: Verify the built package
+        run: node tools/check-extension-package.mjs
+
+      - name: Zip it
+        run: |
+          cd dist-extension
+          zip -r "../domnotate-extension-${GITHUB_REF_NAME}.zip" .
+
+      - name: Attach it to a release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Domnotate extension $GITHUB_REF_NAME" \
+            --notes "Unpacked install: download the zip, unzip it, open \`chrome://extensions\`, turn on Developer mode, then **Load unpacked** and select the unzipped folder. See the README for the full walkthrough." \
+            "domnotate-extension-${GITHUB_REF_NAME}.zip"
