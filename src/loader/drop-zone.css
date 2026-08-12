@@ -50,7 +50,11 @@
   line-height: 1.6;
   color: var(--dn-text-secondary);
   max-width: 400px;
-  margin-bottom: clamp(96px, 12vh, 136px);
+  /* Was clamp(96px, 12vh, 136px), which was the only large gap in the column
+     and read as a hole once the callout gave the column a fourth block. The
+     three gaps below are now within scale of each other, so the column has a
+     rhythm instead of one chasm and two afterthoughts. */
+  margin-bottom: clamp(52px, 7vh, 88px);
 }
 
 .dn-landing__features {
@@ -70,6 +74,75 @@
   color: var(--dn-text-muted);
 }
 
+/* --- Extension callout --- */
+
+/* A card rather than a rule in the margin: the brand column is otherwise all
+   flat text on the page background, so a contained surface is what separates
+   this from the copy above it and reads as a thing to act on. Solid border
+   against the drop card's dashed one, since that dashing means "drop here". */
+/* `margin-top: auto` pins this and the footer below it to the bottom of the
+   column, so leftover height becomes the gap between the pitch and these two
+   rather than a void underneath everything. The intro's own margin-bottom is
+   the floor for that gap on a short window, where the auto resolves to 0. */
+.dn-landing__intro {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-bottom: 48px;
+}
+
+.dn-landing__callout {
+  margin-top: auto;
+  /* Full width of the column, so its edges line up with the footer row below
+     it and the two read as one bottom group. The copy inside keeps its own
+     measure — see the description rule. */
+  width: 100%;
+  padding: 22px 24px;
+  border: 1px solid var(--dn-border-warm);
+  border-radius: var(--dn-radius-lg);
+  background: var(--dn-bg-elevated);
+  box-sizing: border-box;
+}
+
+.dn-landing__callout-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dn-text-primary);
+  margin-bottom: 8px;
+}
+
+/* The card is full width but the copy is not: a line runs to about 75
+   characters on a wide window and past that it stops being readable. */
+.dn-landing__callout-desc {
+  margin: 0 0 18px;
+  max-width: 62ch;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--dn-text-muted);
+}
+
+.dn-landing__callout-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dn-accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--dn-accent);
+  transition: color var(--dn-transition-fast), border-color var(--dn-transition-fast);
+}
+
+.dn-landing__callout-link:hover {
+  color: var(--dn-accent-hover);
+  border-color: var(--dn-accent-hover);
+}
+
+.dn-landing__callout-link:focus-visible {
+  outline: 2px solid var(--dn-accent);
+  outline-offset: 3px;
+  border-color: transparent;
+}
+
+/* The callout above now carries the `margin-top: auto` that used to pin this to
+   the bottom, so the footer just follows it at a fixed distance. */
 .dn-landing__footer {
   display: flex;
   align-items: flex-end;
@@ -77,8 +150,7 @@
   flex-wrap: wrap;
   gap: 14px 24px;
   width: 100%;
-  margin-top: auto;
-  padding-top: 56px;
+  margin-top: 40px;
 }
 
 .dn-landing__footer-links {
@@ -363,12 +435,11 @@
   }
 
   .dn-landing__desc {
-    margin-bottom: 56px;
+    margin-bottom: 44px;
   }
 
-  .dn-landing__footer {
-    margin-top: 56px;
-    padding-top: 0;
+  .dn-landing__intro {
+    margin-bottom: 40px;
   }
 
   .dn-landing__drop {
