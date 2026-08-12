@@ -7,6 +7,7 @@ import type {
   AnnotationManager,
   ElementDescriptor,
   EventBus,
+  SourceHint,
   ViewScope,
 } from '@/types/core';
 
@@ -86,6 +87,24 @@ export function createAnnotationManager(): AnnotationManager {
       annotation.updatedAt = now();
 
       b.emit({ type: 'annotation:update', annotation });
+    },
+
+    updateSourceHint(annotationId: string, hint: SourceHint | null): boolean {
+      const b = requireBus();
+      const annotation = store.get(annotationId);
+      // Deliberately not a throw — see the interface note. The hint races the
+      // user, and losing that race is normal, not exceptional.
+      if (!annotation) return false;
+
+      if (hint) {
+        annotation.sourceHint = hint;
+      } else {
+        delete annotation.sourceHint;
+      }
+      annotation.updatedAt = now();
+
+      b.emit({ type: 'annotation:update', annotation });
+      return true;
     },
 
     updateScope(annotationId: string, scope: ViewScope | null): void {

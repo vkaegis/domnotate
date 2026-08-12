@@ -3,7 +3,15 @@
    Light (parchment) default, dark via [data-theme="dark"]
    ============================================================ */
 
-:root {
+/*
+ * Both selectors are needed, and neither is redundant. The web app loads this
+ * file into the document, where `:root` applies and `:host` matches nothing.
+ * The extension injects the same file into a closed shadow root, where custom
+ * properties must be declared on `:host` because `:root` matches no element
+ * inside a shadow tree. Keep every theme block dual-headed for the same reason.
+ */
+:root,
+:host {
   /* Surface colors — warm parchment */
   --dn-bg-primary: #FAF7F2;
   --dn-bg-secondary: #F3EDE4;
@@ -87,7 +95,8 @@
 }
 
 /* --- Dark theme --- */
-[data-theme="dark"] {
+[data-theme="dark"],
+:host([data-theme="dark"]) {
   --dn-bg-primary: #1A1612;
   --dn-bg-secondary: #231F1A;
   --dn-bg-elevated: #2C2620;
@@ -135,7 +144,8 @@
 
 /* --- Auto dark mode for users who haven't explicitly chosen --- */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme="light"]),
+  :host(:not([data-theme="light"])) {
     --dn-bg-primary: #1A1612;
     --dn-bg-secondary: #231F1A;
     --dn-bg-elevated: #2C2620;

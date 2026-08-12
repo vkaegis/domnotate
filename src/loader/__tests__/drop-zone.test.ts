@@ -47,6 +47,23 @@ describe('createDropZone', () => {
     expect(authorLink?.parentElement?.textContent).toBe('Made with love by Vineet Kumar');
   });
 
+  it('points at the extension and says what it adds over the web app', () => {
+    createDropZone(container, vi.fn(), vi.fn());
+
+    const link = container.querySelector<HTMLAnchorElement>(
+      'a[href="https://chromewebstore.google.com/detail/domnotate/hgllflmkglkhaamjkgmmjhgelhokdkma"]',
+    );
+    expect(link?.textContent).toBe('Get it on the Chrome Web Store');
+    expect(link?.rel).toBe('noopener noreferrer');
+
+    // The link alone would satisfy "there is a callout" while telling a visitor
+    // nothing. What it has to carry is the reason to want it: the web app
+    // cannot load a page behind a login, and the extension can.
+    const callout = container.querySelector<HTMLElement>('.dn-landing__callout');
+    expect(callout?.textContent).toContain('behind a login');
+    expect(callout?.contains(link!)).toBe(true);
+  });
+
   it('opens the file picker from the keyboard-accessible drop area', () => {
     createDropZone(container, vi.fn(), vi.fn());
 

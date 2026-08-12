@@ -10,6 +10,7 @@ import type {
   Annotation,
 } from '@/types/core';
 import { isAnnotationVisibleInScopes } from '@/annotations/view-scope';
+import { createPinElement, PIN_SIZE } from '@/annotations/pin-element';
 
 export function createPinRenderer(): PinRenderer {
   let overlayEl: HTMLElement;
@@ -26,7 +27,7 @@ export function createPinRenderer(): PinRenderer {
   let scrollDocument: Document | null = null;
   let onIframeLoad: (() => void) | null = null;
   const unsubs: (() => void)[] = [];
-  const pinSize = 24;
+  const pinSize = PIN_SIZE;
   const pinOffset = pinSize / 2;
 
   // --- Helpers ---
@@ -46,43 +47,12 @@ export function createPinRenderer(): PinRenderer {
     return { scrollX: 0, scrollY: 0 };
   }
 
-  function createPinElement(annotation: Annotation, index: number): HTMLElement {
-    const pin = document.createElement('div');
-    pin.dataset.annotationId = annotation.id;
-
-    Object.assign(pin.style, {
-      position: 'absolute',
-      width: `${pinSize}px`,
-      height: `${pinSize}px`,
-      borderRadius: '50%',
-      background: 'var(--dn-pin-color)',
-      color: 'var(--dn-text-on-accent)',
-      fontSize: '11px',
-      fontWeight: '700',
-      lineHeight: `${pinSize}px`,
-      textAlign: 'center',
-      cursor: 'pointer',
-      pointerEvents: 'auto',
-      boxShadow: 'var(--dn-shadow-sm)',
-      userSelect: 'none',
-      transition: 'transform 80ms ease',
-      zIndex: 'var(--dn-z-pins)',
+  function createPin(annotation: Annotation, index: number): HTMLElement {
+    return createPinElement({
+      annotationId: annotation.id,
+      index,
+      onSelect: () => bus.emit({ type: 'annotation:select', id: annotation.id }),
     });
-
-    pin.textContent = String(index + 1);
-
-    pin.addEventListener('mouseenter', () => {
-      pin.style.transform = 'scale(1.2)';
-    });
-    pin.addEventListener('mouseleave', () => {
-      pin.style.transform = 'scale(1)';
-    });
-    pin.addEventListener('click', (e) => {
-      e.stopPropagation();
-      bus.emit({ type: 'annotation:select', id: annotation.id });
-    });
-
-    return pin;
   }
 
   function updatePinLayerSize(): void {
@@ -240,7 +210,7 @@ export function createPinRenderer(): PinRenderer {
 
       annotations.forEach((ann) => {
         const globalIndex = annotationIndices.get(ann.id) ?? 0;
-        const pin = createPinElement(ann, globalIndex);
+        const pin = createPin(ann, globalIndex);
         // Pins live in iframe document coordinates. Scroll moves the whole layer.
         pin.style.left = `${ann.anchorPoint.x - pinOffset}px`;
         pin.style.top = `${ann.anchorPoint.y - pinOffset}px`;

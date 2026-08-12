@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-extension/
+domnotate-extension*.zip
 .vite/
 coverage/
 .wrangler/

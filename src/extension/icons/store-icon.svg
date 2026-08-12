@@ -1,0 +1,37 @@
+<!--
+  Chrome Web Store icon — 128x128, uploaded as the listing's "Store icon".
+
+  A separate asset from the toolbar icons beside it, because the store's rules
+  are different and conflict with what a 16px toolbar icon needs:
+
+  - "The actual icon size should be 96x96; an additional 16 pixels per side
+    should be transparent padding, adding up to 128x128." So the artwork is the
+    inner tile at 16..112, and the outer 16px is alpha. The toolbar icons are
+    deliberately near-full-bleed instead, because at 16px padding is legibility
+    you cannot afford.
+  - It has to "work well on both light and dark backgrounds." The toolbar mark
+    cannot: its pin ring is cream and overhangs the card, so on a white store
+    card the overhanging part dissolves and the pin reads as a notch. Here the
+    mark sits on its own terracotta tile, so it carries its own contrast and
+    looks identical on either surface.
+  - No edge on the 128 boundary, no large drop shadow, front-facing. All three
+    are satisfied by having no effects at all.
+
+  Composition is balanced on the artwork's bounding box, not the card alone: the
+  pin overhangs to the right, so the card sits left of centre to compensate.
+
+  Regenerate with `npm run icons:extension`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- 96x96 artwork tile, 16px transparent padding on every side. -->
+  <rect x="16" y="16" width="96" height="96" rx="22" fill="#C4725A"/>
+
+  <!-- The mark, inverted against the tile: the card takes the light value.
+       Sized so the mark's *bounding box* is 29..99 on both axes — the card is
+       left of centre and the pin overhangs right, so centring the card alone
+       would leave the composition visibly heavy on one side. Card radius is the
+       tile's 22 minus the 13px inset, which keeps the two curves concentric. -->
+  <rect x="29" y="47" width="52" height="52" rx="10" fill="#FFFFFF"/>
+  <circle cx="83" cy="45" r="16" fill="#FAF7F2"/>
+  <circle cx="83" cy="45" r="7" fill="#C4725A"/>
+</svg>

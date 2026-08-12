@@ -1,0 +1,19 @@
+<!--
+  Domnotate extension icon — source of truth for the PNGs beside it.
+
+  Regenerate with `npm run icons:extension` (needs rsvg-convert; the PNGs are
+  committed so neither CI nor a contributor building the zip needs it).
+
+  Why this differs from `public/favicon.svg`, which is the same mark: the
+  favicon is a white card with a cream pin, and a toolbar icon sits on a
+  browser chrome that is off-white in the light theme and near-black in the
+  dark one. A white card vanishes into one of those. So the card takes the
+  accent as its fill and the pin becomes cream, which holds its edges against
+  both. Two shapes and two colours, because the smallest size shipped is 16px
+  and the favicon's 4px stroke on a 200 viewBox lands under half a pixel there.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect x="14" y="32" width="82" height="82" rx="17" fill="#C4725A"/>
+  <circle cx="97" cy="31" r="25" fill="#FAF7F2"/>
+  <circle cx="97" cy="31" r="11" fill="#C4725A"/>
+</svg>

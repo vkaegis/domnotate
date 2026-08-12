@@ -1,6 +1,7 @@
 import { createEventBus } from '@/events';
 import type { AnnotationSession } from '@/types/core';
 import { createContentLoader } from '@/loader/loader';
+import { createIframeHost } from '@/core/content-host';
 import { createElementPicker } from '@/picker/picker';
 import { createTextEditor } from '@/editor/edit-mode';
 import { createEditManager } from '@/editor/edit-manager';
@@ -149,7 +150,7 @@ bus.on('content:loaded', (e) => {
         updatedAt: new Date().toISOString(),
       };
 
-  picker.init(iframeEl, overlayEl, bus);
+  picker.init(createIframeHost(iframeEl, overlayEl), overlayEl, bus);
   editor.init(iframeEl, overlayEl, bus, (el) =>
     createScopedAnnotationOptions(slideObserver, el)?.viewScope,
   );

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Northwind — Deliveries</title>
+
+<!--
+  Demo app fixture.
+
+  A plausible product screen to demonstrate and screenshot against. It exists
+  because the two obvious alternatives are both bad: the real target app renders
+  customer feedback and store screenshots are public, and `hostile.html` is
+  deliberately ugly because its job is to break overlays.
+
+  Deliberate properties:
+  - Every name, number and company here is invented. Nothing to redact.
+  - A cool neutral palette, so Domnotate's warm sidebar reads as a separate tool
+    docked beside the page rather than as part of it.
+  - Plain semantic class names, no design-system convention, so an export block
+    taken here shows the honest Tier A floor rather than a flattering
+    reconstruction that most pages would not produce.
+  - Semantic landmarks (aside/main/section with aria-labels) because the
+    extension reads them into the `role:` line.
+  - One icon-only button, `#refresh-deliveries`, carrying no text, no accessible
+    name and no test id. That is the weakest case the export has — the "floor" —
+    and it is on the page on purpose so the case can be demonstrated rather than
+    described. It is the single intentional accessibility defect here; every
+    other control is labelled.
+
+  Layout note: the extension docks itself by insetting the page, so the content
+  column loses ~360px while the viewport stays the same width. Media queries
+  cannot see that, so the stat strip and table are sized with **container**
+  queries against `.content`. Without them the four stats reflow to three plus a
+  lone orphan the moment the sidebar opens.
+
+  Not part of any build. Served at /fixtures/demo-app.html by `npm run dev`.
+-->
+
+<style>
+  :root {
+    /* Surfaces — two neutral layers, the panel cooler than the page. */
+    --page: #f5f7f9;
+    --surface: #ffffff;
+    --surface-sunk: #fafbfc;
+    --nav: #fcfdfe;
+    --border: #e2e6eb;
+    --border-soft: #edf0f3;
+
+    /* Text — every value below measured at >=4.5:1 on the surfaces it lands on. */
+    --text: #141b24;
+    --text-soft: #5b6672;
+    --text-faint: #687380;
+
+    --brand: #3352e8;
+    --brand-hover: #2942ce;
+    --brand-soft: #eef1ff;
+    --brand-ring: rgba(51, 82, 232, 0.32);
+
+    --good: #0c7c45;
+    --good-soft: #e6f4ec;
+    --warn: #966319;
+    --warn-soft: #fbf3e0;
+    --late: #c92c39;
+    --late-soft: #fceaec;
+
+    /* Space — 4px base. */
+    --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+    --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+
+    /* Type — fixed rem steps, ~1.15 ratio. No fluid sizing in product UI. */
+    --t-xs: 0.6875rem;
+    --t-sm: 0.75rem;
+    --t-base: 0.8125rem;
+    --t-md: 0.875rem;
+    --t-lg: 1rem;
+    --t-xl: 1.375rem;
+    --t-stat: 1.75rem;
+
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+
+    /* Depth — offset plus soft blur, never a zero-offset halo. */
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+    --shadow-md: 0 2px 4px rgba(16, 24, 40, 0.04), 0 6px 16px rgba(16, 24, 40, 0.06);
+
+    --ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+    --fast: 140ms;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { font-size: 16px; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: var(--t-base);
+    background: var(--page);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* One focus treatment for the whole surface. */
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+  }
+
+  .app { display: flex; min-height: 100vh; }
+
+  /* ---- Side navigation ---- */
+
+  .sidebar {
+    width: 212px;
+    flex: 0 0 212px;
+    background: var(--nav);
+    border-right: 1px solid var(--border);
+    padding: var(--s-5) var(--s-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-8);
+  }
+
+  .logo { display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-2); }
+  .logo-mark {
+    width: 24px; height: 24px; border-radius: var(--r-sm);
+    background: var(--brand); color: #fff;
+    display: grid; place-items: center;
+    font-size: var(--t-sm); font-weight: 700; letter-spacing: -0.02em;
+  }
+  .logo-text { font-size: var(--t-md); font-weight: 650; letter-spacing: -0.015em; }
+
+  .nav { display: flex; flex-direction: column; gap: 1px; }
+  .nav-label {
+    font-size: var(--t-xs); font-weight: 650;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--text-faint);
+    padding: 0 var(--s-2) var(--s-2);
+  }
+  .nav-group + .nav-label { padding-top: var(--s-5); }
+
+  .nav-item {
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3);
+    border-radius: var(--r-sm);
+    font-size: var(--t-base); color: var(--text-soft);
+    text-decoration: none;
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  .nav-item:hover { background: #eef1f4; color: var(--text); }
+  .nav-item:active { background: #e6eaee; }
+  .nav-item.is-active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+  .nav-item svg { width: 16px; height: 16px; flex: 0 0 16px; }
+  .nav-count {
+    margin-left: auto;
+    font-size: var(--t-xs); font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    background: var(--late-soft); color: var(--late);
+    padding: 1px var(--s-2); border-radius: 99px;
+  }
+
+  /* ---- Frame ---- */
+
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  .topbar {
+    display: flex; align-items: center; gap: var(--s-4);
+    padding: var(--s-3) var(--s-6);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .crumbs { font-size: var(--t-base); color: var(--text-faint); white-space: nowrap; }
+  .crumbs strong { color: var(--text); font-weight: 600; }
+  .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
+
+  .search {
+    width: 216px; min-width: 0;
+    padding: 7px var(--s-3);
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    background: var(--surface-sunk);
+    font-family: inherit; font-size: var(--t-base); color: var(--text);
+    transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+  }
+  .search::placeholder { color: var(--text-faint); }
+  .search:hover { border-color: #d3d9e0; }
+  .search:focus { background: var(--surface); border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px var(--brand-ring); }
+
+  /* ---- Buttons: one vocabulary, all states ---- */
+
+  .btn {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    font-family: inherit; font-size: var(--t-base); font-weight: 600;
+    padding: 7px var(--s-3);
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    background: var(--surface); color: var(--text);
+    cursor: pointer; white-space: nowrap;
+    transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+  }
+  .btn:hover { background: var(--surface-sunk); border-color: #d3d9e0; }
+  .btn:active { background: #eef1f4; }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .btn[disabled]:hover { background: var(--surface); border-color: var(--border); }
+
+  .btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+  .btn-primary:active { background: #223aad; border-color: #223aad; }
+
+  .btn-icon {
+    width: 30px; height: 30px; padding: 0;
+    display: grid; place-items: center;
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    background: var(--surface); color: var(--text-soft);
+    cursor: pointer;
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  }
+  .btn-icon:hover { background: var(--surface-sunk); border-color: #d3d9e0; color: var(--text); }
+  .btn-icon:active { background: #eef1f4; }
+  .btn-icon svg { width: 15px; height: 15px; }
+
+  /* ---- Content ---- */
+
+  .content {
+    padding: var(--s-6) var(--s-6) var(--s-10);
+    /* The docked sidebar narrows this column without changing the viewport, so
+       everything inside sizes against the container, not the screen. */
+    container-type: inline-size;
+    container-name: content;
+  }
+
+  .page-head { margin-bottom: var(--s-6); }
+  .page-title {
+    margin: 0 0 var(--s-1);
+    font-size: var(--t-xl); font-weight: 680; letter-spacing: -0.022em;
+    line-height: 1.2;
+  }
+  .page-sub { margin: 0; font-size: var(--t-md); color: var(--text-soft); }
+  .page-sub .sep { color: var(--border); margin: 0 var(--s-2); }
+
+  /* ---- Stat strip ----
+     One panel divided by rules rather than four floating cards: it reflows
+     2x2 instead of 3+orphan, and it reads as a summary of one thing. */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    margin-bottom: var(--s-6);
+  }
+  @container content (min-width: 800px) {
+    .stats { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .stat { background: var(--surface); padding: var(--s-4) var(--s-5); }
+  .stat-label {
+    font-size: var(--t-xs); font-weight: 650;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--text-faint);
+    margin-bottom: var(--s-3);
+  }
+  .stat-value {
+    font-size: var(--t-stat); font-weight: 660;
+    letter-spacing: -0.03em; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-delta {
+    margin-top: var(--s-2);
+    display: flex; align-items: center; gap: 5px;
+    font-size: var(--t-sm); font-weight: 600;
+    color: var(--text-soft);
+  }
+  .stat-delta svg { width: 13px; height: 13px; flex: 0 0 13px; }
+  .stat-delta.up { color: var(--good); }
+  .stat-delta.down { color: var(--late); }
+
+  /* ---- Panel ---- */
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: baseline; gap: var(--s-3);
+    padding: var(--s-4) var(--s-5);
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title { margin: 0; font-size: var(--t-lg); font-weight: 650; letter-spacing: -0.014em; }
+  .panel-note { font-size: var(--t-sm); color: var(--text-faint); }
+  .panel-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); align-self: center; }
+
+  /* ---- Table ---- */
+
+  /* `fixed` so the column percentages below are authoritative. Under the
+     default `auto`, a nowrap cell's content minimum overrides its share and
+     pushes the table past 100%, which the panel's overflow then clips — the
+     ETA column vanished that way. Fixed plus ellipsis truncates instead. */
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
+  th {
+    text-align: left;
+    font-size: var(--t-xs); font-weight: 650;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--text-faint);
+    padding: var(--s-2) var(--s-5);
+    background: var(--surface-sunk);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: var(--s-3) var(--s-5);
+    font-size: var(--t-md);
+    border-bottom: 1px solid var(--border-soft);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background var(--fast) var(--ease); }
+  tbody tr:hover { background: var(--surface-sunk); }
+
+  /* Proportional columns so the two flexible ones absorb the width the docked
+     sidebar takes, instead of one column keeping its size and opening a gap. */
+  th:nth-child(1) { width: 17%; }
+  th:nth-child(2) { width: 23%; }
+  th:nth-child(3) { width: 25%; }
+  th:nth-child(4) { width: 23%; }
+  th:nth-child(5) { width: 12%; }
+
+  .col-eta { text-align: right; }
+
+  .ref { font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: -0.01em; }
+  .route-cell { color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; }
+  .eta { font-variant-numeric: tabular-nums; color: var(--text-soft); }
+
+  .pill {
+    display: inline-block;
+    font-size: var(--t-sm); font-weight: 650;
+    padding: 2px var(--s-2); border-radius: var(--r-sm);
+    white-space: nowrap;
+  }
+  .pill-good { background: var(--good-soft); color: var(--good); }
+  .pill-warn { background: var(--warn-soft); color: var(--warn); }
+  .pill-late { background: var(--late-soft); color: var(--late); }
+
+  .carrier { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+  .carrier-mark {
+    width: 20px; height: 20px; flex: 0 0 20px;
+    border-radius: 5px;
+    display: grid; place-items: center;
+    font-size: 9.5px; font-weight: 700; color: #fff; letter-spacing: 0.02em;
+  }
+  /* Truncates rather than disappearing: an initials-only column is a worse
+     answer than a clipped name, and the docked width still has room for most
+     of one. Only the row padding tightens. */
+  .carrier-name { overflow: hidden; text-overflow: ellipsis; }
+
+  @container content (max-width: 700px) {
+    td, th { padding-left: var(--s-4); padding-right: var(--s-4); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar" aria-label="Primary navigation">
+    <div class="logo">
+      <div class="logo-mark" aria-hidden="true">N</div>
+      <div class="logo-text">Northwind</div>
+    </div>
+
+    <nav class="nav" aria-label="Sections">
+      <div class="nav-label" id="nav-ops">Operations</div>
+      <div class="nav-group" role="group" aria-labelledby="nav-ops">
+        <a class="nav-item is-active" href="#/deliveries" aria-current="page">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5h10.5v9H3z"/><path d="M13.5 11h3.8l2.7 2.7v2.8h-6.5z"/><circle cx="7" cy="18.5" r="1.5"/><circle cx="17" cy="18.5" r="1.5"/></svg>
+          Deliveries
+        </a>
+        <a class="nav-item" href="#/routes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 17.5V9a3.5 3.5 0 013.5-3.5h4A3.5 3.5 0 0116.5 9v3.5"/><circle cx="5.5" cy="19" r="1.5"/><circle cx="18" cy="13" r="1.5"/></svg>
+          Routes
+        </a>
+        <a class="nav-item" href="#/exceptions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5"/><path d="M12 15.75h.01"/></svg>
+          Exceptions
+          <span class="nav-count">7</span>
+        </a>
+        <a class="nav-item" href="#/carriers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9.5" cy="8.5" r="3"/><path d="M4 19a5.5 5.5 0 0111 0"/><path d="M16.5 6.6a3 3 0 010 5.3"/><path d="M18.5 19a4.7 4.7 0 00-1.9-3.5"/></svg>
+          Carriers
+        </a>
+      </div>
+
+      <div class="nav-label" id="nav-insights">Insights</div>
+      <div class="nav-group" role="group" aria-labelledby="nav-insights">
+        <a class="nav-item" href="#/performance">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 19V5"/><path d="M4.5 19h15"/><path d="M8 15l3.5-4 3 2.5L19.5 8"/></svg>
+          Performance
+        </a>
+        <a class="nav-item" href="#/costs">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5v15"/><path d="M15.5 8.4A3.1 3.1 0 0012.5 6.2h-1a2.8 2.8 0 000 5.6h1.2a2.9 2.9 0 010 5.8h-1a3.1 3.1 0 01-3-2.2"/></svg>
+          Cost per mile
+        </a>
+      </div>
+    </nav>
+  </aside>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumbs">Operations <span aria-hidden="true">/</span> <strong>Deliveries</strong></div>
+      <div class="topbar-actions">
+        <input class="search" type="search" placeholder="Search by reference" aria-label="Search deliveries by reference">
+        <button class="btn" id="export-csv" type="button">Export CSV</button>
+        <button class="btn btn-primary" id="schedule-pickup" type="button">Schedule pickup</button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <div class="page-head">
+        <h1 class="page-title">Deliveries in flight</h1>
+        <p class="page-sub">42 active across 9 routes<span class="sep" aria-hidden="true">|</span>Updated 4 minutes ago</p>
+      </div>
+
+      <section class="stats" aria-label="Delivery metrics">
+        <div class="stat">
+          <div class="stat-label">On time</div>
+          <div class="stat-value">86.4%</div>
+          <div class="stat-delta up">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V6"/><path d="M6 11.5L12 5.5l6 6"/></svg>
+            2.1 pts vs last week
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Average delay</div>
+          <div class="stat-value">31 min</div>
+          <div class="stat-delta down">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v13"/><path d="M6 12.5l6 6 6-6"/></svg>
+            6 min vs last week
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Exceptions open</div>
+          <div class="stat-value">7</div>
+          <div class="stat-delta">No change vs last week</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Cost per mile</div>
+          <div class="stat-value">$2.14</div>
+          <div class="stat-delta up">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v13"/><path d="M6 12.5l6 6 6-6"/></svg>
+            4c vs last week
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Active deliveries">
+        <div class="panel-head">
+          <h2 class="panel-title">Active deliveries</h2>
+          <span class="panel-note">Sorted by estimated arrival</span>
+          <div class="panel-actions">
+            <button class="btn" id="filter-deliveries" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:14px;height:14px"><path d="M4 6.5h16"/><path d="M7 12h10"/><path d="M10 17.5h4"/></svg>
+              Filter
+            </button>
+            <!-- Intentionally unlabelled: this is the export's floor case. -->
+            <button class="btn-icon" id="refresh-deliveries" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 10-2.4 5.5"/><path d="M19.5 6.5V12h-5"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Reference</th>
+              <th scope="col">Route</th>
+              <th scope="col">Carrier</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="col-eta">ETA</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="ref">NW-48120</td>
+              <td class="route-cell">Leeds to Bristol</td>
+              <td><div class="carrier"><div class="carrier-mark" style="background:#3352e8" aria-hidden="true">FH</div><span class="carrier-name">Fairhaven Freight</span></div></td>
+              <td><span class="pill pill-good">On time</span></td>
+              <td class="eta col-eta">14:20</td>
+            </tr>
+            <tr>
+              <td class="ref">NW-48117</td>
+              <td class="route-cell">Glasgow to Leeds</td>
+              <td><div class="carrier"><div class="carrier-mark" style="background:#0c7c45" aria-hidden="true">KL</div><span class="carrier-name">Kestrel Logistics</span></div></td>
+              <td><span class="pill pill-warn">At risk</span></td>
+              <td class="eta col-eta">15:05</td>
+            </tr>
+            <tr>
+              <td class="ref">NW-48104</td>
+              <td class="route-cell">Dover to Manchester</td>
+              <td><div class="carrier"><div class="carrier-mark" style="background:#c92c39" aria-hidden="true">MR</div><span class="carrier-name">Meridian Road</span></div></td>
+              <td><span class="pill pill-late">Delayed 48 min</span></td>
+              <td class="eta col-eta">15:40</td>
+            </tr>
+            <tr>
+              <td class="ref">NW-48098</td>
+              <td class="route-cell">Cardiff to Southampton</td>
+              <td><div class="carrier"><div class="carrier-mark" style="background:#966319" aria-hidden="true">OT</div><span class="carrier-name">Oakfield Transit</span></div></td>
+              <td><span class="pill pill-good">On time</span></td>
+              <td class="eta col-eta">16:15</td>
+            </tr>
+            <tr>
+              <td class="ref">NW-48091</td>
+              <td class="route-cell">Norwich to Birmingham</td>
+              <td><div class="carrier"><div class="carrier-mark" style="background:#5b3fb8" aria-hidden="true">SV</div><span class="carrier-name">Silverline Vans</span></div></td>
+              <td><span class="pill pill-good">On time</span></td>
+              <td class="eta col-eta">16:50</td>
+            </tr>
+            <tr>
+              <td class="ref">NW-48085</td>
+              <td class="route-cell">Plymouth to Sheffield</td>
+              <td><div class="carrier"><div class="carrier-mark" style="background:#0c7c45" aria-hidden="true">KL</div><span class="carrier-name">Kestrel Logistics</span></div></td>
+              <td><span class="pill pill-warn">At risk</span></td>
+              <td class="eta col-eta">17:30</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>

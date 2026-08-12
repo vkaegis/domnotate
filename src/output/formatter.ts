@@ -4,6 +4,7 @@
 
 import type { AnnotationSession, Annotation, OutputFormatter, TextEdit } from '@/types/core';
 import { fallbackScopeLabel } from '@/annotations/view-scope';
+import { formatSourceHint } from '@/core/source-hint/format';
 
 function elementHeading(el: { tagName: string; id: string | null; classes: string[] }): string {
   const tag = el.tagName;
@@ -89,6 +90,19 @@ export function createOutputFormatter(): OutputFormatter {
       md += `\n---\n\n`;
 
       session.annotations.forEach((a, i) => {
+        // When a hint is present it *is* the description, and the raw DOM
+        // fields below only restate the same tree in three more formats. The
+        // full descriptor still round-trips through the JSON export, which is
+        // what re-anchoring reads; this is the agent-facing view.
+        if (a.sourceHint) {
+          md += `${formatSourceHint(a.sourceHint, { index: i + 1, note: a.text || undefined })}\n`;
+          md += `   selector: \`${a.element.cssSelector}\`\n`;
+          const scope = annotationScopeLabel(a);
+          if (scope) md += `   scope: ${scope}\n`;
+          md += `\n---\n\n`;
+          return;
+        }
+
         const heading = elementHeading(a.element);
         md += `## ${i + 1}. ${heading}\n`;
         md += `**Selector:** \`${a.element.cssSelector}\`\n`;
@@ -123,6 +137,14 @@ export function createOutputFormatter(): OutputFormatter {
         const w = Math.round(a.element.rect.width);
         const h = Math.round(a.element.rect.height);
         const scopeLabel = annotationScopeLabel(a);
+
+        // This is the §5 target shape: the hint block carries the ordinal and
+        // the note, and the selector trails it as a re-anchoring coordinate.
+        if (a.sourceHint) {
+          out += `${formatSourceHint(a.sourceHint, { index: i + 1, note: a.text || undefined })}\n`;
+          out += `   selector: \`${selector}\`${scopeLabel ? ` [${scopeLabel}]` : ''}\n\n`;
+          return;
+        }
 
         out += `${i + 1}. ${heading} \`${selector}\` ${w}x${h}`;
         if (scopeLabel) out += ` [${scopeLabel}]`;

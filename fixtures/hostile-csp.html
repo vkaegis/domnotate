@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Domnotate — strict CSP host page</title>
+
+    <!--
+      A strict style-src, which plenty of production apps ship.
+
+      Why this is a separate file: the policy applies to the whole document, so
+      folding it into `hostile.html` would mean that page could not use its own
+      inline <style> either.
+
+      What to watch for, and why it is not obvious:
+
+        - `hostEl.style.setProperty(...)` is CSSOM, not an inline style
+          attribute, so CSP does not block the host reset. Expect that to hold.
+        - The shadow root's <style> element IS subject to style-src, even though
+          we create it with createElement + textContent. If the sidebar renders
+          unstyled here, that is the cause.
+        - The mitigation, if needed, is `adoptedStyleSheets` with a constructed
+          CSSStyleSheet — CSSOM again, and not covered by style-src. Worth
+          knowing before a store listing, since a rejected page style is
+          indistinguishable from a broken extension to a user.
+
+      Script-src is deliberately strict too: an MV3 content script runs in its
+      own world and is exempt, so activation should be unaffected. If it is not,
+      that is a finding about injection, not about styling.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:"
+    />
+    <link rel="stylesheet" href="./csp-page.css" />
+  </head>
+
+  <body>
+    <main>
+      <h1>Strict CSP</h1>
+      <p>
+        Activate the extension here. The only question this page answers: does the sidebar render
+        with its styles, or bare?
+      </p>
+      <div>
+        <h2>Sentiment breakdown</h2>
+        <button id="save" data-testid="save-btn">Save changes</button>
+      </div>
+    </main>
+  </body>
+</html>

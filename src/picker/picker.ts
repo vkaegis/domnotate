@@ -1,10 +1,33 @@
-import type { ElementPicker, EventBus } from '@/types/core';
+import type { EventBus } from '@/types/core';
+import type { ContentHost } from '@/core/content-host';
 import { generateDescriptor } from '@/picker/selector-engine';
 import { createHighlighter, type Highlighter } from '@/picker/highlight';
 
-export function createElementPicker(): ElementPicker {
-  let iframeEl: HTMLIFrameElement;
-  let overlayEl: HTMLElement;
+/**
+ * Elements carrying this attribute are invisible to the picker.
+ *
+ * The extension mounts its own UI into the page it is annotating, so without
+ * this the picker would happily select its own shadow host (elementFromPoint
+ * retargets shadow content to the host) and swallow every sidebar click. The
+ * web app's iframe content never carries it, so this is inert there.
+ */
+export const PICKER_IGNORE_ATTR = 'data-domnotate-ignore';
+
+/**
+ * Same shape as `ElementPicker` in `@/types/core`, but `init` takes a
+ * `ContentHost` instead of an iframe. The core interface still describes the
+ * pre-Phase-1 signature; it has no other implementors or consumers and should
+ * be retired when Phase 4 migrates the remaining iframe-bound modules.
+ */
+export interface HostElementPicker {
+  init(host: ContentHost, overlayEl: HTMLElement, bus: EventBus): void;
+  activate(): void;
+  deactivate(): void;
+  isActive(): boolean;
+}
+
+export function createElementPicker(): HostElementPicker {
+  let host: ContentHost;
   let bus: EventBus;
   let highlighter: Highlighter;
   let active = false;
@@ -15,43 +38,44 @@ export function createElementPicker(): ElementPicker {
   let onMouseLeave: (() => void) | null = null;
   let rafId: number | null = null;
 
-  function getIframeDoc(): Document | null {
-    try {
-      return iframeEl.contentDocument;
-    } catch {
-      return null;
-    }
+  function getContentDoc(): Document | null {
+    return host.getDocument();
   }
 
-  /** Translate iframe-local coords to parent-frame (overlay-relative) coords */
-  function toParentCoords(iframeX: number, iframeY: number) {
-    const iframeRect = iframeEl.getBoundingClientRect();
-    const overlayRect = overlayEl.getBoundingClientRect();
-    return {
-      x: iframeX + iframeRect.left - overlayRect.left,
-      y: iframeY + iframeRect.top - overlayRect.top,
-    };
+  /** Translate content-local coords into the overlay's coordinate space */
+  function toOverlayCoords(x: number, y: number) {
+    return host.toOverlayCoords(x, y);
   }
 
-  function init(
-    iframe: HTMLIFrameElement,
-    overlay: HTMLElement,
-    eventBus: EventBus,
-  ): void {
-    iframeEl = iframe;
-    overlayEl = overlay;
+  function isIgnored(el: Element): boolean {
+    return typeof el.closest === 'function' && el.closest(`[${PICKER_IGNORE_ATTR}]`) !== null;
+  }
+
+  /**
+   * `null` when the point is not a pickable element: outside the document, on
+   * the root/body, or inside Domnotate's own UI.
+   */
+  function resolveTarget(doc: Document, clientX: number, clientY: number): Element | null {
+    const target = doc.elementFromPoint(clientX, clientY);
+    if (!target || target === doc.documentElement || target === doc.body) return null;
+    if (isIgnored(target)) return null;
+    return target;
+  }
+
+  function init(contentHost: ContentHost, overlayEl: HTMLElement, eventBus: EventBus): void {
+    host = contentHost;
     bus = eventBus;
-    highlighter = createHighlighter(overlayEl, iframeEl);
+    highlighter = createHighlighter(overlayEl, contentHost);
   }
 
   function activate(): void {
     if (active) return;
     active = true;
 
-    const doc = getIframeDoc();
+    const doc = getContentDoc();
     if (!doc) return;
 
-    // Set crosshair cursor on the iframe document
+    // Set crosshair cursor on the content document
     doc.documentElement.style.cursor = 'crosshair';
 
     // --- Mousemove: throttled via rAF ---
@@ -69,50 +93,54 @@ export function createElementPicker(): ElementPicker {
         const ev = pendingEvent;
         pendingEvent = null;
 
-        const iframeDoc = getIframeDoc();
-        if (!iframeDoc) return;
+        const contentDoc = getContentDoc();
+        if (!contentDoc) return;
 
-        const target = iframeDoc.elementFromPoint(ev.clientX, ev.clientY);
-        if (!target || target === iframeDoc.documentElement || target === iframeDoc.body) {
+        const target = resolveTarget(contentDoc, ev.clientX, ev.clientY);
+        if (!target) {
           highlighter.clear();
           bus.emit({ type: 'picker:unhover' });
           return;
         }
 
         const descriptor = generateDescriptor(target);
-        const parent = toParentCoords(ev.clientX, ev.clientY);
+        const overlay = toOverlayCoords(ev.clientX, ev.clientY);
 
-        highlighter.highlight(descriptor, parent.x, parent.y);
+        highlighter.highlight(descriptor, overlay.x, overlay.y);
         bus.emit({
           type: 'picker:hover',
           element: descriptor,
-          mouseX: parent.x,
-          mouseY: parent.y,
+          mouseX: overlay.x,
+          mouseY: overlay.y,
         });
       });
     };
 
     // --- Click: select element ---
     onClick = (e: MouseEvent) => {
+      const contentDoc = getContentDoc();
+      if (!contentDoc) return;
+
+      // A click inside Domnotate's own UI is not a pick and must reach its
+      // real handler, so bail out *before* suppressing the event. Every other
+      // click is swallowed while picking, exactly as before.
+      const raw = contentDoc.elementFromPoint(e.clientX, e.clientY);
+      if (raw && isIgnored(raw)) return;
+
       e.preventDefault();
       e.stopPropagation();
 
-      const iframeDoc = getIframeDoc();
-      if (!iframeDoc) return;
-
-      const target = iframeDoc.elementFromPoint(e.clientX, e.clientY);
-      if (!target || target === iframeDoc.documentElement || target === iframeDoc.body) {
-        return;
-      }
+      const target = resolveTarget(contentDoc, e.clientX, e.clientY);
+      if (!target) return;
 
       const descriptor = generateDescriptor(target);
-      const parent = toParentCoords(e.clientX, e.clientY);
+      const overlay = toOverlayCoords(e.clientX, e.clientY);
 
       bus.emit({
         type: 'picker:select',
         element: descriptor,
-        mouseX: parent.x,
-        mouseY: parent.y,
+        mouseX: overlay.x,
+        mouseY: overlay.y,
       });
     };
 
@@ -131,7 +159,7 @@ export function createElementPicker(): ElementPicker {
     if (!active) return;
     active = false;
 
-    const doc = getIframeDoc();
+    const doc = getContentDoc();
 
     if (doc) {
       doc.documentElement.style.cursor = '';

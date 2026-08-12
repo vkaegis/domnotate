@@ -77,6 +77,36 @@ export function createDropZone(
     features.appendChild(col);
   }
 
+  // --- Extension callout ---
+  //
+  // The web app needs a page it can load into an iframe, so anything behind a
+  // login is out of reach for it. That is the one gap worth naming on the
+  // landing page, because a visitor who came here to annotate their own app is
+  // about to discover it by failing.
+  const callout = document.createElement('div');
+  callout.className = 'dn-landing__callout';
+
+  const calloutTitle = document.createElement('div');
+  calloutTitle.className = 'dn-landing__callout-title';
+  calloutTitle.textContent = 'Annotate live pages';
+
+  const calloutDesc = document.createElement('p');
+  calloutDesc.className = 'dn-landing__callout-desc';
+  calloutDesc.textContent =
+    'The Chrome extension annotates any page you can open, including apps behind a login, and exports the same notes with the page context an agent needs to find the code.';
+
+  const calloutLink = document.createElement('a');
+  calloutLink.className = 'dn-landing__callout-link';
+  calloutLink.href =
+    'https://chromewebstore.google.com/detail/domnotate/hgllflmkglkhaamjkgmmjhgelhokdkma';
+  calloutLink.target = '_blank';
+  calloutLink.rel = 'noopener noreferrer';
+  calloutLink.textContent = 'Get it on the Chrome Web Store';
+
+  callout.appendChild(calloutTitle);
+  callout.appendChild(calloutDesc);
+  callout.appendChild(calloutLink);
+
   const footer = document.createElement('div');
   footer.className = 'dn-landing__footer';
 
@@ -102,9 +132,19 @@ export function createDropZone(
   authorLink.textContent = 'Vineet Kumar';
   attribution.appendChild(authorLink);
 
-  brand.appendChild(title);
-  brand.appendChild(desc);
-  brand.appendChild(features);
+  // Two groups: the pitch at the top, and the secondary things at the bottom.
+  // The callout sits directly above the footer links rather than under the
+  // feature row, which puts it at the weight it deserves — the primary action
+  // is the drop zone on the right — and turns what was a void above the footer
+  // into the gap between the two groups.
+  const intro = document.createElement('div');
+  intro.className = 'dn-landing__intro';
+  intro.appendChild(title);
+  intro.appendChild(desc);
+  intro.appendChild(features);
+
+  brand.appendChild(intro);
+  brand.appendChild(callout);
   brand.appendChild(footer);
 
   createChangelog(footerLinks);

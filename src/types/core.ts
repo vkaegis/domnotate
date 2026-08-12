@@ -2,6 +2,10 @@
 // Domnotate — Shared Types
 // ============================================================
 
+import type { SourceHint } from '@/core/source-hint/types';
+
+export type { SourceHint };
+
 // === Element Identity ===
 
 export interface ElementDescriptor {
@@ -58,6 +62,13 @@ export interface Annotation {
   id: string;
   /** Identified element */
   element: ElementDescriptor;
+  /**
+   * Source-localisation brief for an agent (plan §3.2). Deliberately separate
+   * from `element`, which re-anchors the pin in *this* session: on a live app
+   * the two share nothing. Optional — the web app on static HTML has no use
+   * for it, and every existing session and fixture stays valid without it.
+   */
+  sourceHint?: SourceHint;
   /** Pin position relative to iframe content (not viewport) */
   anchorPoint: { x: number; y: number };
   /** The annotation text (single comment) */
@@ -258,6 +269,13 @@ export interface AnnotationManager {
   updateText(annotationId: string, text: string): void;
   /** Replace or clear the stored view scope on an existing annotation. */
   updateScope(annotationId: string, scope: ViewScope | null): void;
+  /**
+   * Attach a late-arriving source hint. Unlike the other updaters this is a
+   * no-op for an unknown id rather than a throw: the hint is resolved
+   * asynchronously across the world boundary, so the annotation may legitimately
+   * have been deleted while it was in flight. Returns whether it landed.
+   */
+  updateSourceHint(annotationId: string, hint: SourceHint | null): boolean;
   delete(id: string): void;
   loadAnnotations(annotations: Annotation[]): void;
   clearAll(): void;

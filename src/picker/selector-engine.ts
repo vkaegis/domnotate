@@ -1,4 +1,7 @@
 import type { ElementDescriptor } from '@/types/core';
+import { isHashClass } from '@/core/class-hash';
+
+export { isHashClass };
 
 // ---------------------------------------------------------------------------
 // XPath generation
@@ -58,60 +61,82 @@ function escapeCssIdent(value: string): string {
   return value.replace(/([^\w-])/g, '\\$1');
 }
 
-export function generateCssSelector(el: Element): string {
-  const doc = el.ownerDocument;
+function classSelectorPart(el: Element, filterHashes: boolean): string {
+  return Array.from(el.classList)
+    .filter((c) => !filterHashes || !isHashClass(c))
+    .map((c) => `.${escapeCssIdent(c)}`)
+    .join('');
+}
+
+/**
+ * Position among *all* siblings. Used for the annotated element itself: a
+ * component instantiated by several parents produces an identical
+ * tag-plus-class selector at each site, and only the sibling index tells them
+ * apart. Omitted when the element has no siblings, where it says nothing.
+ */
+function targetNthChildPart(el: Element): string {
+  const parent = el.parentElement;
+  if (!parent || parent.children.length < 2) return '';
+  return `:nth-child(${Array.from(parent.children).indexOf(el) + 1})`;
+}
+
+/** Ancestor rule: only disambiguate when same-tag siblings exist. */
+function ancestorNthChildPart(el: Element): string {
+  const parent = el.parentElement;
+  if (!parent) return '';
+  const sameTag = Array.from(parent.children).filter((c: Element) => c.tagName === el.tagName);
+  if (sameTag.length < 2) return '';
+  return `:nth-child(${Array.from(parent.children).indexOf(el) + 1})`;
+}
+
+function buildCssSelector(el: Element, doc: Document, filterHashes: boolean): string {
+  const tag = el.tagName.toLowerCase();
 
   // 1. id
+  //
+  // Tagged, for the same reason the walk below tags an id-bearing ancestor: the
+  // selector is read by an agent as much as resolved by a browser, and
+  // `button#save` says what the element is where a bare `#save` does not. The
+  // element's own `role:` line is not a substitute — a `div[role=button]`
+  // reports the same role and is a different thing to go looking for.
+  //
+  // No `:nth-child` here, unlike the walk: sibling position discriminates
+  // between identical instances, and a unique id means there are none.
   if (el.id) {
-    const sel = `#${escapeCssIdent(el.id)}`;
+    const sel = `${tag}#${escapeCssIdent(el.id)}`;
     if (isUnique(doc, sel)) return sel;
   }
 
-  // 2. data-testid
+  // 2. data-testid — tagged for the same reason
   const testId = el.getAttribute('data-testid');
   if (testId) {
-    const sel = `[data-testid="${testId}"]`;
+    const sel = `${tag}[data-testid="${testId}"]`;
     if (isUnique(doc, sel)) return sel;
   }
 
-  // 3. tag + classes
-  const tag = el.tagName.toLowerCase();
-  if (el.classList.length > 0) {
-    const classPart = Array.from(el.classList)
-      .map((c) => `.${escapeCssIdent(c)}`)
-      .join('');
-    const sel = `${tag}${classPart}`;
+  // 3. tag + classes + sibling position
+  const classPart = classSelectorPart(el, filterHashes);
+  if (classPart) {
+    const sel = `${tag}${classPart}${targetNthChildPart(el)}`;
     if (isUnique(doc, sel)) return sel;
   }
 
-  // 4. Walk up using nth-child
+  // 4. Walk up, adding one ancestor at a time until the chain is unique
   const parts: string[] = [];
   let current: Element | null = el;
 
   while (current && current !== doc.body && current !== doc.documentElement) {
+    const isTarget = current === el;
     let segment = current.tagName.toLowerCase();
 
     if (current.id) {
-      segment = `#${escapeCssIdent(current.id)}`;
-      parts.unshift(segment);
-      break;
-    }
-
-    if (current.classList.length > 0) {
-      segment += Array.from(current.classList)
-        .map((c) => `.${escapeCssIdent(c)}`)
-        .join('');
-    }
-
-    const parent: Element | null = current.parentElement;
-    if (parent) {
-      const siblings = Array.from(parent.children).filter(
-        (c: Element) => c.tagName === current!.tagName,
-      );
-      if (siblings.length > 1) {
-        const idx = Array.from(parent.children).indexOf(current) + 1;
-        segment += `:nth-child(${idx})`;
-      }
+      // Keep the tag: `aside#js-nav-sidebar` says what the element is where a
+      // bare `#js-nav-sidebar` does not.
+      segment += `#${escapeCssIdent(current.id)}`;
+      if (isTarget) segment += targetNthChildPart(current);
+    } else {
+      segment += classSelectorPart(current, filterHashes);
+      segment += isTarget ? targetNthChildPart(current) : ancestorNthChildPart(current);
     }
 
     parts.unshift(segment);
@@ -120,10 +145,23 @@ export function generateCssSelector(el: Element): string {
     const candidate = parts.join(' > ');
     if (isUnique(doc, candidate)) return candidate;
 
-    current = parent;
+    // Not unique yet — keep walking, even past an id, rather than returning an
+    // ambiguous selector.
+    current = current.parentElement;
   }
 
   return parts.join(' > ');
+}
+
+export function generateCssSelector(el: Element): string {
+  const doc = el.ownerDocument;
+
+  // Prefer the hash-free selector, but never at the cost of uniqueness: if
+  // dropping a runtime class makes the selector ambiguous, keep the classes.
+  const filtered = buildCssSelector(el, doc, true);
+  if (isUnique(doc, filtered)) return filtered;
+
+  return buildCssSelector(el, doc, false);
 }
 
 // ---------------------------------------------------------------------------

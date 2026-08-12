@@ -1,4 +1,5 @@
 import type { ElementDescriptor } from '@/types/core';
+import { createIframeHost, type ContentHost } from '@/core/content-host';
 
 export interface Highlighter {
   highlight(descriptor: ElementDescriptor, mouseX: number, mouseY: number): void;
@@ -6,10 +7,20 @@ export interface Highlighter {
   destroy(): void;
 }
 
+function isContentHost(source: HTMLIFrameElement | ContentHost): source is ContentHost {
+  return typeof (source as ContentHost).toOverlayCoords === 'function';
+}
+
+/**
+ * `source` accepts either an iframe (edit-mode's existing call shape, wrapped
+ * into an iframe host internally — same arithmetic, same result) or a
+ * `ContentHost` directly.
+ */
 export function createHighlighter(
   overlayEl: HTMLElement,
-  iframeEl: HTMLIFrameElement,
+  source: HTMLIFrameElement | ContentHost,
 ): Highlighter {
+  const host: ContentHost = isContentHost(source) ? source : createIframeHost(source, overlayEl);
   // --- Highlight box ---
   const box = document.createElement('div');
   box.className = 'dn-highlight-box';
@@ -52,12 +63,11 @@ export function createHighlighter(
     mouseX: number,
     mouseY: number,
   ): void {
-    const iframeRect = iframeEl.getBoundingClientRect();
     const overlayRect = overlayEl.getBoundingClientRect();
 
-    // Element rect is iframe-relative, so offset by iframe position within overlay
-    const offsetX = iframeRect.left - overlayRect.left;
-    const offsetY = iframeRect.top - overlayRect.top;
+    // Element rect is content-relative, so offset by the content's origin
+    // within the overlay. Identity for a live page.
+    const { x: offsetX, y: offsetY } = host.toOverlayCoords(0, 0);
 
     const r = descriptor.rect;
 

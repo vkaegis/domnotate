@@ -12,6 +12,7 @@ import type {
   ViewScope,
 } from '@/types/core';
 import { fallbackScopeLabel, scopesMatch } from '@/annotations/view-scope';
+import { runCopyFeedback, popIcon } from '@/sidebar/copy-animation';
 import { attachTooltip } from '@/tooltip/tooltip';
 
 // --- SVG Icons (14px viewBox 24) ---
@@ -42,11 +43,7 @@ function setIconWithPop(btn: HTMLButtonElement, iconHtml: string): void {
   } else {
     btn.innerHTML = iconHtml;
   }
-  const svg = btn.querySelector('svg');
-  if (svg) {
-    svg.classList.add('dn-icon-enter');
-    svg.addEventListener('animationend', () => svg.classList.remove('dn-icon-enter'), { once: true });
-  }
+  popIcon(btn.querySelector('svg'));
 }
 
 export function createNotesPanel(
@@ -63,7 +60,6 @@ export function createNotesPanel(
   // --- State ---
   let selectedId: string | null = null;
   let pinsVisible = true;
-  let copyTimer: ReturnType<typeof setTimeout> | null = null;
   let shareTimer: ReturnType<typeof setTimeout> | null = null;
   let shareBusy = false;
 
@@ -163,69 +159,15 @@ export function createNotesPanel(
     bus.emit({ type: 'share:publish' });
   });
 
-  function animateNotesToButton(): void {
-    const rows = notesListEl.querySelectorAll('.dn-note-row');
-    if (rows.length === 0) return;
-
-    const btnRect = copyBtn.getBoundingClientRect();
-    const btnCx = btnRect.left + btnRect.width / 2;
-    const btnCy = btnRect.top + btnRect.height / 2;
-
-    const STAGGER = 40; // ms between each ghost launch
-    const FLIGHT = 350; // ms per ghost flight
-
-    rows.forEach((row, i) => {
-      const pin = row.querySelector('.dn-note-pin') as HTMLElement | null;
-      if (!pin) return;
-
-      const pinRect = pin.getBoundingClientRect();
-      const ghost = document.createElement('div');
-      ghost.className = 'dn-copy-ghost';
-      ghost.textContent = pin.textContent;
-
-      // Start at the pin's screen position
-      ghost.style.left = `${pinRect.left}px`;
-      ghost.style.top = `${pinRect.top}px`;
-      ghost.style.width = `${pinRect.width}px`;
-      ghost.style.height = `${pinRect.height}px`;
-      document.body.appendChild(ghost);
-
-      const dx = btnCx - (pinRect.left + pinRect.width / 2);
-      const dy = btnCy - (pinRect.top + pinRect.height / 2);
-
-      ghost.animate(
-        [
-          { transform: 'translate(0, 0) scale(1)', opacity: 1 },
-          { transform: `translate(${dx}px, ${dy}px) scale(0.3)`, opacity: 0.4 },
-        ],
-        {
-          duration: FLIGHT,
-          delay: i * STAGGER,
-          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-          fill: 'forwards',
-        },
-      ).onfinish = () => ghost.remove();
-    });
-  }
-
+  let cancelCopyFeedback: (() => void) | null = null;
   function showCopyFeedback(): void {
-    animateNotesToButton();
-
-    // Delay the icon swap until ghosts start landing
-    const rows = notesListEl.querySelectorAll('.dn-note-row');
-    const landDelay = Math.min(rows.length, 8) * 40 + 100;
-
-    setTimeout(() => {
-      setIconWithPop(copyBtn, ICONS.check);
-      copyBtn.classList.add('dn-action-btn--copied');
-    }, landDelay);
-
-    if (copyTimer) clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => {
-      setIconWithPop(copyBtn, ICONS.clipboard);
-      copyBtn.classList.remove('dn-action-btn--copied');
-      copyTimer = null;
-    }, landDelay + 1500);
+    cancelCopyFeedback?.();
+    cancelCopyFeedback = runCopyFeedback({
+      rows: notesListEl.querySelectorAll('.dn-note-row'),
+      button: copyBtn,
+      ghostLayer: document.body,
+      setIcon: (icon) => setIconWithPop(copyBtn, ICONS[icon]),
+    });
   }
 
   let exportTimer: ReturnType<typeof setTimeout> | null = null;
@@ -858,7 +800,7 @@ export function createNotesPanel(
   return {
     destroy(): void {
       for (const unsub of unsubs) unsub();
-      if (copyTimer) clearTimeout(copyTimer);
+      cancelCopyFeedback?.();
       if (shareTimer) clearTimeout(shareTimer);
       if (exportTimer) clearTimeout(exportTimer);
       if (clearTimer) clearTimeout(clearTimer);
