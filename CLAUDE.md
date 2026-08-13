@@ -17,6 +17,22 @@ Extension:
 - `npm run zip:extension` — build, check, then write `domnotate-extension.zip`
 - `npm run icons:extension` — rasterise the icon SVGs. Needs `rsvg-convert`. The PNGs are committed on purpose, so neither CI nor a contributor has to install it.
 
+## Comments
+
+Comment only what the code cannot say. Default to none.
+
+### Rules
+
+- Do not narrate the change — "was 1.05, now 1", "this used to be a white card". Git blame owns history, and a comment that goes stale on the next commit is a bug.
+- Do not record your own process: a wrong turn, a measurement you ran, a bug you fixed while writing the line.
+- Do not argue with a future reader. "Do not change this" enforces nothing; a test does.
+- Do not restate the code, and do not write JSDoc that only renames the parameters.
+- Do write the invisible constraint: what an innocent-looking edit would break, or where a magic number came from. One or two lines.
+- Prefer a named constant, a clearer name, or a test over a comment.
+- In tests the name carries the *what*; a comment adds only *why it matters*, in one line.
+- Existing over-commented code is not a licence to add more.
+- `docs/` is prose for a person and is exempt.
+
 ## Testing
 
 - **Framework:** Vitest with happy-dom for DOM APIs
