@@ -185,33 +185,55 @@ does not claim one.
 
 ## Graphic assets
 
-Everything the console's **Graphic assets** section asks for, in `docs/store-assets/`.
+Everything the console's **Graphic assets** section asks for. They land in `docs/store-assets/`.
 
-| Asset | File | Spec | State |
-|---|---|---|---|
-| Store icon (required) | `icon-128.png` | 128x128 PNG, artwork 96x96 with 16px transparent padding | Made and verified by `-trim` at `96x96 +16+16`. **Upload it** — the console reports "Icon image is missing" until you do, on the Store listing tab under Graphic assets |
-| Small promo tile (required) | `promo-440x280.png` | 440x280, opaque, full bleed, no screenshot inside | Done |
-| Screenshots (1 required, 5 preferred) | `screenshots/01..05` | 1280x800, square corners, full bleed | Done, five |
-| Marquee promo tile (optional) | — | 1400x560 | Not made. Only needed for featured placement |
+**The two generated ones are not committed.** Once uploaded they are owned by the live listing, and
+regenerating them is seconds of work, so the repo keeps the generator and gitignores its output.
+The five product screenshots *are* committed, because nothing here can reproduce them: they were
+captured by hand, with the real extension driving real events on a real page.
+
+| Asset | File | Spec | Committed | How to make it |
+|---|---|---|---|---|
+| Store icon (required) | `store-icon-128.png` | 128x128 PNG, artwork 96x96 with 16px transparent padding | no | `npm run icons:extension`. Verify with `magick docs/store-assets/store-icon-128.png -trim info:`, which must report `96x96 128x128+16+16` |
+| Small promo tile (required) | `promo-440x280.png` | 440x280, opaque, full bleed, no screenshot inside | no | Open `tools/store-promo-tile.html` and screenshot the `.tile` element at exactly 440x280 |
+| Screenshots (1 required, 5 preferred) | `screenshots/01..05` | 1280x800, square corners, full bleed | yes | See the Screenshots section below. Manual capture; there is no script |
+| Marquee promo tile (optional) | — | 1400x560 | — | Not made. Only needed for featured placement |
+
+**Both generated assets changed when the mark did, so both need re-uploading on the next version.**
+The store icon's filename changed too, from `icon-128.png` to `store-icon-128.png`, so that it no
+longer collides with the toolbar's `icon-128.png` — same pixel size, different drawing.
+
+The tile imports Geist and Lora from the same source `src/styles/reset.css` does, so its wordmark is
+set in the faces the live site actually loads.
 
 ### The store icon is a separate asset from the toolbar icons
 
-They have conflicting requirements, so `src/extension/icons/` holds two sources rather than one:
+The two differ only in padding now, not in drawing. `src/extension/icons/` holds two sources because
+the store's padding rule and a 16px toolbar icon cannot both be satisfied by one file:
 
-- **`icon.svg` → `icon-16/32/48/128.png`**, referenced by the manifest. Near-full-bleed, because at
-  16px in a toolbar padding is legibility you cannot afford.
-- **`store-icon.svg` → `docs/store-assets/icon-128.png`**, uploaded to the listing. The store
-  requires the artwork to be 96x96 inside a 128x128 canvas with 16px of transparent padding, so a
-  full-bleed mark is out of spec.
+- **`src/extension/icons/icon-16/32/48/128.png`**, referenced by the manifest. One drawing per size,
+  each bleeding to its box: transparent padding at 16px is a soft halo where legibility should be.
+  What the drawing carries changes with the size, and the crossovers were measured on the rasterised
+  pixels — see `tools/make-mark.mjs`.
+- **`docs/store-assets/store-icon-128.png`**, uploaded to the listing. The store requires the artwork
+  to be 96x96 inside a 128x128 canvas with 16px of transparent padding, so a full-bleed mark is out
+  of spec. It is named apart from the toolbar's `icon-128.png` deliberately: same pixel size,
+  different drawing, and two files with one name is how the wrong one gets uploaded.
 
-The store also requires the icon to **work on both light and dark backgrounds**, and the toolbar mark
-cannot: its pin ring is cream and overhangs the card, so against a white store card the overhanging
-part dissolves and the pin reads as a notch bitten out of the corner. The store version puts the mark
-on its own terracotta tile so it carries its own contrast and renders identically either way. Checked
-against white, the store's grey, and a dark surface, and at 48px for search results.
+Both come from one normalised geometry via `npm run mark` (`tools/make-mark.mjs`), along with
+`public/favicon.svg`, `src/core/mark.ts` and the promo tile's inline copy. The rasterisation sources
+are written to a gitignored `.mark/` and thrown away; only the PNGs are checked in, because that is
+all the manifest and the store ever read.
 
-Regenerate both with `npm run icons:extension` (needs rsvg-convert; the PNGs are committed so CI does
-not).
+The store also requires the icon to **work on both light and dark backgrounds**, and it does: the
+whole mark sits inside its own terracotta panel with nothing overhanging, so it renders identically
+on either surface. This is what the previous mark failed — its cream pin ring overhung the card, so
+against a white store card the overhanging part dissolved and the pin read as a notch bitten out of
+the corner. Checked against white, the store's grey, and a dark surface, and at 48px for search
+results.
+
+Regenerate both with `npm run icons:extension`, which runs `npm run mark` first (needs rsvg-convert;
+the PNGs are committed so CI does not).
 
 ---
 
@@ -257,7 +279,8 @@ Retake with `node tools/make-store-panels.mjs <export.txt> <outDir>`, then shoot
 - [x] Single purpose description written
 - [x] Justifications written for both permissions (`activeTab`, `scripting`)
 - [x] Remote code answer verified against the built bundles, not just asserted
-- [ ] Store icon actually uploaded, and the six publish blockers cleared
+- [ ] Store icon and promo tile regenerated, then uploaded (both changed with the mark), and the
+      six publish blockers cleared. Neither file is committed, so regenerate before you upload
 - [ ] `node tools/check-extension-version.mjs ext-vX.Y.Z` passes
 - [ ] `npm run zip:extension` passes, and the zip installs on a clean Chrome profile
 - [ ] The description's permission list matches the manifest (the package check enforces this)

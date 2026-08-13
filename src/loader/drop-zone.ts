@@ -4,6 +4,7 @@
 
 import './drop-zone.css';
 import { createChangelog } from '@/changelog/changelog';
+import { createMarkElement } from '@/core/mark';
 
 /**
  * Build the landing-page drop zone inside `container`.
@@ -39,6 +40,14 @@ export function createDropZone(
 
   const brand = document.createElement('div');
   brand.className = 'dn-landing__brand';
+
+  const lockup = document.createElement('div');
+  lockup.className = 'dn-landing__lockup';
+
+  const mark = document.createElement('div');
+  mark.className = 'dn-landing__mark';
+  // CSS overrides this; it is only the size without a stylesheet.
+  mark.appendChild(createMarkElement(78));
 
   const title = document.createElement('h1');
   title.className = 'dn-landing__title';
@@ -132,14 +141,12 @@ export function createDropZone(
   authorLink.textContent = 'Vineet Kumar';
   attribution.appendChild(authorLink);
 
-  // Two groups: the pitch at the top, and the secondary things at the bottom.
-  // The callout sits directly above the footer links rather than under the
-  // feature row, which puts it at the weight it deserves — the primary action
-  // is the drop zone on the right — and turns what was a void above the footer
-  // into the gap between the two groups.
+  // Two groups: the pitch at the top, the secondary things pinned to the bottom.
   const intro = document.createElement('div');
   intro.className = 'dn-landing__intro';
-  intro.appendChild(title);
+  lockup.appendChild(mark);
+  lockup.appendChild(title);
+  intro.appendChild(lockup);
   intro.appendChild(desc);
   intro.appendChild(features);
 

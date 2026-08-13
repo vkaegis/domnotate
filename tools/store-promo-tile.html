@@ -7,19 +7,23 @@
 <!--
   The Chrome Web Store's mandatory small promotional tile, 440x280.
 
-  Rendered in the browser rather than as an SVG through rsvg-convert so the
-  wordmark resolves through the same font stack as the live landing page. That
-  matters here: neither Geist Sans nor Lora is actually installed on this
-  machine, so the site already falls back to the system grotesque and Georgia
-  italic. Matching the fallback is matching the brand as people see it; an SVG
-  rasterised against a different stack would ship a wordmark the site never
-  renders.
+  Rendered in a browser rather than through rsvg-convert because the wordmark has
+  to resolve through Geist and Lora, which are not installed locally. It imports
+  them from the same source src/styles/reset.css does.
 
-  Store rules this satisfies: opaque and full-bleed with square corners, no
-  screenshot inside it, and light on text — a mark, a wordmark, one line.
+  Store rules this satisfies: opaque, full bleed, square corners, no screenshot
+  inside it, light on text.
 
-  Screenshot the .tile element at exactly 440x280.
+  The wordmark's tracking, colours and gap match .dn-landing__title in
+  src/loader/drop-zone.css. Keep them in step.
+
+  The mark between the markers below is written by `npm run mark`; do not edit it
+  here. Screenshot the .tile element at exactly 440x280 to produce
+  docs/store-assets/promo-440x280.png, which is gitignored.
 -->
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;1,400&display=swap">
 
 <style>
   * { box-sizing: border-box; }
@@ -34,34 +38,34 @@
     align-items: center;
     justify-content: center;
     gap: 20px;
-    /* A warm bloom off the top-right, where the mark's pin sits. Depth with an
-       offset and a soft spread, never a flat halo. */
-    background-image: radial-gradient(120% 90% at 78% 6%, rgba(196, 114, 90, 0.13), rgba(196, 114, 90, 0) 62%);
     overflow: hidden;
   }
 
-  .mark { width: 60px; height: 60px; display: block; }
+  .mark { width: 104px; height: 104px; display: block; }
 
+  /* font-size lives here so `gap` in em resolves against 42px, not the parent's. */
   .wordmark {
     display: flex;
     align-items: baseline;
-    gap: 1px;
+    font-size: 42px;
+    /* Matches the landing page's 0.111em. */
+    gap: 0.111em;
     line-height: 1;
   }
   .wordmark .dom {
     font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
-    font-size: 42px;
+    font-size: 1em;
     font-weight: 800;
-    letter-spacing: -0.045em;
+    letter-spacing: -0.028em;
     color: #2C2016;
   }
   .wordmark .notate {
     font-family: 'Lora', Georgia, serif;
-    font-size: 42px;
+    font-size: 1em;
     font-style: italic;
     font-weight: 400;
-    letter-spacing: -0.02em;
-    color: #7A6B5A;
+    letter-spacing: -0.014em;
+    color: #6B5D4F;
   }
 
   .line {
@@ -69,7 +73,7 @@
     font-size: 15px;
     font-weight: 500;
     letter-spacing: -0.005em;
-    color: #7A6B5A;
+    color: #6B5D4F;
     text-align: center;
   }
 </style>
@@ -77,10 +81,28 @@
 <body>
   <div class="tile">
     <svg class="mark" viewBox="0 0 128 128" aria-hidden="true">
-      <rect x="16" y="16" width="96" height="96" rx="22" fill="#C4725A"/>
-      <rect x="29" y="47" width="52" height="52" rx="10" fill="#FFFFFF"/>
-      <circle cx="83" cy="45" r="16" fill="#FAF7F2"/>
-      <circle cx="83" cy="45" r="7" fill="#C4725A"/>
+      <!-- mark:start -->
+      <rect x="0" y="0" width="128" height="128" rx="32" fill="#C4725A"/>
+      <line x1="18.56" y1="12.8" x2="109.44" y2="12.8" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="18.56" y1="25.6" x2="109.44" y2="25.6" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="18.56" y1="38.4" x2="63.49" y2="38.4" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="94.05" y1="38.4" x2="109.44" y2="38.4" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="18.56" y1="51.2" x2="64.59" y2="51.2" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="90.51" y1="51.2" x2="109.44" y2="51.2" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="18.56" y1="64" x2="56.38" y2="64" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="70.8" y1="64" x2="109.44" y2="64" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="18.56" y1="76.8" x2="48.17" y2="76.8" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="61.94" y1="76.8" x2="109.44" y2="76.8" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="18.56" y1="89.6" x2="41.45" y2="89.6" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="51.6" y1="89.6" x2="109.44" y2="89.6" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="18.56" y1="102.4" x2="109.44" y2="102.4" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <line x1="18.56" y1="115.2" x2="109.44" y2="115.2" stroke="#FAF7F2" stroke-opacity="0.14" stroke-width="2.34" stroke-linecap="round"/>
+      <path d="M 38.16 102.16 L 55.69 81.84 L 50.16 78.16 L 38.16 102.16 Z" fill="#FAF7F2"/>
+      <circle cx="52.93" cy="80" r="3.32" fill="#FAF7F2"/>
+      <path d="M 55.69 81.84 L 75.89 52.64 L 69.34 48.27 L 50.16 78.16 Z" fill="#FAF7F2"/>
+      <circle cx="72.61" cy="50.46" r="3.94" fill="#FAF7F2"/>
+      <circle cx="78.77" cy="41.84" r="12.93" fill="#2C2016"/>
+      <!-- mark:end -->
     </svg>
 
     <div class="wordmark">

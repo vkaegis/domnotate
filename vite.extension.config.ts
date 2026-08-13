@@ -40,10 +40,9 @@ function isExtensionMode(mode: string): mode is ExtensionMode {
 /**
  * Copies the MV3 manifest and the toolbar icons next to the bundles.
  *
- * The icons are committed PNGs rather than something generated at build time:
- * `icon.svg` is the source, `npm run icons:extension` rasterises it, and the
- * output is checked in so neither CI nor anyone building the zip needs
- * rsvg-convert for an asset that changes almost never.
+ * The icons are committed PNGs rather than generated at build time, so neither CI
+ * nor anyone building the zip needs rsvg-convert. Remake them with
+ * `npm run icons:extension`.
  */
 function copyStaticAssets(): Plugin {
   return {
@@ -60,8 +59,8 @@ function copyStaticAssets(): Plugin {
       const iconOut = resolve(outDir, 'icons');
       mkdirSync(iconOut, { recursive: true });
       for (const name of readdirSync(iconSrc)) {
-        // The `.svg` source stays out of the zip — Chrome cannot use it for an
-        // icon, so shipping it would only pad the package.
+        // Chrome cannot use an SVG for an icon, so anything non-PNG that turns
+        // up here stays out of the zip.
         if (!name.endsWith('.png')) continue;
         copyFileSync(resolve(iconSrc, name), resolve(iconOut, name));
       }
