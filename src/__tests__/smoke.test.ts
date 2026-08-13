@@ -36,6 +36,7 @@ import { scopeAnnotationToCurrentPanel } from '@/diagnostics/scope-override';
 import { isDiagnosticsEnabled, mountDiagnosticsPanel } from '@/diagnostics/diagnostics-panel';
 import { createPageHost, createIframeHost } from '@/core/content-host';
 import { isHashClass } from '@/core/class-hash';
+import { createMarkElement } from '@/core/mark';
 import { createProviderRegistry, mergeSignals, filterProps } from '@/core/source-hint/provider';
 import { createDomProvider } from '@/core/source-hint/dom-provider';
 import { formatSourceHint } from '@/core/source-hint/format';
@@ -91,6 +92,7 @@ describe('smoke: core module exports', () => {
     expect(typeof mountDiagnosticsPanel).toBe('function');
     expect(typeof createPageHost).toBe('function');
     expect(typeof isHashClass).toBe('function');
+    expect(typeof createMarkElement).toBe('function');
     expect(typeof createIframeHost).toBe('function');
     expect(typeof createProviderRegistry).toBe('function');
     expect(typeof mergeSignals).toBe('function');

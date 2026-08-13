@@ -12,6 +12,13 @@ coverage/
 .dev.vars.*
 !.dev.vars.example
 .context/
+# Rasterisation sources from `npm run mark`.
+.mark/
+
+# Generated store assets. See docs/chrome-web-store-listing.md for how to remake
+# them; the screenshots beside them are committed because nothing can.
+docs/store-assets/store-icon-128.png
+docs/store-assets/promo-440x280.png
 .playwright-cli/
 *.log
 .DS_Store
