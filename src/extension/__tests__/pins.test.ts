@@ -180,6 +180,99 @@ describe('pins on a live page', () => {
     expect(pins()[0].textContent).toBe('1');
   });
 
+  /**
+   * A pass follows an app across screens, so the manager holds notes whose
+   * elements are not in this document. Those must not get a pin.
+   */
+  describe('notes from another screen', () => {
+    function buildOn(route: () => string | null): PinLayer {
+      layer = createPinLayer({
+        doc: document,
+        layerEl,
+        host: createPageHost(window),
+        manager,
+        bus,
+        hostEl,
+        currentRoute: route,
+      });
+      return layer;
+    }
+
+    function annotateOn(el: Element, route: string): string {
+      return manager.create(generateDescriptor(el), { x: 0, y: 0 }, '', {
+        capturedOn: { route, url: route },
+      }).id;
+    }
+
+    it('pins only the notes taken on this screen', () => {
+      const target = withRect(document.createElement('button'), { left: 10, top: 10 });
+      target.id = 'save';
+      document.body.appendChild(target);
+      annotateOn(target, 'https://x/here');
+      annotateOn(target, 'https://x/there');
+
+      buildOn(() => 'https://x/here').sync();
+
+      expect(pins()).toHaveLength(1);
+    });
+
+    it('does not pin a note whose selector happens to match here', () => {
+      // The real hazard. Both screens have a `.primary` button, so resolving by
+      // selector would find one and pin the other screen's note to it.
+      const target = withRect(document.createElement('button'), { left: 10, top: 10 });
+      target.className = 'primary';
+      document.body.appendChild(target);
+      annotateOn(target, 'https://x/elsewhere');
+
+      buildOn(() => 'https://x/here').sync();
+
+      expect(pins()).toHaveLength(0);
+    });
+
+    it('keeps a number with its note when the screen changes', () => {
+      const target = withRect(document.createElement('button'), { left: 10, top: 10 });
+      target.id = 'save';
+      document.body.appendChild(target);
+      annotateOn(target, 'https://x/one');
+      annotateOn(target, 'https://x/two');
+
+      // The second note is the second of the session, so it reads 2 even when
+      // it is the only pin on show. The sidebar row numbers it the same way.
+      buildOn(() => 'https://x/two').sync();
+
+      expect(pins()).toHaveLength(1);
+      expect(pins()[0].textContent).toBe('2');
+    });
+
+    it('pins a note that names no screen at all', () => {
+      // Single-document sessions, and any note taken before pages were recorded.
+      const target = withRect(document.createElement('button'), { left: 10, top: 10 });
+      target.id = 'save';
+      document.body.appendChild(target);
+      annotate(target);
+
+      buildOn(() => 'https://x/anywhere').sync();
+
+      expect(pins()).toHaveLength(1);
+    });
+
+    it('re-pins for the new screen when the app navigates', () => {
+      const target = withRect(document.createElement('button'), { left: 10, top: 10 });
+      target.id = 'save';
+      document.body.appendChild(target);
+      annotateOn(target, 'https://x/one');
+
+      let where = 'https://x/two';
+      buildOn(() => where).sync();
+      expect(pins()).toHaveLength(0);
+
+      where = 'https://x/one';
+      window.dispatchEvent(new PopStateEvent('popstate'));
+
+      expect(pins()).toHaveLength(1);
+    });
+  });
+
   it('leaves the page clean on destroy', () => {
     const target = withRect(document.createElement('button'), { left: 10, top: 10 });
     target.id = 'save';

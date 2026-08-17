@@ -32,6 +32,14 @@ export interface PinLayerOptions {
   bus: EventBus;
   /** Our own shadow host, which must never be annotated or measured. */
   hostEl: Element;
+  /**
+   * The screen on show, so notes taken elsewhere in this pass are not pinned.
+   *
+   * A function rather than a value: the app navigates under an open sidebar, and
+   * reading it per sync is the only way to stay current. Omit it to pin every
+   * note, which is what a single-document session wants.
+   */
+  currentRoute?: () => string | null;
 }
 
 export interface PinLayer {
@@ -46,7 +54,7 @@ interface Tracked {
 }
 
 export function createPinLayer(options: PinLayerOptions): PinLayer {
-  const { doc, layerEl, host, manager, bus, hostEl } = options;
+  const { doc, layerEl, host, manager, bus, hostEl, currentRoute } = options;
 
   const tracked = new Map<string, Tracked>();
   let frame = 0;
@@ -109,10 +117,27 @@ export function createPinLayer(options: PinLayerOptions): PinLayer {
     });
   }
 
+  /**
+   * Only this screen's notes get a pin.
+   *
+   * Not left to `place()` to sort out by failing to resolve: `reanchorAnnotation`
+   * matches by selector, so a note taken on `button.primary` over on another
+   * screen will cheerfully find a different `button.primary` here and pin the
+   * wrong element. A pin on the wrong thing is worse than no pin.
+   *
+   * A note with no `capturedOn` belongs wherever it is shown. That is the
+   * single-document case, and every note taken before this field existed.
+   */
+  function belongsHere(annotation: { capturedOn?: { route: string } }): boolean {
+    const route = currentRoute?.() ?? null;
+    if (route === null || !annotation.capturedOn) return true;
+    return annotation.capturedOn.route === route;
+  }
+
   function sync(): void {
     if (destroyed) return;
     const annotations = manager.getAll();
-    const live = new Set(annotations.map((a) => a.id));
+    const live = new Set(annotations.filter(belongsHere).map((a) => a.id));
 
     for (const [id, entry] of tracked) {
       if (live.has(id)) continue;
@@ -120,7 +145,10 @@ export function createPinLayer(options: PinLayerOptions): PinLayer {
       tracked.delete(id);
     }
 
+    // Indexed over every note, not just this screen's, so a number stays with
+    // its note as you move around the app and always matches the sidebar row.
     annotations.forEach((annotation, index) => {
+      if (!live.has(annotation.id)) return;
       const existing = tracked.get(annotation.id);
       if (existing) {
         // Numbering follows creation order, so a delete renumbers the rest.
@@ -143,11 +171,13 @@ export function createPinLayer(options: PinLayerOptions): PinLayer {
 
   const unsubs = [host.onScroll(schedule), host.onResize(schedule)];
 
-  // A route change replaces the tree, so every cached node is stale.
+  // A route change replaces the tree, so every cached node is stale. It also
+  // changes the screen on show, and with it which notes belong here at all, so
+  // this rebuilds rather than only re-measuring.
   unsubs.push(
     host.onNavigate(() => {
       for (const entry of tracked.values()) entry.element = null;
-      schedule();
+      sync();
     }),
   );
 

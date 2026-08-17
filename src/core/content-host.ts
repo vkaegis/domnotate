@@ -168,6 +168,10 @@ export function createPageHost(targetWindow: Window = window): ContentHost {
      * SPA route changes. `popstate` covers back and forward only, so
      * `pushState` and `replaceState` are wrapped to announce themselves.
      *
+     * `hashchange` is in because a hash router navigates by assigning
+     * `location.hash`, which pushes a history entry without firing `popstate`.
+     * Leaving it out makes a whole class of app look motionless from here.
+     *
      * On unsubscribe the wrapper is only removed if it is still the installed
      * one: the page may have wrapped history itself in the meantime, and
      * stomping that would break the app we are a guest in.
@@ -187,9 +191,11 @@ export function createPageHost(targetWindow: Window = window): ContentHost {
         installed.set(name, { original, wrapper });
       }
       targetWindow.addEventListener('popstate', cb);
+      targetWindow.addEventListener('hashchange', cb);
 
       return () => {
         targetWindow.removeEventListener('popstate', cb);
+        targetWindow.removeEventListener('hashchange', cb);
         for (const name of slots) {
           const entry = installed.get(name);
           // Someone wrapped us afterwards; unwinding now would drop their hook.

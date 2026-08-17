@@ -71,15 +71,22 @@ HOW IT WORKS
 1. Click the Domnotate icon, or press Cmd+Shift+Y (Ctrl+Shift+Y on Windows and Linux).
 2. The sidebar docks to the right. Picking is already armed, so click any element.
 3. Type your note. Enter commits it.
-4. Copy, and paste into your agent.
+4. Press Esc to use the page, move to another screen, and annotate that one too.
+5. Copy once, and paste into your agent.
 
-Press Esc to close. Notes you have not copied yet survive closing and reopening.
+ONE PASS OVER A WHOLE APP
+
+Your notes stay with you as you move through an app, each filed under the page you took it on. One
+copy hands your agent the lot, grouped by page, so it knows which screen every note came from. Pins
+show only for the screen in front of you, because that is the only place their elements are.
 
 KNOWN LIMITS
 
 A page's full-width fixed header will run underneath the sidebar; there is no way to fix that from
-outside the page. Notes are cleared by a page reload. Chrome does not permit extensions on
-chrome:// pages, the Web Store, or the PDF viewer. Chrome only for now.
+outside the page. Notes survive moving around inside an app, and they survive closing and reopening
+the sidebar, but a full page load clears them: a browser reload, or a link that loads a new
+document. Chrome does not permit extensions on chrome:// pages, the Web Store, or the PDF viewer.
+Chrome only for now.
 
 Open source, MIT: https://github.com/vkaegis/domnotate
 ```

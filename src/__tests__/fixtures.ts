@@ -1,4 +1,11 @@
-import type { Annotation, ElementDescriptor, AnnotationSession, TextEdit, ViewScope } from '@/types/core';
+import type {
+  Annotation,
+  ElementDescriptor,
+  AnnotationSession,
+  PageRef,
+  TextEdit,
+  ViewScope,
+} from '@/types/core';
 
 let counter = 0;
 
@@ -61,6 +68,15 @@ export function makeViewScope(overrides: Partial<ViewScope> = {}): ViewScope {
     selector: `#panel-${counter}`,
     controllerSelector: `[aria-controls="panel-${counter}"]`,
     activation: 'click-controller',
+    ...overrides,
+  };
+}
+
+export function makePageRef(path = '/records/1', overrides: Partial<PageRef> = {}): PageRef {
+  return {
+    route: `https://app.example.com${path}`,
+    url: `https://app.example.com${path}`,
+    title: `Page ${path}`,
     ...overrides,
   };
 }

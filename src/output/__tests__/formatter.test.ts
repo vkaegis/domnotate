@@ -1,6 +1,13 @@
 import { describe, test, expect } from 'vitest';
 import { createOutputFormatter } from '@/output/formatter';
-import { makeSession, makeAnnotation, makeDescriptor, makeViewScope, makeTextEdit } from '@/__tests__/fixtures';
+import {
+  makeSession,
+  makeAnnotation,
+  makeDescriptor,
+  makePageRef,
+  makeViewScope,
+  makeTextEdit,
+} from '@/__tests__/fixtures';
 
 const fmt = createOutputFormatter();
 
@@ -239,6 +246,130 @@ describe('OutputFormatter', () => {
       const out = fmt.toCompact(makeSession({ edits: [edit] }));
       expect(out).toContain('# Edits:');
       expect(out).toContain('"old" → "new"');
+    });
+  });
+
+  /**
+   * A pass taken with the extension can cover several screens, so the agent has
+   * to be told which note came from where. A single-page session keeps its
+   * original shape, which is every session the web app produces.
+   */
+  describe('a pass over more than one page', () => {
+    function twoPageSession() {
+      return makeSession({
+        annotations: [
+          makeAnnotation({ text: 'on one', capturedOn: makePageRef('/records/1') }),
+          makeAnnotation({ text: 'on two', capturedOn: makePageRef('/records/2') }),
+          makeAnnotation({ text: 'also one', capturedOn: makePageRef('/records/1') }),
+        ],
+      });
+    }
+
+    test('groups the notes by the page they were taken on', () => {
+      const md = fmt.toMarkdown(twoPageSession());
+      expect(md).toContain('**Pages:** 2');
+      expect(md).toContain('# Page: Page /records/1 — https://app.example.com/records/1');
+      expect(md).toContain('# Page: Page /records/2 — https://app.example.com/records/2');
+      // Two notes on the first page, one on the second.
+      expect(md).toContain('**Annotations on this page:** 2');
+      expect(md).toContain('**Annotations on this page:** 1');
+    });
+
+    test('keeps a note numbered by its place in the session, not in its group', () => {
+      const md = fmt.toMarkdown(twoPageSession());
+      // The third note is grouped up beside the first, and still reads 3, so
+      // the number matches the pin the user saw.
+      const firstGroup = md.split('# Page:')[1];
+      expect(firstGroup).toContain('## 1.');
+      expect(firstGroup).toContain('## 3.');
+      expect(firstGroup).not.toContain('## 2.');
+    });
+
+    test('names the page by URL alone when it had no title', () => {
+      const session = makeSession({
+        annotations: [
+          makeAnnotation({ capturedOn: makePageRef('/a', { title: undefined }) }),
+          makeAnnotation({ capturedOn: makePageRef('/b', { title: undefined }) }),
+        ],
+      });
+      expect(fmt.toMarkdown(session)).toContain('# Page: https://app.example.com/a');
+    });
+
+    test('leaves a single-page session formatted as before', () => {
+      const session = makeSession({
+        annotations: [makeAnnotation({ capturedOn: makePageRef('/records/1') })],
+      });
+      const md = fmt.toMarkdown(session);
+      expect(md).not.toContain('# Page:');
+      expect(md).not.toContain('**Pages:**');
+      expect(md).toContain('## 1.');
+    });
+
+    test('leaves a session with no pages at all formatted as before', () => {
+      const md = fmt.toMarkdown(makeSession({ annotations: [makeAnnotation(), makeAnnotation()] }));
+      expect(md).not.toContain('# Page:');
+      expect(md).toContain('## 1.');
+      expect(md).toContain('## 2.');
+    });
+
+    test('falls back rather than dropping a note that names no page', () => {
+      // Mixing the two is only reachable through an imported session. Grouping
+      // around the note without a page would silently lose it, so do not group.
+      const session = makeSession({
+        annotations: [
+          makeAnnotation({ text: 'has a page', capturedOn: makePageRef('/a') }),
+          makeAnnotation({ text: 'has none' }),
+          makeAnnotation({ text: 'has another', capturedOn: makePageRef('/b') }),
+        ],
+      });
+      const md = fmt.toMarkdown(session);
+      expect(md).not.toContain('# Page:');
+      expect(md).toContain('has a page');
+      expect(md).toContain('has none');
+      expect(md).toContain('has another');
+    });
+
+    test('drops the hint route when the note records its own page', () => {
+      // The hint's route is read in the page's world when the hint resolves, a
+      // round trip after the pick, so an app that navigated in between labels
+      // the note with the wrong screen. `capturedOn` is read at the pick.
+      const drifted = makeAnnotation({
+        capturedOn: makePageRef('/records/1'),
+        sourceHint: {
+          provider: 'dom',
+          confidence: 'weak',
+          signals: [
+            { kind: 'literal-text', text: 'Save record', truncated: false },
+            { kind: 'route', url: 'https://app.example.com/settings', pathname: '/settings' },
+          ],
+        },
+      });
+      const session = makeSession({
+        annotations: [drifted, makeAnnotation({ capturedOn: makePageRef('/records/2') })],
+      });
+
+      const md = fmt.toMarkdown(session);
+      expect(md).toContain('# Page: Page /records/1 — https://app.example.com/records/1');
+      expect(md).not.toContain('route: /settings');
+    });
+
+    test('keeps the hint route when the note records no page', () => {
+      // The web app on a file has no page of its own, and the route line is the
+      // only locator it has.
+      const ann = makeAnnotation({
+        sourceHint: {
+          provider: 'dom',
+          confidence: 'weak',
+          signals: [{ kind: 'route', url: 'https://x/records/9', pathname: '/records/9' }],
+        },
+      });
+      expect(fmt.toMarkdown(makeSession({ annotations: [ann] }))).toContain('route: /records/9');
+    });
+
+    test('compact output groups by page too', () => {
+      const out = fmt.toCompact(twoPageSession());
+      expect(out).toContain('## Page: Page /records/1 — https://app.example.com/records/1');
+      expect(out).toContain('## Page: Page /records/2 — https://app.example.com/records/2');
     });
   });
 });

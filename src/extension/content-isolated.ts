@@ -20,8 +20,9 @@ import { createElementPicker, PICKER_IGNORE_ATTR } from '@/picker/picker';
 import { requestSourceHint } from '@/extension/hint-protocol';
 import { installExtensionShortcuts } from '@/extension/shortcuts';
 import { createPinLayer } from '@/extension/pins';
+import { readStash, routeLabel, routeOf, writeStash } from '@/extension/held-notes';
 import { runCopyFeedback, popIcon } from '@/sidebar/copy-animation';
-import type { Annotation, AnnotationSession } from '@/types/core';
+import type { Annotation, AnnotationSession, PageRef } from '@/types/core';
 
 import themeCss from '@/styles/theme.css?inline';
 import sidebarCss from '@/sidebar/sidebar.css?inline';
@@ -263,6 +264,59 @@ const BASE_CSS = `
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* A pass can cover several screens, so the notes carry the page they came from.
+   Borrows the shared slide-group look, which is the same idea one tier up. */
+.dn-ext-page-group {
+  padding: 10px 16px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dn-text-secondary);
+  border-bottom: 1px dashed var(--dn-border);
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dn-ext-page-group--here { color: var(--dn-accent); }
+
+/* A route is data, so it is shown exactly as the app spells it. The uppercase
+   of the slide-group look would rewrite a path like /Records/ABC-123, and a
+   reader cannot tell a styled capital from a real one. Only the label gets it. */
+.dn-ext-page-group--here .dn-ext-page-group__name {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dn-ext-page-group__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dn-ext-page-group__count {
+  flex-shrink: 0;
+  font-weight: 500;
+  color: var(--dn-text-muted);
+}
+
+/* The shared empty state takes flex: 1 to centre itself down an empty panel.
+   With another page's notes below it that greed pushes them off the fold, so
+   this screen's "nothing yet" shrinks to just its own height.
+
+   Both classes on the selector on purpose: this block is concatenated *before*
+   sidebar.css, so at equal specificity the shared rule would win. */
+.dn-empty-state.dn-empty-state--compact {
+  flex: 0 0 auto;
+  padding: 20px 24px;
+}
+
+/* Notes from a screen you are not looking at. Their elements are not here, so
+   they have no pin on the page; reading dimmer is how the row says so. */
+.dn-note-row--elsewhere { opacity: 0.55; }
+.dn-note-row--elsewhere:hover { opacity: 1; }
+.dn-note-row--elsewhere .dn-note-pin { background: var(--dn-text-muted); }
 `;
 
 // ------------------------------------------------------------
@@ -360,10 +414,21 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   // --- Core modules, reused verbatim ------------------------------------
   const bus = createEventBus();
   const manager = createAnnotationManager();
-  // Read once, at mount. The app can navigate under an open sidebar, and notes
-  // belong to the screen they were taken on, not to wherever it ended up.
-  const route = routeOf(win);
-  const stash = readStash(win, route);
+  const stash = readStash(win);
+  // Read per call, never cached. A pass follows the app across screens, so the
+  // screen on show changes under an open sidebar and a stale value would file
+  // notes under the wrong page.
+  const currentRoute = (): string => routeOf(win);
+
+  /** The screen on show, stamped onto a note as it is taken. */
+  function capturedOnNow(): PageRef {
+    const title = doc.title?.trim();
+    return {
+      route: currentRoute(),
+      url: win.location.href,
+      ...(title ? { title } : {}),
+    };
+  }
   // Every source-hint request in flight, cancelled on unmount so a pending one
   // cannot leave its nonce on a host element after we are gone.
   const hintRequests = new AbortController();
@@ -471,17 +536,23 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   // --- Scope line + notes list ------------------------------------------
   const scopeEl = doc.createElement('div');
   scopeEl.className = 'dn-ext-scope';
-  scopeEl.textContent = win.location.pathname + win.location.search;
-  scopeEl.title = win.location.href;
   sidebarEl.appendChild(scopeEl);
+
+  /** Where you are, and how much of the pass was taken somewhere else. */
+  function renderScope(elsewhere: number): void {
+    const here = win.location.pathname + win.location.search;
+    const others = elsewhere === 1 ? '1 note on another page' : `${elsewhere} notes on other pages`;
+    scopeEl.textContent = elsewhere > 0 ? `${here} · ${others}` : here;
+    scopeEl.title = win.location.href;
+  }
 
   const notesListEl = doc.createElement('div');
   notesListEl.className = 'dn-notes-list';
   sidebarEl.appendChild(notesListEl);
 
-  function renderEmptyState(): void {
+  function renderEmptyState(compact = false): void {
     const empty = doc.createElement('div');
-    empty.className = 'dn-empty-state';
+    empty.className = compact ? 'dn-empty-state dn-empty-state--compact' : 'dn-empty-state';
     const text = doc.createElement('div');
     text.className = 'dn-empty-state__text';
     text.textContent = 'Click an element to annotate it. Esc to use the page.';
@@ -505,9 +576,14 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     input.style.height = `${input.scrollHeight}px`;
   }
 
-  function createNoteRow(annotationId: string, index: number, text: string): HTMLElement {
+  function createNoteRow(
+    annotationId: string,
+    index: number,
+    text: string,
+    elsewhere = false,
+  ): HTMLElement {
     const row = doc.createElement('div');
-    row.className = 'dn-note-row';
+    row.className = elsewhere ? 'dn-note-row dn-note-row--elsewhere' : 'dn-note-row';
     row.dataset.annotationId = annotationId;
 
     const pin = doc.createElement('div');
@@ -540,21 +616,76 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   /** id of the row whose input should take focus after the next render. */
   let focusAnnotationId: string | null = null;
 
+  /** A note with no page belongs wherever it is shown. See `PageRef`. */
+  function routeFor(annotation: Annotation, here: string): string {
+    return annotation.capturedOn?.route ?? here;
+  }
+
+  function pageGroupHeader(
+    name: string,
+    count: number,
+    here: boolean,
+    title = name,
+  ): HTMLElement {
+    const header = doc.createElement('div');
+    header.className = here ? 'dn-ext-page-group dn-ext-page-group--here' : 'dn-ext-page-group';
+
+    const nameEl = doc.createElement('div');
+    nameEl.className = 'dn-ext-page-group__name';
+    nameEl.textContent = name;
+    nameEl.title = title;
+
+    const countEl = doc.createElement('div');
+    countEl.className = 'dn-ext-page-group__count';
+    countEl.textContent = String(count);
+
+    header.append(nameEl, countEl);
+    return header;
+  }
+
   function render(): void {
     const annotations = manager.getAll();
+    const here = currentRoute();
     notesListEl.replaceChildren();
 
-    if (annotations.length === 0) {
-      renderEmptyState();
-    } else {
-      annotations.forEach((annotation, i) => {
-        notesListEl.appendChild(createNoteRow(annotation.id, i, annotation.text));
-      });
-      for (const input of notesListEl.querySelectorAll<HTMLTextAreaElement>(
-        '.dn-ext-note-input',
-      )) {
-        autoGrow(input);
+    // Grouped by screen, this one first. Numbers stay the session-wide ordinal
+    // so a row and its pin agree, which means the active group can read 2, 5, 6.
+    const byRoute = new Map<string, { index: number; annotation: Annotation }[]>();
+    annotations.forEach((annotation, index) => {
+      const route = routeFor(annotation, here);
+      const group = byRoute.get(route);
+      if (group) group.push({ index, annotation });
+      else byRoute.set(route, [{ index, annotation }]);
+    });
+
+    const mine = byRoute.get(here) ?? [];
+    const others = [...byRoute.entries()].filter(([route]) => route !== here);
+    const elsewhere = annotations.length - mine.length;
+
+    renderScope(elsewhere);
+
+    // A heading over this screen's notes only earns its space once there is
+    // somewhere else to tell it apart from.
+    if (others.length > 0 && mine.length > 0) {
+      notesListEl.appendChild(pageGroupHeader('This page', mine.length, true));
+    }
+
+    for (const { index, annotation } of mine) {
+      notesListEl.appendChild(createNoteRow(annotation.id, index, annotation.text));
+    }
+
+    if (mine.length === 0) renderEmptyState(others.length > 0);
+
+    for (const [route, group] of others) {
+      const url = group[0].annotation.capturedOn?.url ?? route;
+      notesListEl.appendChild(pageGroupHeader(routeLabel(route), group.length, false, url));
+      for (const { index, annotation } of group) {
+        notesListEl.appendChild(createNoteRow(annotation.id, index, annotation.text, true));
       }
+    }
+
+    for (const input of notesListEl.querySelectorAll<HTMLTextAreaElement>('.dn-ext-note-input')) {
+      autoGrow(input);
     }
 
     const dimmed = annotations.length === 0;
@@ -577,7 +708,15 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
 
   // Text edits re-render from the manager's state, which would blow away the
   // caret, so only structural changes redraw the list.
-  const pinLayer = createPinLayer({ doc, layerEl: overlayEl, host, manager, bus, hostEl });
+  const pinLayer = createPinLayer({
+    doc,
+    layerEl: overlayEl,
+    host,
+    manager,
+    bus,
+    hostEl,
+    currentRoute,
+  });
 
   const unsubs = [
     bus.on('annotation:create', (e) => {
@@ -589,6 +728,9 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
       render();
       pinLayer.sync();
     }),
+    // The app moving is a change of screen, so this screen's group changes with
+    // it. The pin layer watches navigation itself; this is the sidebar's half.
+    host.onNavigate(() => render()),
   ];
 
   // --- Copy --------------------------------------------------------------
@@ -646,6 +788,9 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
       e.element,
       { x: e.mouseX + scrollX, y: e.mouseY + scrollY },
       '',
+      // Read here, at the pick, not at mount. A pass follows the app across
+      // screens, so only this moment knows which screen the note belongs to.
+      { capturedOn: capturedOnNow() },
     );
 
     // The element is re-resolved here because the picker event carries a
@@ -900,7 +1045,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     cancelCopyFeedback?.();
     for (const unsub of unsubs) unsub();
     pinLayer.destroy();
-    writeStash(win, manager.getAll(), route);
+    writeStash(win, manager.getAll());
     hostEl.remove();
     delete (win as unknown as Record<string, unknown>)[MOUNTED_FLAG];
   }
@@ -951,73 +1096,6 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
 // ------------------------------------------------------------
 
 const MOUNTED_FLAG = '__domnotateOverlay';
-
-/**
- * Annotations held across a close, on the isolated world's global. Content
- * scripts re-injected into the same page share that object, and the page
- * cannot see it. A page load clears them, deliberately: once notes have been
- * copied into an agent they are spent, and bringing them back days later would
- * dress stale work up as current.
- *
- * Stamped with the screen they were taken on, because a client-side SPA
- * navigation replaces neither the window nor this object. Without the stamp,
- * notes taken on one screen come back in the sidebar on the next one, attached
- * to elements that are no longer in the document.
- */
-const STASH_FLAG = '__domnotateStash';
-
-interface Stash {
-  route: string;
-  annotations: Annotation[];
-}
-
-/**
- * Which screen a stash belongs to.
- *
- * The hash is in: a hash router keeps its entire route there, so leaving it out
- * would give every screen of such an app the same label — the bug this stamp
- * exists to prevent. `search` is out: params churn without a screen change (an
- * analytics tag, an auth redirect), and a stamp that drifts on its own would
- * strand notes on a screen you are still looking at. The cost is that an app
- * routing its tabs through `?tab=` shares one label across them, which shows
- * the notes rather than hiding them — visible in the sidebar, and their pins
- * hide themselves when the elements cannot be found.
- */
-function routeOf(win: Window): string {
-  const { origin, pathname, hash } = win.location;
-  return `${origin}${pathname}${hash}`;
-}
-
-/**
- * Notes for this screen, if the stash is holding any.
- *
- * A stash stamped with a different screen is left alone rather than discarded.
- * Reopening somewhere else should show an empty sidebar; walking back should
- * still find the notes where they were left.
- */
-function readStash(win: Window, route: string): Annotation[] {
-  const stash = (win as unknown as Record<string, unknown>)[STASH_FLAG] as Stash | undefined;
-  if (!stash || !Array.isArray(stash.annotations)) return [];
-  return stash.route === route ? stash.annotations : [];
-}
-
-/**
- * Hold this session's notes for the next open, under the screen the session
- * began on rather than wherever the app has navigated to since.
- *
- * With nothing to hold, only this screen's stash is cleared. Opening and
- * closing Domnotate on another screen without writing anything must not throw
- * away the notes still waiting on the screen you came from.
- */
-export function writeStash(win: Window, annotations: Annotation[], route: string): void {
-  const scope = win as unknown as Record<string, unknown>;
-  if (annotations.length > 0) {
-    scope[STASH_FLAG] = { route, annotations } satisfies Stash;
-    return;
-  }
-  const existing = scope[STASH_FLAG] as Stash | undefined;
-  if (!existing || existing.route === route) delete scope[STASH_FLAG];
-}
 
 /**
  * Clicking the toolbar icon re-runs this whole file, so activation toggles:
