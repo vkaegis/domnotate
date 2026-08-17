@@ -150,10 +150,20 @@ describe('bleed out — nothing of ours is global', () => {
     expect(overlay.root.querySelectorAll('style').length).toBeGreaterThan(0);
   });
 
-  it('defines its theme custom properties on :host, never on :root', () => {
-    // A `--dn-*` property on the document root would be inherited by the host
-    // page's own `var()` lookups.
-    expect(themeCss).not.toContain(':root');
+  it('heads every theme block with :host as well as :root', () => {
+    // `theme.css` is one file serving two homes: the web app loads it into the
+    // document, where `:root` applies, and we inject it into a shadow root,
+    // where `:root` matches no element and only `:host` does. A block headed by
+    // `:root` alone leaves the extension without that custom property.
+    const withoutComments = themeCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    const rootOnly = (withoutComments.match(/[^{}]+(?=\{)/g) ?? [])
+      .map((prelude) => prelude.trim())
+      .filter((prelude) => prelude.includes(':root') && !prelude.includes(':host'));
+
+    expect(rootOnly).toEqual([]);
+
+    // And nothing writes `--dn-*` onto the host page's root at runtime, where
+    // the page's own `var()` lookups would inherit it.
     seedPage();
     mount();
     expect(document.documentElement.getAttribute('style') ?? '').not.toContain('--dn-');
@@ -440,6 +450,9 @@ describe('bleed in — the host page cannot reach our UI', () => {
     // `:host`, so a host page with `html { font-size: 62.5% }` would shrink the
     // whole UI. px and em are safe; rem is the one unit that leaks.
     for (const css of [themeCss, sidebarCss]) {
+      // Both imports come back empty unless `test.css` is on, and an empty
+      // string satisfies the match below without guarding anything.
+      expect(css).not.toBe('');
       expect(css.match(/[\d.]+rem\b/g)).toBeNull();
     }
   });
