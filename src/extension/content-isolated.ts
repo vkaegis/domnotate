@@ -560,6 +560,17 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     notesListEl.appendChild(empty);
   }
 
+  /**
+   * A textarea does not size to its own content, so the height is measured.
+   * `render()` rebuilds every row from scratch, which throws the measured
+   * heights away — so this has to run over the whole list after a render, not
+   * only on the row being typed into. Skipping that is how a committed
+   * multi-line note came back clipped to one line as soon as the next pin
+   * landed.
+   *
+   * `scrollHeight` is 0 until the host is in the document, so every caller has
+   * to be downstream of that.
+   */
   function autoGrow(input: HTMLTextAreaElement): void {
     input.style.height = 'auto';
     input.style.height = `${input.scrollHeight}px`;
@@ -671,6 +682,10 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
       for (const { index, annotation } of group) {
         notesListEl.appendChild(createNoteRow(annotation.id, index, annotation.text, true));
       }
+    }
+
+    for (const input of notesListEl.querySelectorAll<HTMLTextAreaElement>('.dn-ext-note-input')) {
+      autoGrow(input);
     }
 
     const dimmed = annotations.length === 0;
@@ -949,11 +964,7 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   // afternoon's notes. Annotations survive a close and come back on reopen,
   // for as long as the page is loaded and you are still on the screen they
   // were taken on.
-  if (stash.length > 0) {
-    manager.loadAnnotations(stash);
-    render();
-    pinLayer.sync();
-  }
+  if (stash.length > 0) manager.loadAnnotations(stash);
 
   // Armed on arrival. Opening Domnotate on a page is the decision to annotate
   // it, so making that cost a keystroke was asking users to say it twice.
@@ -1039,7 +1050,6 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
     delete (win as unknown as Record<string, unknown>)[MOUNTED_FLAG];
   }
 
-  render();
   // On `documentElement`, not `body`. A `transform`, `filter`, `perspective` or
   // `will-change` on any ancestor makes it the containing block for `position:
   // fixed` descendants, so a `transform: translateZ(0)` on `body` — a GPU-layer
@@ -1051,6 +1061,10 @@ export function mountDomnotate(options: MountOptions = {}): DomnotateOverlay {
   // besides head and body, but the DOM permits them and they render.
   (doc.documentElement ?? doc.body).appendChild(hostEl);
   followTopLayer();
+
+  // After the host is in the document, so restored notes can be measured.
+  render();
+  pinLayer.sync();
 
   // Two triggers, because neither covers the other.
   //
