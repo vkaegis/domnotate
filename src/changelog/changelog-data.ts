@@ -29,6 +29,12 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    title: 'One annotation pass across a whole app',
+    date: '17 Aug 2026',
+    pr: 56,
+    body: 'Notes you take with the Chrome extension now stay with you as you move through an app. Annotate a screen, press Escape, navigate somewhere else, and your earlier notes are still in the sidebar, filed under the page you took them on. Press Copy once and your agent gets the whole pass, grouped by page, so it knows which screen each note came from. Pins show only for the screen in front of you, because that is the only place their elements are.',
+  },
+  {
     title: 'Annotate any page with the Chrome extension',
     date: '12 Aug 2026',
     pr: 54,

@@ -73,8 +73,8 @@ afterEach(() => {
   delete (window as unknown as Record<string, unknown>).__domnotateOverlay;
   // Notes deliberately outlive a close, so each test has to start clean.
   delete (window as unknown as Record<string, unknown>).__domnotateStash;
-  // The stash is stamped with the route, so a test that navigates would
-  // otherwise decide what the next one restores.
+  // Each note records the screen it was taken on, so a test that navigates
+  // would otherwise decide how the next one groups.
   window.history.pushState({}, '', '/');
   vi.restoreAllMocks();
 });
@@ -726,17 +726,29 @@ describe('closing with Escape', () => {
 });
 
 /**
- * The stash lives on `window`, which a client-side navigation does not replace,
- * so held notes have to know which screen they belong to. Every case here is a
- * single-page navigation: nothing reloads, and the annotations survive in
- * memory throughout.
+ * One pass can cover a whole app. Notes stay in the sidebar as you move, filed
+ * under the screen each was taken on, so a single Copy hands the agent the lot.
+ *
+ * Every case here is a single-page navigation: nothing reloads, and the notes
+ * survive in memory throughout. A full page load still loses them, which is the
+ * known limit of holding them on the window.
  */
-describe('notes held across a close belong to one screen', () => {
+describe('notes across the screens of one pass', () => {
   function navigate(to: string): void {
     window.history.pushState({}, '', to);
   }
 
-  it('does not bring notes from one screen back on another', () => {
+  function groupHeadings(overlay: DomnotateOverlay): string[] {
+    return [...overlay.root.querySelectorAll('.dn-ext-page-group__name')].map(
+      (el) => el.textContent ?? '',
+    );
+  }
+
+  function elsewhereCount(overlay: DomnotateOverlay): number {
+    return overlay.root.querySelectorAll('.dn-note-row--elsewhere').length;
+  }
+
+  it('brings notes from another screen with you, grouped under it', () => {
     navigate('/records/1');
     const first = mount();
     annotate(first, 'align this');
@@ -744,42 +756,107 @@ describe('notes held across a close belong to one screen', () => {
 
     navigate('/records/2');
 
-    expect(noteCount(mount())).toBe(0);
+    const second = mount();
+    expect(noteCount(second)).toBe(1);
+    expect(elsewhereCount(second)).toBe(1);
+    expect(groupHeadings(second)).toContain('/records/1');
   });
 
-  it('still finds them on walking back', () => {
+  it('shrinks the empty state so notes from another page stay in view', () => {
     navigate('/records/1');
     const first = mount();
     annotate(first, 'align this');
     first.unmount();
 
-    // Opening and closing elsewhere writes nothing, and must not take the
-    // notes waiting on the screen you came from with it.
     navigate('/records/2');
-    const elsewhere = mount();
-    expect(noteCount(elsewhere)).toBe(0);
-    elsewhere.unmount();
-    navigate('/records/1');
 
-    const back = mount();
-    expect(noteCount(back)).toBe(1);
-    expect(back.toMarkdown()).toContain('align this');
+    // The shared empty state takes flex: 1, which would push the group below
+    // it off the fold on a screen you have not annotated yet.
+    const second = mount();
+    expect(query(second, '.dn-empty-state--compact')).not.toBeNull();
   });
 
-  it('counts a hash route as its own screen', () => {
+  it('gives the empty state the whole panel when there is nothing anywhere', () => {
+    expect(query(mount(), '.dn-empty-state--compact')).toBeNull();
+  });
+
+  it('keeps this screen active and the others dimmed', () => {
+    navigate('/records/1');
+    const first = mount();
+    annotate(first, 'from one');
+    first.unmount();
+
+    navigate('/records/2');
+    const second = mount();
+    annotate(second, 'from two');
+
+    expect(noteCount(second)).toBe(2);
+    expect(elsewhereCount(second)).toBe(1);
+    expect(second.root.querySelector('.dn-ext-page-group--here')).not.toBeNull();
+  });
+
+  it('copies every screen in one paste', () => {
+    navigate('/records/1');
+    const first = mount();
+    annotate(first, 'from one');
+    first.unmount();
+
+    navigate('/records/2');
+    const second = mount();
+    annotate(second, 'from two');
+
+    const md = second.toMarkdown();
+    expect(md).toContain('from one');
+    expect(md).toContain('from two');
+    expect(md).toContain('/records/1');
+    expect(md).toContain('/records/2');
+    expect(md).toContain('**Pages:** 2');
+  });
+
+  it('numbers a note the same wherever you are standing', () => {
+    navigate('/records/1');
+    const first = mount();
+    annotate(first, 'from one');
+    first.unmount();
+
+    navigate('/records/2');
+    const second = mount();
+    annotate(second, 'from two');
+
+    // The second note is the second of the session, so it reads 2 even though
+    // it is the only one on this screen. Its pin carries the same number.
+    const here = second.root.querySelector('.dn-note-row:not(.dn-note-row--elsewhere)');
+    expect(here?.querySelector('.dn-note-pin')?.textContent).toBe('2');
+  });
+
+  it('re-groups when the app navigates under an open sidebar', () => {
+    navigate('/records/1');
+    const overlay = mount();
+    annotate(overlay, 'align this');
+    expect(elsewhereCount(overlay)).toBe(0);
+
+    // The app moving for itself: a redirect, or its own route change.
+    navigate('/records/2');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+
+    expect(noteCount(overlay)).toBe(1);
+    expect(elsewhereCount(overlay)).toBe(1);
+  });
+
+  it('re-groups on a hash change', () => {
     navigate('/#/records/1');
-    const first = mount();
-    annotate(first, 'align this');
-    first.unmount();
+    const overlay = mount();
+    annotate(overlay, 'align this');
 
     navigate('/#/records/2');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
 
     // A hash router keeps its whole route after the `#`, so ignoring it would
-    // give every screen in such an app the same stamp.
-    expect(noteCount(mount())).toBe(0);
+    // make every screen of such an app look like the same one.
+    expect(elsewhereCount(overlay)).toBe(1);
   });
 
-  it('does not count a changed query param as one', () => {
+  it('treats a changed query param as the same screen', () => {
     navigate('/records/1?tab=sentiment');
     const first = mount();
     annotate(first, 'align this');
@@ -787,24 +864,27 @@ describe('notes held across a close belong to one screen', () => {
 
     navigate('/records/1?tab=summary&utm_source=slack');
 
-    // Deliberate: params churn without a screen change, and a stamp that
-    // drifted on its own would strand notes on a screen still in front of you.
-    expect(noteCount(mount())).toBe(1);
+    // Deliberate: params churn without a screen change, and a route that
+    // drifted on its own would split one screen's notes in two.
+    const second = mount();
+    expect(noteCount(second)).toBe(1);
+    expect(elsewhereCount(second)).toBe(0);
   });
 
-  it('keeps them on the screen the session began on, not wherever it ended', () => {
+  it('files a note under the screen it was taken on, not the one the session opened on', () => {
     navigate('/records/1');
     const overlay = mount();
-    annotate(overlay, 'align this');
-    // The app navigating under an open sidebar: a redirect, or a route change
-    // the page made for itself.
     navigate('/records/2');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    annotate(overlay, 'taken on two');
     overlay.unmount();
 
-    expect(noteCount(mount())).toBe(0);
-
-    live.pop()!.unmount();
+    // Mounted on /records/1, but the note was taken after the app moved, so it
+    // belongs to /records/2 and reads as elsewhere from here.
     navigate('/records/1');
-    expect(noteCount(mount())).toBe(1);
+    const back = mount();
+    expect(noteCount(back)).toBe(1);
+    expect(elsewhereCount(back)).toBe(1);
+    expect(groupHeadings(back)).toContain('/records/2');
   });
 });

@@ -58,6 +58,22 @@ export interface ViewScope {
     | 'noop';
 }
 
+/**
+ * The screen an annotation was taken on.
+ *
+ * Distinct from `ViewScope`, which names a view *inside* one document. This
+ * names the document, so a session that follows an app across routes can file
+ * each note under the page it belongs to.
+ */
+export interface PageRef {
+  /** Grouping key. Origin, pathname and hash; the query string is left out. */
+  route: string;
+  /** Full location at the moment of capture, for the agent. */
+  url: string;
+  /** Document title at capture, when there was one. */
+  title?: string;
+}
+
 export interface Annotation {
   id: string;
   /** Identified element */
@@ -77,6 +93,13 @@ export interface Annotation {
   color: string;
   /** Logical view scope active when the annotation was created */
   viewScope?: ViewScope;
+  /**
+   * The screen this note was taken on. Set only when a session can span more
+   * than one: the extension follows a live app across routes, so a note's page
+   * is not the session's page. Absent on a single-document session, which is
+   * what the web app always is.
+   */
+  capturedOn?: PageRef;
   /** Slide index (0-based) if the content is a slide deck, undefined otherwise */
   slideIndex?: number;
   createdAt: string;
@@ -264,7 +287,7 @@ export interface AnnotationManager {
     element: ElementDescriptor,
     anchorPoint: { x: number; y: number },
     text: string,
-    options?: number | { slideIndex?: number; viewScope?: ViewScope },
+    options?: number | { slideIndex?: number; viewScope?: ViewScope; capturedOn?: PageRef },
   ): Annotation;
   updateText(annotationId: string, text: string): void;
   /** Replace or clear the stored view scope on an existing annotation. */

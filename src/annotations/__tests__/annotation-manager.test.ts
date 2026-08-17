@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createEventBus } from '@/events';
-import { makeDescriptor, makeAnnotation } from '@/__tests__/fixtures';
+import { makeDescriptor, makeAnnotation, makePageRef } from '@/__tests__/fixtures';
 import type { EventBus, AnnotationManager, ViewScope } from '@/types/core';
 
 describe('AnnotationManager', () => {
@@ -126,6 +126,24 @@ describe('AnnotationManager', () => {
     const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'No slide');
     expect(ann.slideIndex).toBeUndefined();
     expect(ann.viewScope).toBeUndefined();
+  });
+
+  test('create records the page a note was taken on', () => {
+    const capturedOn = makePageRef('/records/1');
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'On a screen', { capturedOn });
+    expect(ann.capturedOn).toBe(capturedOn);
+  });
+
+  test('create omits the page when the caller does not name one', () => {
+    // The web app is always one document, so it has no page to name.
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'No page');
+    expect(ann.capturedOn).toBeUndefined();
+  });
+
+  test('create still accepts a bare slide index alongside the page option', () => {
+    const ann = manager.create(makeDescriptor(), { x: 0, y: 0 }, 'Legacy', 3);
+    expect(ann.slideIndex).toBe(3);
+    expect(ann.capturedOn).toBeUndefined();
   });
 
   test('updateScope applies scope and writes legacy slideIndex for slide scopes', () => {

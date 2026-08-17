@@ -148,6 +148,21 @@ describe('page host subscriptions', () => {
     unsub();
   });
 
+  it('reports a hash change as a navigation', () => {
+    const host = createPageHost(window);
+    const cb = vi.fn();
+    const unsub = host.onNavigate(cb);
+
+    // A hash router assigns `location.hash`, which pushes a history entry
+    // without firing popstate. Without this, such an app looks motionless.
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(cb).toHaveBeenCalledTimes(1);
+
+    unsub();
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
   it('puts history back exactly as it found it', () => {
     const before = { push: window.history.pushState, replace: window.history.replaceState };
 

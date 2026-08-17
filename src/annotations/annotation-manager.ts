@@ -7,11 +7,14 @@ import type {
   AnnotationManager,
   ElementDescriptor,
   EventBus,
+  PageRef,
   SourceHint,
   ViewScope,
 } from '@/types/core';
 
-type CreateAnnotationOptions = number | { slideIndex?: number; viewScope?: ViewScope };
+type CreateAnnotationOptions =
+  | number
+  | { slideIndex?: number; viewScope?: ViewScope; capturedOn?: PageRef };
 
 export function createAnnotationManager(): AnnotationManager {
   const store = new Map<string, Annotation>();
@@ -28,7 +31,7 @@ export function createAnnotationManager(): AnnotationManager {
 
   function normalizeCreateOptions(
     options: CreateAnnotationOptions | undefined,
-  ): { slideIndex?: number; viewScope?: ViewScope } {
+  ): { slideIndex?: number; viewScope?: ViewScope; capturedOn?: PageRef } {
     if (typeof options === 'number') return { slideIndex: options };
     return options ?? {};
   }
@@ -56,7 +59,7 @@ export function createAnnotationManager(): AnnotationManager {
     ): Annotation {
       const b = requireBus();
       const timestamp = now();
-      const { slideIndex, viewScope } = normalizeCreateOptions(options);
+      const { slideIndex, viewScope, capturedOn } = normalizeCreateOptions(options);
 
       const annotation: Annotation = {
         id: crypto.randomUUID(),
@@ -65,6 +68,7 @@ export function createAnnotationManager(): AnnotationManager {
         text,
         color: '#C4725A',
         ...(viewScope !== undefined && { viewScope }),
+        ...(capturedOn !== undefined && { capturedOn }),
         ...(slideIndex !== undefined && { slideIndex }),
         createdAt: timestamp,
         updatedAt: timestamp,

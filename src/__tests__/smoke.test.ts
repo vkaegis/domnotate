@@ -45,6 +45,7 @@ import { installSourceHintResponder } from '@/extension/content-main';
 import { mountDomnotate } from '@/extension/content-isolated';
 import { installExtensionShortcuts } from '@/extension/shortcuts';
 import { createPinLayer } from '@/extension/pins';
+import { readStash, routeLabel, routeOf, writeStash } from '@/extension/held-notes';
 import { createPinElement, PIN_SIZE } from '@/annotations/pin-element';
 import { registerCommandHandler, TOGGLE_COMMAND } from '@/extension/background';
 import { runCopyFeedback, flyPinsToButton, popIcon } from '@/sidebar/copy-animation';
@@ -104,6 +105,10 @@ describe('smoke: core module exports', () => {
     expect(typeof mountDomnotate).toBe('function');
     expect(typeof installExtensionShortcuts).toBe('function');
     expect(typeof createPinLayer).toBe('function');
+    expect(typeof routeOf).toBe('function');
+    expect(typeof routeLabel).toBe('function');
+    expect(typeof readStash).toBe('function');
+    expect(typeof writeStash).toBe('function');
     expect(typeof createPinElement).toBe('function');
     expect(typeof PIN_SIZE).toBe('number');
     expect(typeof registerCommandHandler).toBe('function');
