@@ -348,6 +348,10 @@
   min-height: 20px;
   outline: none;
   word-break: break-word;
+  /* A note is a div here and a textarea in the extension. Only the div would
+     collapse a Shift+Enter newline into a space, so the two would disagree
+     about what a multi-line note looks like. */
+  white-space: pre-wrap;
 }
 
 .dn-note-text--empty {

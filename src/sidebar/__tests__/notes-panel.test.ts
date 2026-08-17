@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import sidebarCss from '@/sidebar/sidebar.css?inline';
 import { createNotesPanel } from '@/sidebar/notes-panel';
 import { createAnnotationManager } from '@/annotations/annotation-manager';
 import { createEditManager } from '@/editor/edit-manager';
@@ -517,5 +518,46 @@ describe('NotesPanel overflow menu', () => {
       document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     }).not.toThrow();
+  });
+});
+
+describe('NotesPanel multi-line notes', () => {
+  let bus: EventBus;
+  let manager: AnnotationManager;
+  let editManager: EditManager;
+  let container: HTMLElement;
+  let styleEl: HTMLStyleElement;
+
+  beforeEach(() => {
+    bus = createEventBus();
+    manager = createAnnotationManager();
+    manager.init(bus);
+    editManager = createEditManager();
+    editManager.init(bus);
+    container = document.createElement('div');
+    document.body.innerHTML = '';
+    document.body.appendChild(container);
+    // The rule under test is in the stylesheet, which nothing else here loads.
+    styleEl = document.createElement('style');
+    styleEl.textContent = sidebarCss;
+    document.head.appendChild(styleEl);
+  });
+
+  afterEach(() => {
+    styleEl.remove();
+  });
+
+  test('shows a hard newline as a line break, matching the extension textarea', () => {
+    manager.create(makeDescriptor(), { x: 0, y: 0 }, 'first line\nsecond line');
+
+    const panel = createNotesPanel(container, bus, manager, makePicker(), makeEditor(), editManager);
+    const textEl = container.querySelector('.dn-note-text') as HTMLElement;
+
+    expect(textEl.textContent).toBe('first line\nsecond line');
+    // A div defaults to `normal`, which would collapse that newline into a
+    // space. The extension renders the same note in a textarea, which cannot.
+    expect(getComputedStyle(textEl).whiteSpace).toBe('pre-wrap');
+
+    panel.destroy();
   });
 });
