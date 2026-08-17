@@ -653,6 +653,69 @@ describe('committing a note from the keyboard', () => {
   });
 });
 
+describe('a multi-line note keeps its height', () => {
+  const LINE = 20;
+  const PER_LINE = 40;
+
+  /**
+   * happy-dom does not lay text out, so `scrollHeight` is always 0 and the
+   * measurement autoGrow depends on has to be stood in for. One line per 40
+   * characters, matching how the field wraps.
+   */
+  function stubTextHeight(): void {
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const value = (this as HTMLTextAreaElement).value ?? '';
+      return LINE * Math.max(1, Math.ceil(value.length / PER_LINE));
+    });
+  }
+
+  function inputs(overlay: DomnotateOverlay): HTMLTextAreaElement[] {
+    return [...overlay.root.querySelectorAll<HTMLTextAreaElement>('.dn-ext-note-input')];
+  }
+
+  function heights(overlay: DomnotateOverlay): string[] {
+    return inputs(overlay).map((input) => input.style.height);
+  }
+
+  /** Types into the newest row, unlike `annotate`, which takes the first. */
+  function addNote(overlay: DomnotateOverlay, note: string): void {
+    const target = document.createElement('button');
+    document.body.appendChild(target);
+    pick(overlay, target);
+    const input = inputs(overlay).at(-1)!;
+    input.value = note;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  it('regrows every row on a render, not only the row being typed into', () => {
+    stubTextHeight();
+    const overlay = mount();
+    addNote(overlay, 'x'.repeat(200));
+
+    expect(heights(overlay)).toEqual(['100px']);
+
+    // The next pin re-renders the list from scratch, which used to leave the
+    // first note clipped to one line.
+    addNote(overlay, 'short');
+
+    expect(heights(overlay)).toEqual(['100px', '20px']);
+  });
+
+  it('sizes notes restored after a close', () => {
+    stubTextHeight();
+    const first = mount();
+    addNote(first, 'x'.repeat(200));
+    first.unmount();
+    live.pop();
+
+    const second = mount();
+
+    expect(heights(second)).toEqual(['100px']);
+  });
+});
+
 describe('closing with Escape', () => {
   function pressEscape(from: EventTarget = document): KeyboardEvent {
     const event = new KeyboardEvent('keydown', {

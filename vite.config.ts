@@ -49,5 +49,8 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     include: ['src/**/*.test.ts'],
+    // Off by default, which makes every `?inline` stylesheet import resolve to
+    // the empty string. Assertions over one still run, against nothing.
+    css: true,
   },
 });
