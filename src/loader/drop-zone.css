@@ -446,11 +446,15 @@
 /* --- Responsive: stack on narrow viewports --- */
 
 @media (max-width: 860px) {
+  #app {
+    overflow-y: auto;
+  }
+
   .dn-landing {
     flex-direction: column;
     height: auto;
     min-height: 100vh;
-    overflow: auto;
+    overflow: visible;
   }
 
   .dn-landing__brand {
